@@ -1,0 +1,921 @@
+<title>onegyeok — 메인 화면 목업 (탭 중심)</title>
+<style>
+  :root{
+    --bg:#f5f3ee;
+    --bg-elevated:#ffffff;
+    --bg-sunken:#ece8dc;
+    --border:#ddd6c7;
+    --text:#221f1a;
+    --text-muted:#6f6a5c;
+    --text-faint:#9b9484;
+    --accent:#b6631f;
+    --accent-soft:rgba(182,99,31,.11);
+    --accent-contrast:#fff;
+    --ok:#3f7d4a; --ok-soft:rgba(63,125,74,.12);
+    --warn:#a5751c; --warn-soft:rgba(165,117,28,.14);
+    --danger:#b1433a; --danger-soft:rgba(177,67,58,.12);
+    --shadow:0 10px 32px rgba(34,29,20,.14);
+
+    --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+    --proto-rdp:#3f77b8; --proto-rdp-soft:rgba(63,119,184,.12);
+    --proto-vnc:#7a5bc4; --proto-vnc-soft:rgba(122,91,196,.12);
+    --proto-sftp:#2f8f7a; --proto-sftp-soft:rgba(47,143,122,.12);
+    --proto-web:#b04a79; --proto-web-soft:rgba(176,74,121,.12);
+    --rail-bg:#221f1a; --rail-text:#c9c2b2; --rail-text-dim:#78725f;
+
+    --term-bg:#18150f;
+    --term-panel:#1e1a13;
+    --term-text:#ece7d8;
+    --term-muted:#8f8874;
+    --term-accent:#e2a765;
+    --term-ok:#8fcf99;
+
+    --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI","Pretendard Variable",Pretendard,"Malgun Gothic",sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono","D2Coding",Consolas,monospace;
+
+    --fs-2xs:.6875rem; --fs-xs:.75rem; --fs-sm:.8125rem; --fs-md:.875rem; --fs-lg:1rem; --fs-xl:1.125rem;
+    --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#14171c; --bg-elevated:#1b1f26; --bg-sunken:#101317; --border:#2a2f38;
+      --text:#e9e6dd; --text-muted:#99a0ab; --text-faint:#6b7280;
+      --accent:#d98f4e; --accent-soft:rgba(217,143,78,.16); --accent-contrast:#1b1206;
+      --ok:#6fae7a; --ok-soft:rgba(111,174,122,.14);
+      --warn:#d9b23c; --warn-soft:rgba(217,178,60,.14);
+      --danger:#d97469; --danger-soft:rgba(217,116,105,.14);
+      --shadow:0 10px 32px rgba(0,0,0,.5);
+      --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+      --proto-rdp:#6aa8e8; --proto-rdp-soft:rgba(106,168,232,.16);
+      --proto-vnc:#a48ee0; --proto-vnc-soft:rgba(164,142,224,.16);
+      --proto-sftp:#5cc2a8; --proto-sftp-soft:rgba(92,194,168,.16);
+      --proto-web:#e07aa8; --proto-web-soft:rgba(224,122,168,.16);
+      --rail-bg:#0e1013; --rail-text:#c9c2b2; --rail-text-dim:#565b64;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14171c; --bg-elevated:#1b1f26; --bg-sunken:#101317; --border:#2a2f38;
+    --text:#e9e6dd; --text-muted:#99a0ab; --text-faint:#6b7280;
+    --accent:#d98f4e; --accent-soft:rgba(217,143,78,.16); --accent-contrast:#1b1206;
+    --ok:#6fae7a; --ok-soft:rgba(111,174,122,.14);
+    --warn:#d9b23c; --warn-soft:rgba(217,178,60,.14);
+    --danger:#d97469; --danger-soft:rgba(217,116,105,.14);
+    --shadow:0 10px 32px rgba(0,0,0,.5);
+    --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+    --proto-rdp:#6aa8e8; --proto-rdp-soft:rgba(106,168,232,.16);
+    --proto-vnc:#a48ee0; --proto-vnc-soft:rgba(164,142,224,.16);
+    --proto-sftp:#5cc2a8; --proto-sftp-soft:rgba(92,194,168,.16);
+    --proto-web:#e07aa8; --proto-web-soft:rgba(224,122,168,.16);
+    --rail-bg:#0e1013; --rail-text:#c9c2b2; --rail-text-dim:#565b64;
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f3ee; --bg-elevated:#ffffff; --bg-sunken:#ece8dc; --border:#ddd6c7;
+    --text:#221f1a; --text-muted:#6f6a5c; --text-faint:#9b9484;
+    --accent:#b6631f; --accent-soft:rgba(182,99,31,.11); --accent-contrast:#fff;
+    --ok:#3f7d4a; --ok-soft:rgba(63,125,74,.12);
+    --warn:#a5751c; --warn-soft:rgba(165,117,28,.14);
+    --danger:#b1433a; --danger-soft:rgba(177,67,58,.12);
+    --shadow:0 10px 32px rgba(34,29,20,.14);
+    --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+    --proto-rdp:#3f77b8; --proto-rdp-soft:rgba(63,119,184,.12);
+    --proto-vnc:#7a5bc4; --proto-vnc-soft:rgba(122,91,196,.12);
+    --proto-sftp:#2f8f7a; --proto-sftp-soft:rgba(47,143,122,.12);
+    --proto-web:#b04a79; --proto-web-soft:rgba(176,74,121,.12);
+    --rail-bg:#221f1a; --rail-text:#c9c2b2; --rail-text-dim:#78725f;
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:var(--fs-md);
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  button{font-family:inherit;}
+  svg.icon{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block;}
+
+  .app{
+    display:grid;
+    grid-template-columns:52px 236px 1fr 272px;
+    grid-template-rows:48px 1fr 26px;
+    grid-template-areas:
+      "rail topbar topbar topbar"
+      "rail sidebar main inspector"
+      "rail statusbar statusbar statusbar";
+    height:min(720px,84vh);
+    min-height:520px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+    background:var(--bg-elevated);
+    transition:grid-template-columns .16s ease;
+  }
+  .app.insp-collapsed{grid-template-columns:52px 236px 1fr 40px;}
+  @media (prefers-reduced-motion:reduce){.app{transition:none;}}
+
+  /* ---------- icon rail (protocol context switcher) ---------- */
+  .rail{grid-area:rail;background:var(--rail-bg);display:flex;flex-direction:column;align-items:center;
+    padding:var(--sp-3) 0;gap:var(--sp-2);}
+  .rail-mark{width:26px;height:26px;border-radius:7px;background:var(--accent);color:var(--accent-contrast);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;margin-bottom:var(--sp-3);
+    letter-spacing:-.02em;flex:none;}
+  .rail-btn{width:36px;height:36px;border-radius:8px;border:none;background:transparent;color:var(--rail-text-dim);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex:none;}
+  .rail-btn:hover{background:rgba(255,255,255,.07);color:var(--rail-text);}
+  .rail-btn.active{background:var(--accent-soft);color:var(--accent);}
+  .rail-btn.future{opacity:.66;}
+  .rail-btn.future:hover,.rail-btn.future.active{opacity:1;}
+  .rail-btn .badge{position:absolute;bottom:1px;right:1px;font-size:8px;line-height:1;padding:1px 3px;border-radius:4px;
+    background:var(--rail-bg);color:var(--rail-text-dim);border:1px solid rgba(255,255,255,.14);}
+  .rail-spacer{flex:1;}
+  .rail-lock{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    color:var(--ok);flex:none;}
+
+  .server.filtered-out,.group.filtered-out,.tab.filtered-out{display:none;}
+
+  /* ---------- protocol chip (shared: sidebar rows, tabs, inspector) ---------- */
+  .proto-chip{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    position:relative;flex:none;}
+  .proto-chip svg{width:12px;height:12px;stroke-width:1.8;}
+  .proto-chip.sm{width:16px;height:16px;border-radius:5px;}
+  .proto-chip.sm svg{width:10px;height:10px;}
+  .proto-chip .stat{position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border-radius:50%;
+    background:var(--text-faint);border:2px solid var(--bg-elevated);}
+  .proto-chip.sm .stat{width:6px;height:6px;}
+  .proto-chip .stat.on{background:var(--ok);}
+  .proto-chip.proto-ssh{color:var(--proto-ssh);background:var(--proto-ssh-soft);}
+  .proto-chip.proto-rdp{color:var(--proto-rdp);background:var(--proto-rdp-soft);}
+  .proto-chip.proto-vnc{color:var(--proto-vnc);background:var(--proto-vnc-soft);}
+  .proto-chip.proto-sftp{color:var(--proto-sftp);background:var(--proto-sftp-soft);}
+  .proto-chip.proto-web{color:var(--proto-web);background:var(--proto-web-soft);}
+
+  /* ---------- topbar ---------- */
+  .topbar{grid-area:topbar;display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4);
+    border-bottom:1px solid var(--border);background:var(--bg-elevated);}
+  .topbar h1{font-size:var(--fs-lg);font-weight:700;margin:0;letter-spacing:-.01em;}
+  .topbar .mock-tag{font-size:var(--fs-2xs);color:var(--text-faint);border:1px solid var(--border);border-radius:4px;
+    padding:1px 5px;letter-spacing:.03em;}
+  .palette-trigger{margin-left:auto;display:flex;align-items:center;gap:var(--sp-2);background:var(--bg-sunken);
+    border:1px solid var(--border);color:var(--text-muted);border-radius:7px;padding:6px 10px;font-size:var(--fs-sm);
+    cursor:pointer;min-width:200px;}
+  .palette-trigger kbd{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-2xs);background:var(--bg-elevated);
+    border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text-faint);}
+  .icon-toggle{width:32px;height:32px;border-radius:7px;border:1px solid transparent;background:transparent;
+    color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;}
+  .icon-toggle:hover{background:var(--bg-sunken);color:var(--text);}
+  .icon-toggle[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);}
+  .btn-primary{display:flex;align-items:center;gap:6px;background:var(--accent);color:var(--accent-contrast);
+    border:none;border-radius:7px;padding:7px 12px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;flex:none;}
+  .btn-primary:hover{filter:brightness(1.06);}
+
+  /* ---------- sidebar ---------- */
+  .sidebar{grid-area:sidebar;background:var(--bg-sunken);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;min-height:0;}
+  .sidebar-search{margin:var(--sp-3) var(--sp-3) var(--sp-2);display:flex;align-items:center;gap:6px;
+    background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:6px 8px;color:var(--text-faint);}
+  .sidebar-search input{border:none;background:transparent;outline:none;font-size:var(--fs-sm);color:var(--text);width:100%;}
+  .tree{flex:1;overflow-y:auto;padding:0 var(--sp-2) var(--sp-2);}
+  .group{margin-top:var(--sp-2);}
+  .group-head{display:flex;align-items:center;gap:5px;padding:5px 6px;font-size:var(--fs-2xs);font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);cursor:pointer;border-radius:6px;}
+  .group-head:hover{background:rgba(0,0,0,.04);}
+  .group-head svg.icon{width:12px;height:12px;transition:transform .12s ease;}
+  .group.collapsed .group-head svg.icon{transform:rotate(-90deg);}
+  .group.collapsed .group-body{display:none;}
+  .server{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 20px;border-radius:6px;cursor:pointer;
+    font-size:var(--fs-sm);color:var(--text);position:relative;}
+  .server:hover{background:rgba(0,0,0,.05);}
+  .server.selected{background:var(--accent-soft);color:var(--accent);font-weight:600;}
+  .server-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .server .go{opacity:0;width:14px;height:14px;color:var(--text-faint);}
+  .server:hover .go{opacity:1;}
+  .add-group{margin:var(--sp-2) var(--sp-2) 0;padding:7px 8px;font-size:var(--fs-xs);color:var(--text-muted);
+    background:none;border:1px dashed var(--border);border-radius:7px;cursor:pointer;text-align:left;}
+
+  /* ---------- main / tabs / terminal ---------- */
+  .main{grid-area:main;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--term-bg);}
+  .tabbar{display:flex;align-items:stretch;background:var(--bg-elevated);border-bottom:1px solid var(--border);
+    padding:6px 8px 0;gap:4px;flex:none;}
+  .tab{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 7px;font-size:var(--fs-sm);border-radius:8px 8px 0 0;
+    background:var(--bg-sunken);color:var(--text-muted);cursor:pointer;border:1px solid transparent;border-bottom:none;
+    max-width:170px;}
+  .tab.active{background:var(--term-bg);color:var(--term-text);border-color:var(--border);}
+  .tab-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tab-num{font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-left:2px;}
+  .tab.active .tab-num{color:var(--term-muted);}
+  .tab .close{opacity:.5;width:13px;height:13px;border-radius:3px;margin-left:2px;}
+  .tab .close:hover{opacity:1;background:rgba(0,0,0,.08);}
+  .tab-add{display:flex;align-items:center;justify-content:center;width:28px;color:var(--text-faint);cursor:pointer;
+    border-radius:6px;flex:none;}
+  .tab-add:hover{color:var(--text);background:rgba(0,0,0,.05);}
+  .tab-hint{margin-left:auto;align-self:center;font-size:var(--fs-2xs);color:var(--text-faint);white-space:nowrap;
+    padding:0 4px 4px;display:flex;gap:10px;}
+  .tab-hint kbd{font-family:var(--font-mono);background:var(--bg-sunken);border:1px solid var(--border);border-radius:4px;
+    padding:0 4px;}
+  @media (max-width:760px){.tab-hint{display:none;}}
+
+  .panes{flex:1;position:relative;min-height:0;}
+  .pane{position:absolute;inset:0;display:none;flex-direction:column;}
+  .pane.active{display:flex;}
+
+  .pane:not(.screen):not(.placeholder-pane){font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.65;
+    padding:var(--sp-4) var(--sp-5);color:var(--term-text);overflow-y:auto;}
+  .pane .ln{white-space:pre-wrap;word-break:break-all;}
+  .pane .prompt{color:var(--term-accent);}
+  .pane .muted{color:var(--term-muted);}
+  .pane .ok{color:var(--term-ok);}
+  .pane .cursor{display:inline-block;width:7px;height:15px;background:var(--term-accent);vertical-align:-3px;
+    animation:blink 1s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  @media (prefers-reduced-motion:reduce){.pane .cursor{animation:none;}}
+
+  .pane-empty{align-items:center;justify-content:center;color:var(--term-muted);text-align:center;gap:8px;
+    font-family:var(--font-ui);padding:var(--sp-4);}
+
+  /* rdp-style screen pane */
+  .pane.screen{padding:0;}
+  .screen-toolbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(0,0,0,.28);
+    color:var(--term-text);font-family:var(--font-ui);font-size:var(--fs-xs);border-bottom:1px solid rgba(255,255,255,.08);
+    flex:none;}
+  .screen-toolbar .grow{flex:1;}
+  .screen-toolbar .icon-btn{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    color:var(--term-muted);cursor:pointer;}
+  .screen-toolbar .icon-btn:hover{background:rgba(255,255,255,.08);color:var(--term-text);}
+  .screen-canvas{position:relative;flex:1;overflow:hidden;
+    background:linear-gradient(160deg,#1c2733,#131a22 60%,#0f151b);}
+  .screen-canvas .win{position:absolute;border-radius:8px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.09);box-shadow:0 14px 34px rgba(0,0,0,.35);}
+  .screen-badge{position:absolute;left:14px;bottom:46px;font-family:var(--font-mono);font-size:10px;
+    color:rgba(255,255,255,.6);background:rgba(0,0,0,.35);padding:3px 7px;border-radius:5px;}
+  .screen-taskbar{position:absolute;left:0;right:0;bottom:0;height:34px;background:rgba(10,14,18,.78);
+    display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid rgba(255,255,255,.08);}
+  .screen-taskbar .dot{width:6px;height:6px;border-radius:50%;background:var(--proto-rdp);opacity:.85;}
+
+  /* generic protocol placeholder pane */
+  .placeholder-pane{align-items:center;justify-content:center;gap:8px;color:var(--term-text);
+    font-family:var(--font-ui);text-align:center;}
+  .placeholder-pane .ph-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;
+    justify-content:center;}
+  .placeholder-pane .ph-icon svg{width:20px;height:20px;stroke-width:1.6;}
+  .placeholder-pane.proto-vnc .ph-icon{background:var(--proto-vnc-soft);color:var(--proto-vnc);}
+  .placeholder-pane.proto-sftp .ph-icon{background:var(--proto-sftp-soft);color:var(--proto-sftp);}
+  .placeholder-pane.proto-web .ph-icon{background:var(--proto-web-soft);color:var(--proto-web);}
+  .placeholder-pane .ph-title{font-size:var(--fs-lg);font-weight:600;}
+  .placeholder-pane .ph-desc{font-size:var(--fs-sm);color:var(--term-muted);}
+
+  /* ---------- inspector ---------- */
+  .inspector{grid-area:inspector;background:var(--bg-elevated);border-left:1px solid var(--border);
+    display:flex;overflow:hidden;}
+  .insp-body{flex:1;min-width:0;padding:var(--sp-4);overflow-y:auto;}
+  .insp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);}
+  .insp-head h2{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);
+    margin:0;font-weight:700;}
+  .insp-collapse-btn{width:22px;height:22px;border:none;background:transparent;color:var(--text-faint);
+    cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .insp-collapse-btn:hover{background:var(--bg-sunken);color:var(--text);}
+  .insp-row{display:flex;justify-content:space-between;gap:var(--sp-3);padding:7px 0;border-bottom:1px solid var(--border);
+    font-size:var(--fs-sm);}
+  .insp-row:last-of-type{border-bottom:none;}
+  .insp-label{color:var(--text-faint);flex:none;}
+  .insp-value{color:var(--text);text-align:right;font-family:var(--font-mono);font-size:var(--fs-xs);}
+  #i-proto{display:flex;align-items:center;gap:6px;justify-content:flex-end;font-family:var(--font-ui);}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-2xs);font-weight:700;padding:2px 8px;
+    border-radius:99px;}
+  .pill.ok{background:var(--ok-soft);color:var(--ok);}
+  .pill.warn{background:var(--warn-soft);color:var(--warn);}
+  .insp-actions{display:flex;flex-direction:column;gap:8px;margin-top:var(--sp-4);}
+  .insp-btn{font-size:var(--fs-xs);padding:8px 10px;border-radius:7px;border:1px solid var(--border);
+    background:var(--bg-sunken);color:var(--text);cursor:pointer;text-align:left;display:flex;align-items:center;gap:7px;}
+  .insp-btn.danger{color:var(--danger);}
+  .insp-btn.disabled{opacity:.5;cursor:default;}
+  .insp-btn:not(.disabled):hover{filter:brightness(0.97);}
+  .insp-note{margin-top:var(--sp-4);font-size:var(--fs-2xs);color:var(--text-faint);line-height:1.5;}
+
+  .insp-collapsed-handle{display:none;flex-direction:column;align-items:center;gap:10px;padding-top:14px;
+    width:100%;cursor:pointer;color:var(--text-faint);}
+  .insp-collapsed-handle:hover{color:var(--accent);}
+  .insp-handle-label{writing-mode:vertical-rl;text-orientation:mixed;font-size:var(--fs-2xs);letter-spacing:.04em;}
+  .app.insp-collapsed .insp-body{display:none;}
+  .app.insp-collapsed .insp-collapsed-handle{display:flex;}
+
+  /* ---------- statusbar ---------- */
+  .statusbar{grid-area:statusbar;display:flex;align-items:center;gap:var(--sp-4);padding:0 var(--sp-4);
+    background:var(--bg-sunken);border-top:1px solid var(--border);font-size:var(--fs-2xs);color:var(--text-muted);
+    overflow:hidden;}
+  .statusbar .grow{flex:1;}
+  .statusbar .seg{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+  .statusbar .seg svg.icon{width:12px;height:12px;}
+  .statusbar kbd{font-family:var(--font-mono);background:var(--bg-elevated);border:1px solid var(--border);
+    border-radius:4px;padding:0 4px;}
+
+  /* ---------- command palette ---------- */
+  .palette-backdrop{position:fixed;inset:0;background:rgba(10,8,4,.45);display:none;align-items:flex-start;
+    justify-content:center;padding-top:9vh;z-index:20;backdrop-filter:blur(1px);}
+  .app.palette-open .palette-backdrop{display:flex;}
+  .palette{width:min(480px,88%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;
+    box-shadow:var(--shadow);overflow:hidden;}
+  .palette-input{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);}
+  .palette-input svg.icon{color:var(--text-faint);}
+  .palette-input input{border:none;outline:none;background:transparent;font-size:var(--fs-lg);color:var(--text);width:100%;}
+  .palette-list{max-height:280px;overflow-y:auto;padding:6px;}
+  .palette-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:var(--fs-sm);}
+  .palette-item:hover,.palette-item.hi{background:var(--accent-soft);}
+  .palette-item .grp{margin-left:auto;font-size:var(--fs-2xs);color:var(--text-faint);}
+  .palette-hint{padding:8px 14px;border-top:1px solid var(--border);font-size:var(--fs-2xs);color:var(--text-faint);
+    display:flex;gap:14px;}
+  .palette-hint kbd{font-family:var(--font-mono);background:var(--bg-sunken);border:1px solid var(--border);
+    border-radius:4px;padding:0 4px;}
+
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .caption{max-width:1040px;margin:0 auto var(--sp-4);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.6;}
+  .wrap{max-width:1040px;margin:0 auto;padding:var(--sp-6) var(--sp-4);}
+  .wrap h1{font-size:1.375rem;margin:0 0 6px;letter-spacing:-.01em;}
+
+  @media (max-width:860px){
+    .app{grid-template-columns:52px 210px 1fr;grid-template-areas:
+      "rail topbar topbar"
+      "rail sidebar main"
+      "rail statusbar statusbar";}
+    .app.insp-collapsed{grid-template-columns:52px 210px 1fr;}
+    .inspector{display:none;}
+  }
+</style>
+
+<div class="wrap">
+  <h1>onegyeok — 메인 화면 (탭 중심 구성)</h1>
+  <p class="caption">맨 왼쪽 아이콘 레일이 Orca의 워크트리 전환기처럼 "전체 · SSH · RDP · VNC · SFTP · Web" 컨텍스트를 전환합니다.
+  <b>전체</b>에서는 모든 프로토콜의 탭을 자유롭게 섞어서 오갈 수 있고, 특정 프로토콜을 클릭하면 사이드바와 탭이 그 프로토콜만
+  걸러져 보입니다(세션은 유지된 채 화면만 필터링). 탭은 <kbd style="font-family:var(--font-mono);font-size:11px;">⌘1‑9</kbd> /
+  <kbd style="font-family:var(--font-mono);font-size:11px;">⌘⌥←→</kbd> 로 오갈 수 있고, 오른쪽 "연결 정보" 패널은 topbar 아이콘이나
+  패널 안 화살표로 접었다 펼 수 있습니다. SSH는 Phase 1부터, 나머지는 Phase 배지로 로드맵을 표시합니다.</p>
+
+  <div class="app" id="app">
+    <div class="palette-backdrop" id="paletteBackdrop">
+      <div class="palette">
+        <div class="palette-input">
+          <svg class="icon" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+          <input id="paletteInput" type="text" placeholder="서버 이름, 호스트로 검색..." autocomplete="off">
+        </div>
+        <div class="palette-list" id="paletteList"></div>
+        <div class="palette-hint">
+          <span><kbd>↑↓</kbd> 이동</span>
+          <span><kbd>Enter</kbd> 연결</span>
+          <span><kbd>Esc</kbd> 닫기</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- icon rail: protocol context switcher -->
+    <nav class="rail" aria-label="프로토콜 컨텍스트 전환">
+      <div class="rail-mark">og</div>
+      <button class="rail-btn active" data-filter="all" title="전체 보기">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.2"></rect><rect x="11" y="3" width="6" height="6" rx="1.2"></rect><rect x="3" y="11" width="6" height="6" rx="1.2"></rect><rect x="11" y="11" width="6" height="6" rx="1.2"></rect></svg>
+      </button>
+      <button class="rail-btn" data-filter="ssh" title="SSH">
+        <svg class="icon" viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>
+      </button>
+      <button class="rail-btn future" data-filter="rdp" title="RDP · Phase 4 예정">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>
+        <span class="badge">P4</span>
+      </button>
+      <button class="rail-btn future" data-filter="vnc" title="VNC · Phase 5 예정">
+        <svg class="icon" viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>
+        <span class="badge">P5</span>
+      </button>
+      <button class="rail-btn future" data-filter="sftp" title="SFTP · Phase 2 예정">
+        <svg class="icon" viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+        <span class="badge">P2</span>
+      </button>
+      <button class="rail-btn future" data-filter="web" title="Web 콘솔 · Phase 5 예정">
+        <svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg>
+        <span class="badge">P5</span>
+      </button>
+      <div class="rail-spacer"></div>
+      <div class="rail-lock" title="마스터 패스워드로 잠금 해제됨">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8" rx="1.4"></rect><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"></path></svg>
+      </div>
+    </nav>
+
+    <!-- topbar -->
+    <header class="topbar">
+      <h1>onegyeok</h1>
+      <span class="mock-tag">컨셉 목업</span>
+      <button class="palette-trigger" id="paletteOpenBtn">
+        <svg class="icon" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+        서버 검색 / 빠른 연결
+        <kbd>⌘K</kbd>
+      </button>
+      <button class="icon-toggle" id="inspToggleBtn" aria-pressed="true" title="연결 정보 패널 토글 (⌘I)">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.4"></rect><line x1="13" y1="3.5" x2="13" y2="16.5"></line></svg>
+      </button>
+      <button class="btn-primary">
+        <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><line x1="10" y1="3" x2="10" y2="17"></line><line x1="3" y1="10" x2="17" y2="10"></line></svg>
+        서버 등록
+      </button>
+    </header>
+
+    <!-- sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-search">
+        <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+        <input type="text" placeholder="서버 검색...">
+      </div>
+      <div class="tree" id="tree">
+        <div class="group" data-group>
+          <div class="group-head" data-toggle>
+            <svg class="icon" viewBox="0 0 20 20"><polyline points="6 4 13 10 6 16"></polyline></svg>
+            운영
+          </div>
+          <div class="group-body">
+            <div class="server selected" data-id="prod-web-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.23:22" data-auth="SSH Key (id_rsa)" data-tmux="prod-web-01" data-status="on" data-autologin="ok" data-since="12분 전 연결됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+              <span class="server-name">prod-web-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="prod-db-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.31:22" data-auth="비밀번호" data-tmux="prod-db-01" data-status="on" data-autologin="ok" data-since="1시간 전 연결됨" data-jump="bastion-01">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+              <span class="server-name">prod-db-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="prod-cache" data-protocol="ssh" data-group="운영" data-host="10.0.1.44:22" data-auth="SSH Key (id_ed25519)" data-tmux="—" data-status="off" data-autologin="ok" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">prod-cache</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="win-app-01" data-protocol="rdp" data-group="운영" data-host="10.0.1.55:3389" data-auth="Windows 계정" data-tmux="—" data-status="on" data-autologin="ok" data-since="6분 전 연결됨" data-jump="없음">
+              <span class="proto-chip proto-rdp"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg><span class="stat on"></span></span>
+              <span class="server-name">win-app-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="grafana-console" data-protocol="web" data-group="운영" data-host="grafana.internal" data-auth="SSO" data-tmux="—" data-status="off" data-autologin="ok" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-web"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg><span class="stat"></span></span>
+              <span class="server-name">grafana-console</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="group collapsed" data-group>
+          <div class="group-head" data-toggle>
+            <svg class="icon" viewBox="0 0 20 20"><polyline points="6 4 13 10 6 16"></polyline></svg>
+            스테이징
+          </div>
+          <div class="group-body">
+            <div class="server" data-id="stg-web-01" data-protocol="ssh" data-group="스테이징" data-host="10.0.2.10:22" data-auth="비밀번호" data-tmux="stg-web-01" data-status="off" data-autologin="warn" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">stg-web-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="group" data-group>
+          <div class="group-head" data-toggle>
+            <svg class="icon" viewBox="0 0 20 20"><polyline points="6 4 13 10 6 16"></polyline></svg>
+            개발
+          </div>
+          <div class="group-body">
+            <div class="server" data-id="dev-01" data-protocol="ssh" data-group="개발" data-host="192.168.0.15:22" data-auth="비밀번호" data-tmux="dev-01" data-status="off" data-autologin="ok" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">dev-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="bastion-01" data-protocol="ssh" data-group="개발" data-host="203.0.113.9:22" data-auth="SSH Key (id_rsa)" data-tmux="—" data-status="off" data-autologin="ok" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">bastion-01 <span style="color:var(--text-faint);font-weight:400;">· Jump</span></span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="kiosk-01" data-protocol="vnc" data-group="개발" data-host="192.168.0.40:5900" data-auth="화면 공유 암호" data-tmux="—" data-status="off" data-autologin="ok" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-vnc"><svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg><span class="stat"></span></span>
+              <span class="server-name">kiosk-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="nas-01" data-protocol="sftp" data-group="개발" data-host="192.168.0.50:22" data-auth="비밀번호" data-tmux="—" data-status="off" data-autologin="ok" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-sftp"><svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg><span class="stat"></span></span>
+              <span class="server-name">nas-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="add-group">+ 그룹 추가</button>
+    </aside>
+
+    <!-- main / tabs / terminal -->
+    <section class="main">
+      <div class="tabbar" id="tabbar">
+        <div class="tab active" data-id="prod-web-01" data-protocol="ssh">
+          <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+          <span class="tab-name">prod-web-01</span><span class="tab-num">1</span>
+          <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+        </div>
+        <div class="tab" data-id="win-app-01" data-protocol="rdp">
+          <span class="proto-chip sm proto-rdp"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg><span class="stat on"></span></span>
+          <span class="tab-name">win-app-01</span><span class="tab-num">2</span>
+          <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+        </div>
+        <div class="tab" data-id="prod-db-01" data-protocol="ssh">
+          <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+          <span class="tab-name">prod-db-01</span><span class="tab-num">3</span>
+          <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+        </div>
+        <div class="tab-add" title="새 탭">
+          <svg class="icon" viewBox="0 0 20 20"><line x1="10" y1="4" x2="10" y2="16"></line><line x1="4" y1="10" x2="16" y2="10"></line></svg>
+        </div>
+        <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> 이전·다음</span></div>
+      </div>
+      <div class="panes" id="panes">
+        <div class="pane active" data-id="prod-web-01">
+          <div class="ln muted">Connecting to 10.0.1.23:22 ...</div>
+          <div class="ln muted">Last login: Tue Sep 30 09:12:41 2026 from 10.0.1.2</div>
+          <div class="ln muted">tmux: attaching to session 'prod-web-01' (created)</div>
+          <div class="ln">&nbsp;</div>
+          <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> ls -al /var/www</div>
+          <div class="ln muted">total 24</div>
+          <div class="ln muted">drwxr-xr-x  4 root root 4096 Sep 30 08:55 .</div>
+          <div class="ln muted">drwxr-xr-x 14 root root 4096 Aug 02 11:20 ..</div>
+          <div class="ln muted">drwxr-xr-x  3 root root 4096 Sep 30 08:55 onegyeok-web</div>
+          <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> systemctl status nginx --no-pager | head -3</div>
+          <div class="ln ok">● nginx.service - A high performance web server</div>
+          <div class="ln muted">   Active: active (running) since Mon 2026-09-29 03:10:02 UTC</div>
+          <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> <span class="cursor"></span></div>
+        </div>
+        <div class="pane screen" data-id="win-app-01">
+          <div class="screen-toolbar">
+            <span>win-app-01 · RDP · 1920×1080</span>
+            <span class="grow"></span>
+            <span class="icon-btn" title="클립보드 동기화"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><rect x="6" y="3" width="8" height="4" rx="1"></rect><path d="M5 5H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-1"></path></svg></span>
+            <span class="icon-btn" title="전체화면"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 7V4a1 1 0 0 0-1-1h-3M3 13v3a1 1 0 0 0 1 1h3M17 13v3a1 1 0 0 1-1 1h-3"></path></svg></span>
+            <span class="icon-btn" title="연결 종료"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg></span>
+          </div>
+          <div class="screen-canvas">
+            <div class="win" style="left:7%;top:10%;width:44%;height:54%;"></div>
+            <div class="win" style="left:38%;top:28%;width:40%;height:46%;"></div>
+            <span class="screen-badge">원격 제어 중 · 지연 24ms</span>
+            <div class="screen-taskbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          </div>
+        </div>
+        <div class="pane" data-id="prod-db-01">
+          <div class="ln muted">Connecting to 10.0.1.31:22 via bastion-01 ...</div>
+          <div class="ln muted">tmux: attaching to session 'prod-db-01' (created)</div>
+          <div class="ln">&nbsp;</div>
+          <div class="ln"><span class="prompt">svc@prod-db-01</span><span class="muted">:~$</span> sudo -i</div>
+          <div class="ln"><span class="prompt">root@prod-db-01</span><span class="muted">:~#</span> mysql -e "show slave status\G" | head -4</div>
+          <div class="ln muted">Slave_IO_Running: Yes</div>
+          <div class="ln muted">Slave_SQL_Running: Yes</div>
+          <div class="ln"><span class="prompt">root@prod-db-01</span><span class="muted">:~#</span> <span class="cursor"></span></div>
+        </div>
+        <div class="pane pane-empty" id="emptyPane" data-id="__empty">
+          <svg class="icon" viewBox="0 0 20 20" style="width:26px;height:26px;color:var(--term-muted)"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>
+          <div id="emptyMsg">왼쪽에서 서버를 선택하면 여기에 세션이 열립니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- inspector -->
+    <aside class="inspector" id="inspector">
+      <div class="insp-collapsed-handle" id="inspHandle" title="연결 정보 펼치기 (⌘I)">
+        <svg class="icon" viewBox="0 0 20 20"><polyline points="13 4 7 10 13 16"></polyline></svg>
+        <span class="insp-handle-label">연결 정보</span>
+      </div>
+      <div class="insp-body" id="inspBody">
+        <div class="insp-head">
+          <h2>연결 정보</h2>
+          <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="7 4 13 10 7 16"></polyline></svg>
+          </button>
+        </div>
+        <div class="insp-row"><span class="insp-label">서버</span><span class="insp-value" id="i-name">prod-web-01</span></div>
+        <div class="insp-row"><span class="insp-label">그룹</span><span class="insp-value" id="i-group">운영</span></div>
+        <div class="insp-row"><span class="insp-label">프로토콜</span><span class="insp-value" id="i-proto"><span class="proto-chip sm" id="i-proto-chip"></span><span id="i-proto-label"></span></span></div>
+        <div class="insp-row"><span class="insp-label">호스트</span><span class="insp-value" id="i-host">10.0.1.23:22</span></div>
+        <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
+        <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
+        <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
+        <div class="insp-row"><span class="insp-label">자동로그인</span><span class="insp-value"><span class="pill ok" id="i-autologin">자동로그인</span></span></div>
+        <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
+
+        <div class="insp-actions">
+          <button class="insp-btn disabled">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+            SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
+          </button>
+          <button class="insp-btn">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><rect x="4" y="9" width="12" height="8" rx="1.4"></rect><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"></path></svg>
+            비밀번호 재등록
+          </button>
+          <button class="insp-btn danger">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
+            연결 종료
+          </button>
+        </div>
+        <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다. 재접속 시 자동으로 이어집니다.</p>
+      </div>
+    </aside>
+
+    <!-- statusbar -->
+    <footer class="statusbar">
+      <span class="seg">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8" rx="1.4"></rect><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"></path></svg>
+        잠금 해제됨
+      </span>
+      <span class="seg">3개 서버 연결됨 · 6개 대기</span>
+      <span class="seg">보기: <b id="filterLabel" style="color:var(--text);font-weight:700;">전체</b></span>
+      <span class="grow"></span>
+      <span class="seg"><kbd>⌘1‑9</kbd> 탭 전환</span>
+      <span class="seg"><kbd>⌘I</kbd> 연결정보</span>
+      <span class="seg">onegyeok v0.1</span>
+    </footer>
+  </div>
+</div>
+
+<script>
+(function(){
+  var appEl = document.getElementById('app');
+  var tree = document.getElementById('tree');
+  var tabbar = document.getElementById('tabbar');
+  var panes = document.getElementById('panes');
+  var inspToggleBtn = document.getElementById('inspToggleBtn');
+  var inspHandle = document.getElementById('inspHandle');
+  var inspCollapseBtn = document.getElementById('inspCollapseBtn');
+
+  var PROTO = {
+    ssh:  { label:'SSH',  icon:'<svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>' },
+    rdp:  { label:'RDP',  icon:'<svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>' },
+    vnc:  { label:'VNC',  icon:'<svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>' },
+    sftp: { label:'SFTP', icon:'<svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>' },
+    web:  { label:'Web',  icon:'<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg>' }
+  };
+
+  // ---- group collapse / server select ----
+  tree.addEventListener('click', function(e){
+    var head = e.target.closest('[data-toggle]');
+    if(head){ head.closest('.group').classList.toggle('collapsed'); return; }
+    var row = e.target.closest('.server');
+    if(row){ selectServer(row.dataset.id); }
+  });
+
+  function inspectorFor(id){
+    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    if(!row) return;
+    var proto = row.dataset.protocol;
+    document.getElementById('i-name').textContent = id;
+    document.getElementById('i-group').textContent = row.dataset.group;
+    document.getElementById('i-host').textContent = row.dataset.host;
+    document.getElementById('i-auth').textContent = row.dataset.auth;
+    document.getElementById('i-jump').textContent = row.dataset.jump;
+    document.getElementById('i-tmux').textContent = row.dataset.tmux;
+    document.getElementById('i-since').textContent = row.dataset.since;
+    document.getElementById('i-proto-label').textContent = PROTO[proto].label;
+    var chip = document.getElementById('i-proto-chip');
+    chip.className = 'proto-chip sm proto-' + proto;
+    chip.innerHTML = PROTO[proto].icon;
+    document.getElementById('row-jump').style.display = proto === 'ssh' ? '' : 'none';
+    document.getElementById('row-tmux').style.display = proto === 'ssh' ? '' : 'none';
+    var pill = document.getElementById('i-autologin');
+    if(row.dataset.autologin === 'warn'){
+      pill.className = 'pill warn'; pill.textContent = '만료됨 · 재등록 필요';
+    } else {
+      pill.className = 'pill ok'; pill.textContent = '자동로그인';
+    }
+  }
+
+  function ensurePane(id){
+    var pane = panes.querySelector('.pane[data-id="'+id+'"]');
+    if(pane) return pane;
+    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    var proto = row.dataset.protocol;
+    var el = document.createElement('div');
+    el.dataset.id = id;
+    if(proto === 'ssh'){
+      el.className = 'pane';
+      el.innerHTML =
+        '<div class="ln muted">Connecting to '+row.dataset.host+' ...</div>' +
+        '<div class="ln muted">tmux: attaching to session \''+row.dataset.tmux+'\' (created)</div>' +
+        '<div class="ln">&nbsp;</div>' +
+        '<div class="ln"><span class="prompt">root@'+id+'</span><span class="muted">:~#</span> <span class="cursor"></span></div>';
+    } else if(proto === 'rdp'){
+      el.className = 'pane screen';
+      el.innerHTML =
+        '<div class="screen-toolbar"><span>'+id+' · RDP</span><span class="grow"></span>' +
+        '<span class="icon-btn" title="전체화면"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 7V4a1 1 0 0 0-1-1h-3M3 13v3a1 1 0 0 0 1 1h3M17 13v3a1 1 0 0 1-1 1h-3"></path></svg></span></div>' +
+        '<div class="screen-canvas"><div class="win" style="left:12%;top:14%;width:50%;height:56%;"></div>' +
+        '<span class="screen-badge">원격 제어 중</span>' +
+        '<div class="screen-taskbar"><span class="dot"></span><span class="dot"></span></div></div>';
+    } else {
+      el.className = 'pane placeholder-pane proto-' + proto;
+      el.innerHTML =
+        '<div class="ph-icon">'+PROTO[proto].icon+'</div>' +
+        '<div class="ph-title">'+id+'</div>' +
+        '<div class="ph-desc">'+PROTO[proto].label+' 세션이 여기에 표시됩니다.</div>';
+    }
+    panes.appendChild(el);
+    return el;
+  }
+
+  var currentFilter = 'all';
+  var lastActiveByFilter = {};
+  var emptyPane = document.getElementById('emptyPane');
+  var emptyMsgEl = document.getElementById('emptyMsg');
+  var filterLabelEl = document.getElementById('filterLabel');
+
+  function visibleTabs(){
+    return Array.prototype.filter.call(tabbar.querySelectorAll('.tab'), function(t){
+      return !t.classList.contains('filtered-out');
+    });
+  }
+
+  function renumberTabs(){
+    var vis = visibleTabs();
+    vis.forEach(function(t, i){ t.querySelector('.tab-num').textContent = (i < 9) ? String(i+1) : ''; });
+    tabbar.querySelectorAll('.tab.filtered-out .tab-num').forEach(function(n){ n.textContent = ''; });
+  }
+
+  function ensureTab(id){
+    var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+    if(tab) return tab;
+    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    var proto = row.dataset.protocol;
+    tab = document.createElement('div');
+    tab.className = 'tab';
+    tab.dataset.id = id;
+    tab.dataset.protocol = proto;
+    var statOn = row.dataset.status === 'on' ? ' on' : '';
+    tab.innerHTML =
+      '<span class="proto-chip sm proto-'+proto+'">'+PROTO[proto].icon+'<span class="stat'+statOn+'"></span></span>' +
+      '<span class="tab-name">'+id+'</span><span class="tab-num"></span>' +
+      '<svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>';
+    tabbar.insertBefore(tab, tabbar.querySelector('.tab-add'));
+    renumberTabs();
+    return tab;
+  }
+
+  function recordActive(id){
+    var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+    if(!tab) return;
+    lastActiveByFilter['all'] = id;
+    lastActiveByFilter[tab.dataset.protocol] = id;
+  }
+
+  function activate(id){
+    emptyPane.classList.remove('active');
+    tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.dataset.id === id); });
+    panes.querySelectorAll('.pane').forEach(function(p){ p.classList.toggle('active', p.dataset.id === id); });
+    tree.querySelectorAll('.server').forEach(function(s){ s.classList.toggle('selected', s.dataset.id === id); });
+    inspectorFor(id);
+    recordActive(id);
+  }
+
+  function activateEmpty(filter){
+    tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    panes.querySelectorAll('.pane').forEach(function(p){ p.classList.remove('active'); });
+    tree.querySelectorAll('.server').forEach(function(s){ s.classList.remove('selected'); });
+    emptyMsgEl.textContent = filter === 'all'
+      ? '왼쪽에서 서버를 선택하면 여기에 세션이 열립니다.'
+      : PROTO[filter].label + ' 서버를 선택하면 여기에 세션이 열립니다. (열린 ' + PROTO[filter].label + ' 세션 없음)';
+    emptyPane.classList.add('active');
+  }
+
+  function applyFilter(filter){
+    currentFilter = filter;
+    tree.querySelectorAll('.server').forEach(function(s){
+      s.classList.toggle('filtered-out', !(filter === 'all' || s.dataset.protocol === filter));
+    });
+    tree.querySelectorAll('.group').forEach(function(g){
+      var vis = g.querySelectorAll('.server:not(.filtered-out)').length;
+      g.classList.toggle('filtered-out', vis === 0);
+    });
+    tabbar.querySelectorAll('.tab').forEach(function(t){
+      t.classList.toggle('filtered-out', !(filter === 'all' || t.dataset.protocol === filter));
+    });
+    renumberTabs();
+    document.querySelectorAll('.rail-btn[data-filter]').forEach(function(b){
+      b.classList.toggle('active', b.dataset.filter === filter);
+    });
+    filterLabelEl.textContent = filter === 'all' ? '전체' : PROTO[filter].label;
+
+    var vis = visibleTabs();
+    var remembered = lastActiveByFilter[filter];
+    var rememberedTab = remembered && tabbar.querySelector('.tab[data-id="'+remembered+'"]');
+    if(rememberedTab && !rememberedTab.classList.contains('filtered-out')){
+      activate(remembered);
+    } else if(vis.length){
+      activate(vis[0].dataset.id);
+    } else {
+      activateEmpty(filter);
+    }
+  }
+
+  function selectServer(id){
+    ensureTab(id);
+    ensurePane(id);
+    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    var proto = row.dataset.protocol;
+    if(currentFilter !== 'all' && currentFilter !== proto){
+      applyFilter(proto);
+    }
+    activate(id);
+  }
+
+  document.querySelectorAll('.rail-btn[data-filter]').forEach(function(btn){
+    btn.addEventListener('click', function(){ applyFilter(btn.dataset.filter); });
+  });
+
+  tabbar.addEventListener('click', function(e){
+    if(e.target.closest('.tab-add')){ openPalette(); return; }
+    var close = e.target.closest('.close');
+    var tab = e.target.closest('.tab');
+    if(!tab) return;
+    if(close){
+      var id = tab.dataset.id;
+      var wasActive = tab.classList.contains('active');
+      var pane = panes.querySelector('.pane[data-id="'+id+'"]');
+      tab.remove();
+      if(pane) pane.remove();
+      renumberTabs();
+      if(wasActive){
+        var remaining = visibleTabs()[0];
+        if(remaining) activate(remaining.dataset.id); else activateEmpty(currentFilter);
+      }
+      return;
+    }
+    activate(tab.dataset.id);
+  });
+
+  // ---- inspector toggle ----
+  var inspOpen = true;
+  function setInspector(open){
+    inspOpen = open;
+    appEl.classList.toggle('insp-collapsed', !open);
+    inspToggleBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+  }
+  function toggleInspector(){ setInspector(!inspOpen); }
+  inspToggleBtn.addEventListener('click', toggleInspector);
+  inspHandle.addEventListener('click', toggleInspector);
+  inspCollapseBtn.addEventListener('click', toggleInspector);
+
+  // ---- command palette ----
+  var paletteOpenBtn = document.getElementById('paletteOpenBtn');
+  var paletteBackdrop = document.getElementById('paletteBackdrop');
+  var paletteInput = document.getElementById('paletteInput');
+  var paletteList = document.getElementById('paletteList');
+
+  function allServers(){
+    return Array.prototype.map.call(tree.querySelectorAll('.server'), function(s){
+      return { id:s.dataset.id, group:s.dataset.group, proto:s.dataset.protocol };
+    });
+  }
+
+  function renderPalette(q){
+    var items = allServers().filter(function(s){
+      return !q || s.id.toLowerCase().indexOf(q.toLowerCase()) > -1;
+    });
+    paletteList.innerHTML = items.map(function(s, i){
+      return '<div class="palette-item'+(i===0?' hi':'')+'" data-id="'+s.id+'">' +
+        '<span class="proto-chip sm proto-'+s.proto+'">'+PROTO[s.proto].icon+'</span>' +
+        '<span>'+s.id+'</span><span class="grp">'+s.group+' · '+PROTO[s.proto].label+'</span></div>';
+    }).join('') || '<div class="palette-item" style="color:var(--text-faint)">결과 없음</div>';
+  }
+
+  function openPalette(){
+    appEl.classList.add('palette-open');
+    paletteInput.value = '';
+    renderPalette('');
+    setTimeout(function(){ paletteInput.focus(); }, 0);
+  }
+  function closePalette(){ appEl.classList.remove('palette-open'); }
+
+  paletteOpenBtn.addEventListener('click', openPalette);
+  paletteBackdrop.addEventListener('click', function(e){ if(e.target === paletteBackdrop) closePalette(); });
+  paletteInput.addEventListener('input', function(){ renderPalette(paletteInput.value); });
+  paletteList.addEventListener('click', function(e){
+    var item = e.target.closest('.palette-item[data-id]');
+    if(item){ selectServer(item.dataset.id); closePalette(); }
+  });
+
+  // ---- keyboard shortcuts ----
+  document.addEventListener('keydown', function(e){
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); openPalette(); return; }
+    if(e.key === 'Escape'){ closePalette(); return; }
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'i'){ e.preventDefault(); toggleInspector(); return; }
+    if((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)){
+      e.preventDefault();
+      var tabs = visibleTabs();
+      var idx = parseInt(e.key, 10) - 1;
+      if(tabs[idx]) activate(tabs[idx].dataset.id);
+      return;
+    }
+    var next = (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowRight');
+    var prev = (e.ctrlKey && e.key === 'Tab' && e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowLeft');
+    if(next || prev){
+      e.preventDefault();
+      var list = visibleTabs();
+      if(!list.length) return;
+      var cur = list.findIndex(function(t){ return t.classList.contains('active'); });
+      var to = next ? (cur + 1) % list.length : (cur - 1 + list.length) % list.length;
+      activate(list[to].dataset.id);
+    }
+  });
+
+  renumberTabs();
+  recordActive('prod-web-01');
+})();
+</script>
