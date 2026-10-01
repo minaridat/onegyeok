@@ -1,5 +1,6 @@
 <title>onegyeok — 메인 화면 목업 (탭 중심)</title>
 <style>
+
   :root{
     --bg:#f5f3ee;
     --bg-elevated:#ffffff;
@@ -84,31 +85,40 @@
     --rail-bg:#221f1a; --rail-text:#c9c2b2; --rail-text-dim:#78725f;
   }
 
+  html,body{height:100%;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:var(--fs-md);
-    -webkit-font-smoothing:antialiased;overflow-x:hidden;}
+    -webkit-font-smoothing:antialiased;overflow:hidden;}
   button{font-family:inherit;}
   svg.icon{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block;}
 
   .app{
+    --sidebar-w:236px;
+    --inspector-w:272px;
     display:grid;
-    grid-template-columns:52px 236px 1fr 272px;
+    grid-template-columns:52px var(--sidebar-w) 5px 1fr 5px var(--inspector-w);
     grid-template-rows:48px 1fr 26px;
     grid-template-areas:
-      "rail topbar topbar topbar"
-      "rail sidebar main inspector"
-      "rail statusbar statusbar statusbar";
-    height:min(720px,84vh);
-    min-height:520px;
-    border:1px solid var(--border);
-    border-radius:10px;
+      "rail topbar topbar topbar topbar topbar"
+      "rail sidebar rzl main rzr inspector"
+      "rail statusbar statusbar statusbar statusbar statusbar";
+    height:100vh;
+    width:100vw;
     overflow:hidden;
     box-shadow:var(--shadow);
     background:var(--bg-elevated);
-    transition:grid-template-columns .16s ease;
   }
-  .app.insp-collapsed{grid-template-columns:52px 236px 1fr 40px;}
-  @media (prefers-reduced-motion:reduce){.app{transition:none;}}
+  .app.insp-collapsed{grid-template-columns:52px var(--sidebar-w) 5px 1fr 0px 40px;}
+  .app.resizing{cursor:col-resize;user-select:none;}
+
+  /* ---------- panel resize handles ---------- */
+  .resizer{position:relative;background:transparent;cursor:col-resize;z-index:5;}
+  .resizer::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--border);
+    transform:translateX(-50%);}
+  .resizer:hover::after,.resizer.dragging::after{background:var(--accent);width:2px;}
+  .resizer-sidebar{grid-area:rzl;}
+  .resizer-inspector{grid-area:rzr;}
+  .app.insp-collapsed .resizer-inspector{pointer-events:none;}
 
   /* ---------- icon rail (protocol context switcher) ---------- */
   .rail{grid-area:rail;background:var(--rail-bg);display:flex;flex-direction:column;align-items:center;
@@ -168,10 +178,11 @@
   .btn-secondary{display:flex;align-items:center;gap:6px;background:var(--bg-sunken);border:1px solid var(--border);
     color:var(--text);border-radius:7px;padding:7px 12px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;flex:none;}
   .btn-secondary:hover{background:var(--border);}
+  .btn-secondary.sm{padding:6px 10px;font-size:var(--fs-xs);}
 
   /* ---------- sidebar ---------- */
   .sidebar{grid-area:sidebar;background:var(--bg-sunken);border-right:1px solid var(--border);
-    display:flex;flex-direction:column;min-height:0;}
+    display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;}
   .sidebar-search{margin:var(--sp-3) var(--sp-3) var(--sp-2);display:flex;align-items:center;gap:6px;
     background:var(--bg-elevated);border:1px solid var(--border);border-radius:7px;padding:6px 8px;color:var(--text-faint);}
   .sidebar-search input{border:none;background:transparent;outline:none;font-size:var(--fs-sm);color:var(--text);width:100%;}
@@ -195,11 +206,19 @@
 
   /* ---------- main / tabs / terminal ---------- */
   .main{grid-area:main;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--term-bg);}
-  .tabbar{display:flex;align-items:stretch;background:var(--bg-elevated);border-bottom:1px solid var(--border);
-    padding:6px 8px 0;gap:4px;flex:none;}
+  .tabbar-row{display:flex;align-items:stretch;background:var(--bg-elevated);border-bottom:1px solid var(--border);
+    padding:6px 8px 0;gap:2px;flex:none;min-width:0;}
+  .tab-scroll-btn{display:none;align-items:center;justify-content:center;width:20px;height:28px;flex:none;
+    align-self:center;color:var(--text-faint);background:transparent;border:none;cursor:pointer;border-radius:6px;}
+  .tab-scroll-btn:hover{background:var(--bg-sunken);color:var(--text);}
+  .tab-scroll-btn.show{display:flex;}
+  .tab-scroll-btn svg.icon{width:14px;height:14px;}
+  .tabbar{display:flex;align-items:stretch;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;
+    scroll-behavior:smooth;}
+  .tabbar::-webkit-scrollbar{display:none;}
   .tab{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 7px;font-size:var(--fs-sm);border-radius:8px 8px 0 0;
     background:var(--bg-sunken);color:var(--text-muted);cursor:pointer;border:1px solid transparent;border-bottom:none;
-    max-width:170px;}
+    max-width:170px;flex:none;}
   .tab.active{background:var(--term-bg);color:var(--term-text);border-color:var(--border);}
   .tab-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .tab-num{font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-left:2px;}
@@ -209,11 +228,10 @@
   .tab-add{display:flex;align-items:center;justify-content:center;width:28px;color:var(--text-faint);cursor:pointer;
     border-radius:6px;flex:none;}
   .tab-add:hover{color:var(--text);background:rgba(0,0,0,.05);}
-  .tab-hint{margin-left:auto;align-self:center;font-size:var(--fs-2xs);color:var(--text-faint);white-space:nowrap;
-    padding:0 4px 4px;display:flex;gap:10px;}
-  .tab-hint kbd{font-family:var(--font-mono);background:var(--bg-sunken);border:1px solid var(--border);border-radius:4px;
+  .tab-hint{font-size:var(--fs-2xs);color:var(--text-faint);padding:0 var(--sp-3) var(--sp-2);
+    display:flex;flex-direction:column;gap:3px;flex:none;}
+  .tab-hint kbd{font-family:var(--font-mono);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;
     padding:0 4px;}
-  @media (max-width:760px){.tab-hint{display:none;}}
 
   .panes{flex:1;position:relative;min-height:0;}
   .pane{position:absolute;inset:0;display:none;flex-direction:column;}
@@ -267,15 +285,23 @@
   /* ---------- inspector ---------- */
   .inspector{grid-area:inspector;background:var(--bg-elevated);border-left:1px solid var(--border);
     display:flex;overflow:hidden;}
-  .insp-body{flex:1;min-width:0;padding:var(--sp-4);overflow-y:auto;display:flex;flex-direction:column;}
-  .insp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);}
-  .insp-head h2{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);
-    margin:0;font-weight:700;}
+  .insp-body{flex:1;min-width:0;padding:var(--sp-4);display:flex;flex-direction:column;overflow:hidden;}
+  .insp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);
+    gap:8px;flex:none;}
+  .insp-tabs{display:flex;gap:4px;min-width:0;}
+  .insp-tab{font-size:var(--fs-xs);font-weight:700;padding:5px 10px;border-radius:7px;border:none;
+    background:transparent;color:var(--text-faint);cursor:pointer;white-space:nowrap;}
+  .insp-tab:hover{color:var(--text);background:var(--bg-sunken);}
+  .insp-tab.active{background:var(--accent-soft);color:var(--accent);}
   .insp-collapse-btn{width:22px;height:22px;border:none;background:transparent;color:var(--text-faint);
     cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:none;}
   .insp-collapse-btn:hover{background:var(--bg-sunken);color:var(--text);}
+
+  .insp-pane{display:none;}
+  .insp-pane.active{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;}
+
   .insp-row{display:flex;justify-content:space-between;gap:var(--sp-3);padding:7px 0;border-bottom:1px solid var(--border);
-    font-size:var(--fs-sm);}
+    font-size:var(--fs-sm);flex:none;}
   .insp-row:last-of-type{border-bottom:none;}
   .insp-label{color:var(--text-faint);flex:none;}
   .insp-value{color:var(--text);text-align:right;font-family:var(--font-mono);font-size:var(--fs-xs);}
@@ -285,22 +311,24 @@
   .pill.ok{background:var(--ok-soft);color:var(--ok);}
   .pill.warn{background:var(--warn-soft);color:var(--warn);}
   .pill.off{background:var(--bg-sunken);color:var(--text-faint);}
-  .insp-actions{display:flex;flex-direction:column;gap:8px;margin-top:var(--sp-4);}
+  .insp-actions{display:flex;flex-direction:column;gap:8px;margin-top:var(--sp-4);flex:none;}
   .insp-btn{font-size:var(--fs-xs);padding:8px 10px;border-radius:7px;border:1px solid var(--border);
     background:var(--bg-sunken);color:var(--text);cursor:pointer;text-align:left;display:flex;align-items:center;gap:7px;}
   .insp-btn.danger{color:var(--danger);}
   .insp-btn.disabled{opacity:.5;cursor:default;}
   .insp-btn:not(.disabled):hover{filter:brightness(0.97);}
-  .insp-memo{display:flex;flex-direction:column;gap:6px;margin-top:var(--sp-4);flex:1;min-height:110px;}
-  .insp-memo-head{display:flex;align-items:center;justify-content:space-between;}
-  .insp-memo-head label{font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);
-    font-weight:700;}
-  .insp-memo-warn{font-size:var(--fs-2xs);color:var(--warn);}
+  .insp-note{margin-top:var(--sp-4);font-size:var(--fs-2xs);color:var(--text-faint);line-height:1.5;flex:none;}
+
+  .insp-memo{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;}
+  .insp-memo-head{display:flex;align-items:center;gap:8px;flex:none;}
+  .insp-memo-status{font-size:var(--fs-2xs);color:var(--ok);opacity:0;transition:opacity .2s ease;}
+  .insp-memo-status.show{opacity:1;}
+  .insp-memo-status.err{color:var(--danger);}
+  .insp-memo-warn{font-size:var(--fs-2xs);color:var(--warn);margin-left:auto;}
   .insp-memo textarea{flex:1;resize:none;background:var(--bg-sunken);border:1px solid var(--border);border-radius:7px;
     padding:8px 10px;font-size:var(--fs-sm);font-family:inherit;color:var(--text);line-height:1.5;min-height:90px;}
   .insp-memo textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent;}
   .insp-memo textarea::placeholder{color:var(--text-faint);}
-  .insp-note{margin-top:var(--sp-4);font-size:var(--fs-2xs);color:var(--text-faint);line-height:1.5;flex:none;}
 
   .insp-collapsed-handle{display:none;flex-direction:column;align-items:center;gap:10px;padding-top:14px;
     width:100%;cursor:pointer;color:var(--text-faint);}
@@ -396,31 +424,49 @@
   .edit-error{font-size:var(--fs-2xs);color:var(--danger);margin:0;min-height:14px;}
   .edit-footer{display:flex;align-items:center;gap:8px;padding:var(--sp-4);border-top:1px solid var(--border);}
 
+  /* ---------- 범용 텍스트 입력 모달 (window.prompt 대체) ---------- */
+  .prompt-backdrop{position:fixed;inset:0;background:rgba(10,8,4,.55);display:none;align-items:center;
+    justify-content:center;z-index:50;}
+  .prompt-backdrop.show{display:flex;}
+  .prompt-modal{width:min(340px,90%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;
+    box-shadow:var(--shadow);padding:var(--sp-4);display:flex;flex-direction:column;gap:10px;}
+  .prompt-modal h3{margin:0;font-size:var(--fs-md);font-weight:700;}
+  .prompt-modal input{background:var(--bg-sunken);border:1px solid var(--border);border-radius:7px;padding:8px 10px;
+    font-size:var(--fs-sm);font-family:inherit;color:var(--text);}
+  .prompt-modal input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent;}
+  .prompt-footer{display:flex;justify-content:flex-end;gap:8px;}
+
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  @media (max-width:860px){
+    .app{grid-template-columns:52px var(--sidebar-w) 5px 1fr;grid-template-areas:
+      "rail topbar topbar topbar"
+      "rail sidebar rzl main"
+      "rail statusbar statusbar statusbar";}
+    .app.insp-collapsed{grid-template-columns:52px var(--sidebar-w) 5px 1fr;}
+    .inspector{display:none;}
+    .resizer-inspector{display:none;}
+  }
+
+
+
+
 
   .caption{max-width:1040px;margin:0 auto var(--sp-4);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.6;}
   .wrap{max-width:1040px;margin:0 auto;padding:var(--sp-6) var(--sp-4);}
   .wrap h1{font-size:1.375rem;margin:0 0 6px;letter-spacing:-.01em;}
-
-  @media (max-width:860px){
-    .app{grid-template-columns:52px 210px 1fr;grid-template-areas:
-      "rail topbar topbar"
-      "rail sidebar main"
-      "rail statusbar statusbar";}
-    .app.insp-collapsed{grid-template-columns:52px 210px 1fr;}
-    .inspector{display:none;}
-  }
 </style>
 
 <div class="wrap">
   <h1>onegyeok — 메인 화면 (탭 중심 구성)</h1>
   <p class="caption">맨 왼쪽 아이콘 레일이 Orca의 워크트리 전환기처럼 "전체 · SSH · RDP · VNC · SFTP · Web" 컨텍스트를 전환합니다.
   <b>전체</b>에서는 모든 프로토콜의 탭을 자유롭게 섞어서 오갈 수 있고, 특정 프로토콜을 클릭하면 사이드바와 탭이 그 프로토콜만
-  걸러져 보입니다(세션은 유지된 채 화면만 필터링). 탭은 <kbd style="font-family:var(--font-mono);font-size:11px;">⌘1‑9</kbd> /
-  <kbd style="font-family:var(--font-mono);font-size:11px;">⌘⌥←→</kbd> 또는 <kbd style="font-family:var(--font-mono);font-size:11px;">⌘&lt;/⌘&gt;</kbd>(윈도우는 Ctrl)로 오갈 수 있고, 오른쪽 "연결 정보" 패널은 topbar 아이콘이나
-  패널 안 화살표로 접었다 펼 수 있습니다. SSH는 Phase 1부터, 나머지는 Phase 배지로 로드맵을 표시합니다.
-  상단의 <b>[서버 관리]</b> 버튼을 누르면 등록된 서버 전체를 테이블로 조회·검색·정렬하고 바로 수정/삭제할 수 있는 화면(S7)이 열립니다 —
-  여기서 수정하면 왼쪽 트리에도 즉시 반영됩니다.</p>
+  걸러져 보입니다(세션은 유지된 채 화면만 필터링). 탭 전환 단축키 힌트는 왼쪽 서버 검색창 바로 아래에 있고, 오른쪽 "연결 정보"
+  패널은 topbar 아이콘이나 패널 안 화살표로 접었다 펼 수 있습니다. SSH는 Phase 1부터, 나머지는 Phase 배지로 로드맵을 표시합니다.
+  상단의 <b>[서버 관리]</b> 버튼을 누르면 등록된 서버 전체를 테이블로 조회·검색·정렬하고 바로 수정/삭제할 수 있는 화면(S7)이 열리고,
+  여기서도 그룹을 새로 만들 수 있습니다. 사이드바·연결정보 패널 경계선을 끝까지 드래그하면 패널이 접히고, 레일의 전체/프로토콜
+  버튼을 누르면 접혔던 사이드바가 다시 펼쳐집니다. 탭이 많아 넘치면 좌우 화살표로 스크롤되고, 연결 정보 패널 위쪽의
+  "연결정보"/"메모" 탭을 눌러 서버 메모장을 전환할 수 있습니다.</p>
 
   <div class="app" id="app">
     <div class="palette-backdrop" id="paletteBackdrop">
@@ -467,6 +513,10 @@
             <option value="web">Web</option>
           </select>
           <select id="manageGroupFilter"><option value="all">그룹 전체</option></select>
+          <button class="btn-secondary sm" id="manageAddGroupBtn" title="새 그룹 추가">
+            <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><line x1="10" y1="3" x2="10" y2="17"></line><line x1="3" y1="10" x2="17" y2="10"></line></svg>
+            그룹 추가
+          </button>
         </div>
         <div class="manage-table-wrap">
           <table class="manage-table">
@@ -507,7 +557,7 @@
         </div>
         <div class="edit-body">
           <label>이름<input type="text" id="f-name" placeholder="prod-web-01"></label>
-          <label>그룹<input type="text" id="f-group" list="groupDatalist" placeholder="운영"><datalist id="groupDatalist"></datalist></label>
+          <label>그룹<select id="f-group"></select></label>
           <label>프로토콜
             <select id="f-protocol">
               <option value="ssh">SSH</option>
@@ -532,6 +582,19 @@
           <span class="grow"></span>
           <button class="insp-btn" id="editCancelBtn">취소</button>
           <button class="btn-primary" id="editSaveBtn">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 범용 텍스트 입력 모달 (Electron에서는 window.prompt()가 지원되지 않아 직접 구현) -->
+    <div class="prompt-backdrop" id="promptBackdrop">
+      <div class="prompt-modal">
+        <h3 id="promptTitle">새 그룹 추가</h3>
+        <input type="text" id="promptInput" placeholder="그룹 이름">
+        <p class="edit-error" id="promptError"></p>
+        <div class="prompt-footer">
+          <button class="insp-btn" id="promptCancelBtn">취소</button>
+          <button class="btn-primary" id="promptOkBtn">추가</button>
         </div>
       </div>
     </div>
@@ -595,6 +658,7 @@
         <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
         <input type="text" placeholder="서버 검색...">
       </div>
+      <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
       <div class="tree" id="tree">
         <div class="group" data-group>
           <div class="group-head" data-toggle>
@@ -676,8 +740,14 @@
       <button class="add-group">+ 그룹 추가</button>
     </aside>
 
+    <div class="resizer resizer-sidebar" id="resizerSidebar"></div>
+
     <!-- main / tabs / terminal -->
     <section class="main">
+      <div class="tabbar-row">
+        <button class="tab-scroll-btn" id="tabScrollLeft" title="이전 탭 보기">
+          <svg class="icon" viewBox="0 0 20 20"><polyline points="12 4 6 10 12 16"></polyline></svg>
+        </button>
       <div class="tabbar" id="tabbar">
         <div class="tab active" data-id="prod-web-01" data-protocol="ssh">
           <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
@@ -697,7 +767,10 @@
         <div class="tab-add" title="새 탭">
           <svg class="icon" viewBox="0 0 20 20"><line x1="10" y1="4" x2="10" y2="16"></line><line x1="4" y1="10" x2="16" y2="10"></line></svg>
         </div>
-        <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
+      </div>
+        <button class="tab-scroll-btn" id="tabScrollRight" title="다음 탭 보기">
+          <svg class="icon" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+        </button>
       </div>
       <div class="panes" id="panes">
         <div class="pane active" data-id="prod-web-01">
@@ -747,6 +820,8 @@
       </div>
     </section>
 
+    <div class="resizer resizer-inspector" id="resizerInspector"></div>
+
     <!-- inspector -->
     <aside class="inspector" id="inspector">
       <div class="insp-collapsed-handle" id="inspHandle" title="연결 정보 펼치기 (⌘I)">
@@ -755,41 +830,49 @@
       </div>
       <div class="insp-body" id="inspBody">
         <div class="insp-head">
-          <h2>연결 정보</h2>
+          <div class="insp-tabs" role="tablist">
+            <button class="insp-tab active" type="button" data-tab="info">연결 정보</button>
+            <button class="insp-tab" type="button" data-tab="memo">메모</button>
+          </div>
           <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기">
             <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="7 4 13 10 7 16"></polyline></svg>
           </button>
         </div>
-        <div class="insp-row"><span class="insp-label">서버</span><span class="insp-value" id="i-name">prod-web-01</span></div>
-        <div class="insp-row"><span class="insp-label">그룹</span><span class="insp-value" id="i-group">운영</span></div>
-        <div class="insp-row"><span class="insp-label">프로토콜</span><span class="insp-value" id="i-proto"><span class="proto-chip sm" id="i-proto-chip"></span><span id="i-proto-label"></span></span></div>
-        <div class="insp-row"><span class="insp-label">호스트</span><span class="insp-value" id="i-host">10.0.1.23:22</span></div>
-        <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
-        <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
-        <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
-        <div class="insp-row"><span class="insp-label">비밀번호 저장</span><span class="insp-value"><span class="pill off">저장 안 함 · 매번 직접 입력</span></span></div>
-        <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
 
-        <div class="insp-actions">
-          <button class="insp-btn disabled">
-            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
-            SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
-          </button>
-          <button class="insp-btn danger">
-            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
-            연결 종료
-          </button>
-        </div>
+        <div class="insp-pane active" data-pane="info">
+          <div class="insp-row"><span class="insp-label">서버</span><span class="insp-value" id="i-name">prod-web-01</span></div>
+          <div class="insp-row"><span class="insp-label">그룹</span><span class="insp-value" id="i-group">운영</span></div>
+          <div class="insp-row"><span class="insp-label">프로토콜</span><span class="insp-value" id="i-proto"><span class="proto-chip sm" id="i-proto-chip"></span><span id="i-proto-label"></span></span></div>
+          <div class="insp-row"><span class="insp-label">호스트</span><span class="insp-value" id="i-host">10.0.1.23:22</span></div>
+          <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
+          <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
+          <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
+          <div class="insp-row"><span class="insp-label">비밀번호 저장</span><span class="insp-value"><span class="pill off">저장 안 함 · 매번 직접 입력</span></span></div>
+          <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
 
-        <div class="insp-memo">
-          <div class="insp-memo-head">
-            <label for="i-memo">메모</label>
-            <span class="insp-memo-warn">민감정보 금지</span>
+          <div class="insp-actions">
+            <button class="insp-btn disabled">
+              <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+              SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
+            </button>
+            <button class="insp-btn danger">
+              <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
+              연결 종료
+            </button>
           </div>
-          <textarea id="i-memo" placeholder="임시로 붙여넣거나 적어둘 메모 (배포 명령어, 체크리스트 등)"></textarea>
+
+          <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다(재접속 시 자동으로 이어짐). 단, 비밀번호는 저장되지 않으며 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다.</p>
         </div>
 
-        <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다(재접속 시 자동으로 이어짐). 단, 비밀번호는 저장되지 않으며 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다.</p>
+        <div class="insp-pane" data-pane="memo">
+          <div class="insp-memo">
+            <div class="insp-memo-head">
+              <span class="insp-memo-status" id="i-memo-status"></span>
+              <span class="insp-memo-warn">민감정보 금지</span>
+            </div>
+            <textarea id="i-memo" placeholder="임시로 붙여넣거나 적어둘 메모 (배포 명령어, 체크리스트 등)"></textarea>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -810,6 +893,7 @@
 </div>
 
 <script>
+
 (function(){
   var appEl = document.getElementById('app');
   var tree = document.getElementById('tree');
@@ -818,6 +902,54 @@
   var inspToggleBtn = document.getElementById('inspToggleBtn');
   var inspHandle = document.getElementById('inspHandle');
   var inspCollapseBtn = document.getElementById('inspCollapseBtn');
+
+  // ---- sidebar / inspector panel resize (드래그로 좌우 폭 조절, 끝까지 밀면 접힘) ----
+  var SIDEBAR_FALLBACK_W = 236;
+  var INSPECTOR_FALLBACK_W = 272;
+  var INSPECTOR_COLLAPSE_AT = 90;
+
+  function setupResizer(handleEl, cssVar, opts){
+    var dragging = false, startX = 0, startWidth = 0;
+    handleEl.addEventListener('mousedown', function(e){
+      dragging = true;
+      handleEl.classList.add('dragging');
+      appEl.classList.add('resizing');
+      startX = e.clientX;
+      startWidth = parseInt(getComputedStyle(appEl).getPropertyValue(cssVar), 10) || opts.fallback;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e){
+      if(!dragging) return;
+      var delta = (e.clientX - startX) * (opts.reverse ? -1 : 1);
+      // 범위를 작은 고정값으로 가두지 않고, 창 폭 기준으로 넉넉하게만 제한한다 (끝까지 밀면 0까지 줄어들어 접힘).
+      var maxW = Math.max(opts.fallback, window.innerWidth - opts.reserve);
+      var newW = Math.min(maxW, Math.max(0, startWidth + delta));
+      appEl.style.setProperty(cssVar, newW + 'px');
+      if(opts.onWidthChange) opts.onWidthChange(newW);
+    });
+    document.addEventListener('mouseup', function(){
+      if(!dragging) return;
+      dragging = false;
+      handleEl.classList.remove('dragging');
+      appEl.classList.remove('resizing');
+      document.body.style.userSelect = '';
+    });
+  }
+
+  setupResizer(document.getElementById('resizerSidebar'), '--sidebar-w', {
+    reverse:false, fallback:SIDEBAR_FALLBACK_W, reserve:600
+  });
+  setupResizer(document.getElementById('resizerInspector'), '--inspector-w', {
+    reverse:true, fallback:INSPECTOR_FALLBACK_W, reserve:600,
+    onWidthChange: function(w){
+      // 연결정보 패널은 이미 있는 접힘 상태(아이콘/핸들로 재오픈)로 스냅시킨다.
+      if(w < INSPECTOR_COLLAPSE_AT && inspOpen){
+        setInspector(false);
+        appEl.style.setProperty('--inspector-w', INSPECTOR_FALLBACK_W + 'px');
+      }
+    }
+  });
 
   var PROTO = {
     ssh:  { label:'SSH',  icon:'<svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>' },
@@ -923,22 +1055,102 @@
     if(row){ selectServer(row.dataset.id); }
   });
 
-  document.querySelector('.add-group').addEventListener('click', function(){
-    var name = prompt('새 그룹 이름을 입력하세요');
-    if(!name) return;
-    name = name.trim();
-    if(!name || GROUP_ORDER.indexOf(name) > -1) return;
-    GROUP_ORDER.push(name);
-    renderTree();
-    populateGroupSelectors();
+  // ---- 범용 텍스트 입력 모달 (Electron은 window.prompt()를 지원하지 않아 직접 구현) ----
+  var promptBackdrop = document.getElementById('promptBackdrop');
+  var promptInput = document.getElementById('promptInput');
+  var promptTitleEl = document.getElementById('promptTitle');
+  var promptErrorEl = document.getElementById('promptError');
+  var promptOkBtn = document.getElementById('promptOkBtn');
+  var promptCancelBtn = document.getElementById('promptCancelBtn');
+
+  function showTextPrompt(title, placeholder){
+    return new Promise(function(resolve){
+      promptTitleEl.textContent = title;
+      promptInput.placeholder = placeholder || '';
+      promptInput.value = '';
+      promptErrorEl.textContent = '';
+      promptBackdrop.classList.add('show');
+      setTimeout(function(){ promptInput.focus(); }, 0);
+
+      function cleanup(){
+        promptBackdrop.classList.remove('show');
+        promptOkBtn.removeEventListener('click', onOk);
+        promptCancelBtn.removeEventListener('click', onCancel);
+        promptInput.removeEventListener('keydown', onKeydown);
+        promptBackdrop.removeEventListener('click', onBackdropClick);
+      }
+      function onOk(){
+        var v = promptInput.value.trim();
+        cleanup();
+        resolve(v || null);
+      }
+      function onCancel(){ cleanup(); resolve(null); }
+      function onKeydown(e){
+        if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); onOk(); }
+        else if(e.key === 'Escape'){ e.stopPropagation(); onCancel(); }
+      }
+      function onBackdropClick(e){ if(e.target === promptBackdrop) onCancel(); }
+
+      promptOkBtn.addEventListener('click', onOk);
+      promptCancelBtn.addEventListener('click', onCancel);
+      promptInput.addEventListener('keydown', onKeydown);
+      promptBackdrop.addEventListener('click', onBackdropClick);
+    });
+  }
+
+  function addNewGroup(){
+    return showTextPrompt('새 그룹 추가', '예: 모니터링').then(function(name){
+      if(!name) return null;
+      if(GROUP_ORDER.indexOf(name) === -1) GROUP_ORDER.push(name);
+      renderTree();
+      populateGroupSelectors();
+      return name;
+    });
+  }
+
+  document.querySelector('.add-group').addEventListener('click', function(){ addNewGroup(); });
+  document.getElementById('manageAddGroupBtn').addEventListener('click', function(){
+    addNewGroup().then(function(name){ if(name) renderManageTable(); });
   });
 
   var currentInspectedId = null;
   var memoEl = document.getElementById('i-memo');
+  var memoStatusEl = document.getElementById('i-memo-status');
+  var memoSaveTimer = null;
+  var hasMemoBridge = !!(window.onegyeok && window.onegyeok.saveMemo);
+
+  function showMemoStatus(text, isError){
+    memoStatusEl.textContent = text;
+    memoStatusEl.classList.toggle('err', !!isError);
+    memoStatusEl.classList.add('show');
+    clearTimeout(memoStatusEl._hideTimer);
+    memoStatusEl._hideTimer = setTimeout(function(){ memoStatusEl.classList.remove('show'); }, 1500);
+  }
+
+  function persistMemo(serverId, text){
+    if(!hasMemoBridge || !serverId) return;
+    window.onegyeok.saveMemo(serverId, text).then(function(res){
+      if(res && res.ok) showMemoStatus('저장됨');
+      else showMemoStatus('저장 불가(암호화 미지원)', true);
+    }).catch(function(){ showMemoStatus('저장 실패', true); });
+  }
+
+  function scheduleMemoSave(serverId, text){
+    clearTimeout(memoSaveTimer);
+    memoSaveTimer = setTimeout(function(){ persistMemo(serverId, text); }, 400);
+  }
+
+  function flushMemoSave(){
+    clearTimeout(memoSaveTimer);
+    if(!currentInspectedId) return;
+    var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
+    if(srv) persistMemo(currentInspectedId, srv.memo || '');
+  }
 
   function inspectorFor(id){
     var row = tree.querySelector('.server[data-id="'+id+'"]');
     if(!row) return;
+    if(currentInspectedId && currentInspectedId !== id) flushMemoSave();
     currentInspectedId = id;
     var proto = row.dataset.protocol;
     document.getElementById('i-name').textContent = id;
@@ -956,13 +1168,17 @@
     document.getElementById('row-tmux').style.display = proto === 'ssh' ? '' : 'none';
     var srv = SERVERS.find(function(s){ return s.id === id; });
     memoEl.value = (srv && srv.memo) || '';
+    memoStatusEl.classList.remove('show');
   }
 
   memoEl.addEventListener('input', function(e){
     if(!currentInspectedId) return;
     var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
     if(srv) srv.memo = e.target.value;
+    scheduleMemoSave(currentInspectedId, e.target.value);
   });
+  memoEl.addEventListener('blur', flushMemoSave);
+  window.addEventListener('beforeunload', flushMemoSave);
 
   function ensurePane(id){
     var pane = panes.querySelector('.pane[data-id="'+id+'"]');
@@ -1013,7 +1229,25 @@
     var vis = visibleTabs();
     vis.forEach(function(t, i){ t.querySelector('.tab-num').textContent = (i < 9) ? String(i+1) : ''; });
     tabbar.querySelectorAll('.tab.filtered-out .tab-num').forEach(function(n){ n.textContent = ''; });
+    updateTabScrollButtons();
   }
+
+  // ---- tab overflow scrolling (탭이 넘치면 화살표로 이동) ----
+  var tabScrollLeftBtn = document.getElementById('tabScrollLeft');
+  var tabScrollRightBtn = document.getElementById('tabScrollRight');
+
+  function updateTabScrollButtons(){
+    var overflowing = tabbar.scrollWidth > tabbar.clientWidth + 1;
+    tabScrollLeftBtn.classList.toggle('show', overflowing && tabbar.scrollLeft > 2);
+    tabScrollRightBtn.classList.toggle('show', overflowing && (tabbar.scrollLeft + tabbar.clientWidth < tabbar.scrollWidth - 2));
+  }
+  tabbar.addEventListener('scroll', updateTabScrollButtons);
+  window.addEventListener('resize', updateTabScrollButtons);
+  if(window.ResizeObserver){
+    new ResizeObserver(updateTabScrollButtons).observe(tabbar);
+  }
+  tabScrollLeftBtn.addEventListener('click', function(){ tabbar.scrollBy({ left: -160, behavior: 'smooth' }); });
+  tabScrollRightBtn.addEventListener('click', function(){ tabbar.scrollBy({ left: 160, behavior: 'smooth' }); });
 
   function ensureTab(id){
     var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
@@ -1043,11 +1277,17 @@
 
   function activate(id){
     emptyPane.classList.remove('active');
-    tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.dataset.id === id); });
+    var activeTab = null;
+    tabbar.querySelectorAll('.tab').forEach(function(t){
+      var match = t.dataset.id === id;
+      t.classList.toggle('active', match);
+      if(match) activeTab = t;
+    });
     panes.querySelectorAll('.pane').forEach(function(p){ p.classList.toggle('active', p.dataset.id === id); });
     tree.querySelectorAll('.server').forEach(function(s){ s.classList.toggle('selected', s.dataset.id === id); });
     inspectorFor(id);
     recordActive(id);
+    if(activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }
 
   function activateEmpty(filter){
@@ -1061,6 +1301,11 @@
   }
 
   function applyFilter(filter){
+    // 사이드바가 드래그로 완전히 접혀 있으면, 레일 버튼(전체/프로토콜) 클릭으로도 다시 펼친다.
+    var curSidebarW = parseInt(getComputedStyle(appEl).getPropertyValue('--sidebar-w'), 10) || 0;
+    if(curSidebarW < 20){
+      appEl.style.setProperty('--sidebar-w', SIDEBAR_FALLBACK_W + 'px');
+    }
     currentFilter = filter;
     applyTreeFilterVisual();
     tabbar.querySelectorAll('.tab').forEach(function(t){
@@ -1096,6 +1341,7 @@
   }
 
   function removeServerById(id){
+    if(hasMemoBridge) window.onegyeok.saveMemo(id, '');
     SERVERS = SERVERS.filter(function(s){ return s.id !== id; });
     var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
     if(tab){
@@ -1128,7 +1374,10 @@
     gf.innerHTML = '<option value="all">그룹 전체</option>' + opts;
     gf.value = manageGroupF;
     document.getElementById('manageBulkGroup').innerHTML = '<option value="">그룹 이동...</option>' + opts;
-    document.getElementById('groupDatalist').innerHTML = opts;
+    var fGroup = document.getElementById('f-group');
+    var prevValue = fGroup.value;
+    fGroup.innerHTML = opts + '<option value="__new__">+ 새 그룹 추가...</option>';
+    if(GROUP_ORDER.indexOf(prevValue) > -1) fGroup.value = prevValue;
   }
 
   function filteredSortedServers(){
@@ -1267,6 +1516,18 @@
   }
   document.getElementById('f-protocol').addEventListener('change', toggleSshOnlyFields);
 
+  var fGroupPrevValue = '';
+  document.getElementById('f-group').addEventListener('change', function(e){
+    if(e.target.value === '__new__'){
+      addNewGroup().then(function(created){
+        e.target.value = created || fGroupPrevValue || (GROUP_ORDER[0] || '');
+        fGroupPrevValue = e.target.value;
+      });
+      return;
+    }
+    fGroupPrevValue = e.target.value;
+  });
+
   function openEdit(id){
     editingId = id || null;
     var s = id ? SERVERS.find(function(x){ return x.id === id; }) : null;
@@ -1284,6 +1545,7 @@
     document.getElementById('editDeleteBtn').style.display = s ? '' : 'none';
     toggleSshOnlyFields();
     populateGroupSelectors();
+    fGroupPrevValue = document.getElementById('f-group').value;
     appEl.classList.add('edit-open');
     setTimeout(function(){ document.getElementById('f-name').focus(); }, 0);
   }
@@ -1296,7 +1558,22 @@
     if(pane) pane.dataset.id = newId;
     Object.keys(lastActiveByFilter).forEach(function(k){ if(lastActiveByFilter[k] === oldId) lastActiveByFilter[k] = newId; });
     SERVERS.forEach(function(s){ if(s.jump === oldId) s.jump = newId; });
+    if(currentInspectedId === oldId) currentInspectedId = newId;
+    if(hasMemoBridge) window.onegyeok.renameMemo(oldId, newId);
   }
+
+  // ==================================================================
+  // 연결 정보 패널 내부 탭 전환 (연결 정보 ↔ 메모)
+  // ==================================================================
+  var inspTabButtons = document.querySelectorAll('.insp-tab');
+  var inspPanes = document.querySelectorAll('.insp-pane');
+  inspTabButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      inspTabButtons.forEach(function(b){ b.classList.toggle('active', b === btn); });
+      inspPanes.forEach(function(p){ p.classList.toggle('active', p.dataset.pane === btn.dataset.tab); });
+      if(btn.dataset.tab === 'memo') setTimeout(function(){ memoEl.focus(); }, 0);
+    });
+  });
 
   document.getElementById('registerOpenBtn').addEventListener('click', function(){ openEdit(null); });
   document.getElementById('manageAddBtn').addEventListener('click', function(){ openEdit(null); });
@@ -1462,7 +1739,29 @@
   renderTree();
   populateGroupSelectors();
 
+  if(hasMemoBridge){
+    window.onegyeok.loadMemos().then(function(memos){
+      SERVERS.forEach(function(s){
+        if(Object.prototype.hasOwnProperty.call(memos, s.id)) s.memo = memos[s.id];
+      });
+      if(currentInspectedId){
+        var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
+        memoEl.value = (srv && srv.memo) || '';
+      }
+    }).catch(function(err){ console.error('[memo] 초기 로드 실패', err); });
+  }
+
   renumberTabs();
   recordActive('prod-web-01');
 })();
+
+// ---- preload/main process smoke test (scaffold verification) ----
+if (window.onegyeok && typeof window.onegyeok.ping === 'function') {
+  window.onegyeok.ping().then(function (reply) {
+    console.log('[onegyeok] main process round-trip:', reply);
+  });
+} else {
+  console.warn('[onegyeok] preload bridge(window.onegyeok) not found — check preload.js wiring');
+}
+
 </script>

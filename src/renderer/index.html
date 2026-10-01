@@ -52,6 +52,10 @@
             <option value="web">Web</option>
           </select>
           <select id="manageGroupFilter"><option value="all">그룹 전체</option></select>
+          <button class="btn-secondary sm" id="manageAddGroupBtn" title="새 그룹 추가">
+            <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><line x1="10" y1="3" x2="10" y2="17"></line><line x1="3" y1="10" x2="17" y2="10"></line></svg>
+            그룹 추가
+          </button>
         </div>
         <div class="manage-table-wrap">
           <table class="manage-table">
@@ -92,7 +96,7 @@
         </div>
         <div class="edit-body">
           <label>이름<input type="text" id="f-name" placeholder="prod-web-01"></label>
-          <label>그룹<input type="text" id="f-group" list="groupDatalist" placeholder="운영"><datalist id="groupDatalist"></datalist></label>
+          <label>그룹<select id="f-group"></select></label>
           <label>프로토콜
             <select id="f-protocol">
               <option value="ssh">SSH</option>
@@ -117,6 +121,19 @@
           <span class="grow"></span>
           <button class="insp-btn" id="editCancelBtn">취소</button>
           <button class="btn-primary" id="editSaveBtn">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 범용 텍스트 입력 모달 (Electron에서는 window.prompt()가 지원되지 않아 직접 구현) -->
+    <div class="prompt-backdrop" id="promptBackdrop">
+      <div class="prompt-modal">
+        <h3 id="promptTitle">새 그룹 추가</h3>
+        <input type="text" id="promptInput" placeholder="그룹 이름">
+        <p class="edit-error" id="promptError"></p>
+        <div class="prompt-footer">
+          <button class="insp-btn" id="promptCancelBtn">취소</button>
+          <button class="btn-primary" id="promptOkBtn">추가</button>
         </div>
       </div>
     </div>
@@ -180,6 +197,7 @@
         <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
         <input type="text" placeholder="서버 검색...">
       </div>
+      <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
       <div class="tree" id="tree">
         <div class="group" data-group>
           <div class="group-head" data-toggle>
@@ -261,8 +279,14 @@
       <button class="add-group">+ 그룹 추가</button>
     </aside>
 
+    <div class="resizer resizer-sidebar" id="resizerSidebar"></div>
+
     <!-- main / tabs / terminal -->
     <section class="main">
+      <div class="tabbar-row">
+        <button class="tab-scroll-btn" id="tabScrollLeft" title="이전 탭 보기">
+          <svg class="icon" viewBox="0 0 20 20"><polyline points="12 4 6 10 12 16"></polyline></svg>
+        </button>
       <div class="tabbar" id="tabbar">
         <div class="tab active" data-id="prod-web-01" data-protocol="ssh">
           <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
@@ -282,7 +306,10 @@
         <div class="tab-add" title="새 탭">
           <svg class="icon" viewBox="0 0 20 20"><line x1="10" y1="4" x2="10" y2="16"></line><line x1="4" y1="10" x2="16" y2="10"></line></svg>
         </div>
-        <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
+      </div>
+        <button class="tab-scroll-btn" id="tabScrollRight" title="다음 탭 보기">
+          <svg class="icon" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+        </button>
       </div>
       <div class="panes" id="panes">
         <div class="pane active" data-id="prod-web-01">
@@ -332,6 +359,8 @@
       </div>
     </section>
 
+    <div class="resizer resizer-inspector" id="resizerInspector"></div>
+
     <!-- inspector -->
     <aside class="inspector" id="inspector">
       <div class="insp-collapsed-handle" id="inspHandle" title="연결 정보 펼치기 (⌘I)">
@@ -340,41 +369,49 @@
       </div>
       <div class="insp-body" id="inspBody">
         <div class="insp-head">
-          <h2>연결 정보</h2>
+          <div class="insp-tabs" role="tablist">
+            <button class="insp-tab active" type="button" data-tab="info">연결 정보</button>
+            <button class="insp-tab" type="button" data-tab="memo">메모</button>
+          </div>
           <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기">
             <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="7 4 13 10 7 16"></polyline></svg>
           </button>
         </div>
-        <div class="insp-row"><span class="insp-label">서버</span><span class="insp-value" id="i-name">prod-web-01</span></div>
-        <div class="insp-row"><span class="insp-label">그룹</span><span class="insp-value" id="i-group">운영</span></div>
-        <div class="insp-row"><span class="insp-label">프로토콜</span><span class="insp-value" id="i-proto"><span class="proto-chip sm" id="i-proto-chip"></span><span id="i-proto-label"></span></span></div>
-        <div class="insp-row"><span class="insp-label">호스트</span><span class="insp-value" id="i-host">10.0.1.23:22</span></div>
-        <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
-        <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
-        <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
-        <div class="insp-row"><span class="insp-label">비밀번호 저장</span><span class="insp-value"><span class="pill off">저장 안 함 · 매번 직접 입력</span></span></div>
-        <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
 
-        <div class="insp-actions">
-          <button class="insp-btn disabled">
-            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
-            SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
-          </button>
-          <button class="insp-btn danger">
-            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
-            연결 종료
-          </button>
-        </div>
+        <div class="insp-pane active" data-pane="info">
+          <div class="insp-row"><span class="insp-label">서버</span><span class="insp-value" id="i-name">prod-web-01</span></div>
+          <div class="insp-row"><span class="insp-label">그룹</span><span class="insp-value" id="i-group">운영</span></div>
+          <div class="insp-row"><span class="insp-label">프로토콜</span><span class="insp-value" id="i-proto"><span class="proto-chip sm" id="i-proto-chip"></span><span id="i-proto-label"></span></span></div>
+          <div class="insp-row"><span class="insp-label">호스트</span><span class="insp-value" id="i-host">10.0.1.23:22</span></div>
+          <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
+          <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
+          <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
+          <div class="insp-row"><span class="insp-label">비밀번호 저장</span><span class="insp-value"><span class="pill off">저장 안 함 · 매번 직접 입력</span></span></div>
+          <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
 
-        <div class="insp-memo">
-          <div class="insp-memo-head">
-            <label for="i-memo">메모</label>
-            <span class="insp-memo-warn">민감정보 금지</span>
+          <div class="insp-actions">
+            <button class="insp-btn disabled">
+              <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+              SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
+            </button>
+            <button class="insp-btn danger">
+              <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
+              연결 종료
+            </button>
           </div>
-          <textarea id="i-memo" placeholder="임시로 붙여넣거나 적어둘 메모 (배포 명령어, 체크리스트 등)"></textarea>
+
+          <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다(재접속 시 자동으로 이어짐). 단, 비밀번호는 저장되지 않으며 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다.</p>
         </div>
 
-        <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다(재접속 시 자동으로 이어짐). 단, 비밀번호는 저장되지 않으며 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다.</p>
+        <div class="insp-pane" data-pane="memo">
+          <div class="insp-memo">
+            <div class="insp-memo-head">
+              <span class="insp-memo-status" id="i-memo-status"></span>
+              <span class="insp-memo-warn">민감정보 금지</span>
+            </div>
+            <textarea id="i-memo" placeholder="임시로 붙여넣거나 적어둘 메모 (배포 명령어, 체크리스트 등)"></textarea>
+          </div>
+        </div>
       </div>
     </aside>
 

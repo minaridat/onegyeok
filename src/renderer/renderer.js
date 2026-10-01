@@ -8,6 +8,54 @@
   var inspHandle = document.getElementById('inspHandle');
   var inspCollapseBtn = document.getElementById('inspCollapseBtn');
 
+  // ---- sidebar / inspector panel resize (드래그로 좌우 폭 조절, 끝까지 밀면 접힘) ----
+  var SIDEBAR_FALLBACK_W = 236;
+  var INSPECTOR_FALLBACK_W = 272;
+  var INSPECTOR_COLLAPSE_AT = 90;
+
+  function setupResizer(handleEl, cssVar, opts){
+    var dragging = false, startX = 0, startWidth = 0;
+    handleEl.addEventListener('mousedown', function(e){
+      dragging = true;
+      handleEl.classList.add('dragging');
+      appEl.classList.add('resizing');
+      startX = e.clientX;
+      startWidth = parseInt(getComputedStyle(appEl).getPropertyValue(cssVar), 10) || opts.fallback;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e){
+      if(!dragging) return;
+      var delta = (e.clientX - startX) * (opts.reverse ? -1 : 1);
+      // 범위를 작은 고정값으로 가두지 않고, 창 폭 기준으로 넉넉하게만 제한한다 (끝까지 밀면 0까지 줄어들어 접힘).
+      var maxW = Math.max(opts.fallback, window.innerWidth - opts.reserve);
+      var newW = Math.min(maxW, Math.max(0, startWidth + delta));
+      appEl.style.setProperty(cssVar, newW + 'px');
+      if(opts.onWidthChange) opts.onWidthChange(newW);
+    });
+    document.addEventListener('mouseup', function(){
+      if(!dragging) return;
+      dragging = false;
+      handleEl.classList.remove('dragging');
+      appEl.classList.remove('resizing');
+      document.body.style.userSelect = '';
+    });
+  }
+
+  setupResizer(document.getElementById('resizerSidebar'), '--sidebar-w', {
+    reverse:false, fallback:SIDEBAR_FALLBACK_W, reserve:600
+  });
+  setupResizer(document.getElementById('resizerInspector'), '--inspector-w', {
+    reverse:true, fallback:INSPECTOR_FALLBACK_W, reserve:600,
+    onWidthChange: function(w){
+      // 연결정보 패널은 이미 있는 접힘 상태(아이콘/핸들로 재오픈)로 스냅시킨다.
+      if(w < INSPECTOR_COLLAPSE_AT && inspOpen){
+        setInspector(false);
+        appEl.style.setProperty('--inspector-w', INSPECTOR_FALLBACK_W + 'px');
+      }
+    }
+  });
+
   var PROTO = {
     ssh:  { label:'SSH',  icon:'<svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>' },
     rdp:  { label:'RDP',  icon:'<svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>' },
@@ -112,22 +160,102 @@
     if(row){ selectServer(row.dataset.id); }
   });
 
-  document.querySelector('.add-group').addEventListener('click', function(){
-    var name = prompt('새 그룹 이름을 입력하세요');
-    if(!name) return;
-    name = name.trim();
-    if(!name || GROUP_ORDER.indexOf(name) > -1) return;
-    GROUP_ORDER.push(name);
-    renderTree();
-    populateGroupSelectors();
+  // ---- 범용 텍스트 입력 모달 (Electron은 window.prompt()를 지원하지 않아 직접 구현) ----
+  var promptBackdrop = document.getElementById('promptBackdrop');
+  var promptInput = document.getElementById('promptInput');
+  var promptTitleEl = document.getElementById('promptTitle');
+  var promptErrorEl = document.getElementById('promptError');
+  var promptOkBtn = document.getElementById('promptOkBtn');
+  var promptCancelBtn = document.getElementById('promptCancelBtn');
+
+  function showTextPrompt(title, placeholder){
+    return new Promise(function(resolve){
+      promptTitleEl.textContent = title;
+      promptInput.placeholder = placeholder || '';
+      promptInput.value = '';
+      promptErrorEl.textContent = '';
+      promptBackdrop.classList.add('show');
+      setTimeout(function(){ promptInput.focus(); }, 0);
+
+      function cleanup(){
+        promptBackdrop.classList.remove('show');
+        promptOkBtn.removeEventListener('click', onOk);
+        promptCancelBtn.removeEventListener('click', onCancel);
+        promptInput.removeEventListener('keydown', onKeydown);
+        promptBackdrop.removeEventListener('click', onBackdropClick);
+      }
+      function onOk(){
+        var v = promptInput.value.trim();
+        cleanup();
+        resolve(v || null);
+      }
+      function onCancel(){ cleanup(); resolve(null); }
+      function onKeydown(e){
+        if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); onOk(); }
+        else if(e.key === 'Escape'){ e.stopPropagation(); onCancel(); }
+      }
+      function onBackdropClick(e){ if(e.target === promptBackdrop) onCancel(); }
+
+      promptOkBtn.addEventListener('click', onOk);
+      promptCancelBtn.addEventListener('click', onCancel);
+      promptInput.addEventListener('keydown', onKeydown);
+      promptBackdrop.addEventListener('click', onBackdropClick);
+    });
+  }
+
+  function addNewGroup(){
+    return showTextPrompt('새 그룹 추가', '예: 모니터링').then(function(name){
+      if(!name) return null;
+      if(GROUP_ORDER.indexOf(name) === -1) GROUP_ORDER.push(name);
+      renderTree();
+      populateGroupSelectors();
+      return name;
+    });
+  }
+
+  document.querySelector('.add-group').addEventListener('click', function(){ addNewGroup(); });
+  document.getElementById('manageAddGroupBtn').addEventListener('click', function(){
+    addNewGroup().then(function(name){ if(name) renderManageTable(); });
   });
 
   var currentInspectedId = null;
   var memoEl = document.getElementById('i-memo');
+  var memoStatusEl = document.getElementById('i-memo-status');
+  var memoSaveTimer = null;
+  var hasMemoBridge = !!(window.onegyeok && window.onegyeok.saveMemo);
+
+  function showMemoStatus(text, isError){
+    memoStatusEl.textContent = text;
+    memoStatusEl.classList.toggle('err', !!isError);
+    memoStatusEl.classList.add('show');
+    clearTimeout(memoStatusEl._hideTimer);
+    memoStatusEl._hideTimer = setTimeout(function(){ memoStatusEl.classList.remove('show'); }, 1500);
+  }
+
+  function persistMemo(serverId, text){
+    if(!hasMemoBridge || !serverId) return;
+    window.onegyeok.saveMemo(serverId, text).then(function(res){
+      if(res && res.ok) showMemoStatus('저장됨');
+      else showMemoStatus('저장 불가(암호화 미지원)', true);
+    }).catch(function(){ showMemoStatus('저장 실패', true); });
+  }
+
+  function scheduleMemoSave(serverId, text){
+    clearTimeout(memoSaveTimer);
+    memoSaveTimer = setTimeout(function(){ persistMemo(serverId, text); }, 400);
+  }
+
+  function flushMemoSave(){
+    clearTimeout(memoSaveTimer);
+    if(!currentInspectedId) return;
+    var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
+    if(srv) persistMemo(currentInspectedId, srv.memo || '');
+  }
 
   function inspectorFor(id){
     var row = tree.querySelector('.server[data-id="'+id+'"]');
     if(!row) return;
+    if(currentInspectedId && currentInspectedId !== id) flushMemoSave();
     currentInspectedId = id;
     var proto = row.dataset.protocol;
     document.getElementById('i-name').textContent = id;
@@ -145,13 +273,17 @@
     document.getElementById('row-tmux').style.display = proto === 'ssh' ? '' : 'none';
     var srv = SERVERS.find(function(s){ return s.id === id; });
     memoEl.value = (srv && srv.memo) || '';
+    memoStatusEl.classList.remove('show');
   }
 
   memoEl.addEventListener('input', function(e){
     if(!currentInspectedId) return;
     var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
     if(srv) srv.memo = e.target.value;
+    scheduleMemoSave(currentInspectedId, e.target.value);
   });
+  memoEl.addEventListener('blur', flushMemoSave);
+  window.addEventListener('beforeunload', flushMemoSave);
 
   function ensurePane(id){
     var pane = panes.querySelector('.pane[data-id="'+id+'"]');
@@ -202,7 +334,25 @@
     var vis = visibleTabs();
     vis.forEach(function(t, i){ t.querySelector('.tab-num').textContent = (i < 9) ? String(i+1) : ''; });
     tabbar.querySelectorAll('.tab.filtered-out .tab-num').forEach(function(n){ n.textContent = ''; });
+    updateTabScrollButtons();
   }
+
+  // ---- tab overflow scrolling (탭이 넘치면 화살표로 이동) ----
+  var tabScrollLeftBtn = document.getElementById('tabScrollLeft');
+  var tabScrollRightBtn = document.getElementById('tabScrollRight');
+
+  function updateTabScrollButtons(){
+    var overflowing = tabbar.scrollWidth > tabbar.clientWidth + 1;
+    tabScrollLeftBtn.classList.toggle('show', overflowing && tabbar.scrollLeft > 2);
+    tabScrollRightBtn.classList.toggle('show', overflowing && (tabbar.scrollLeft + tabbar.clientWidth < tabbar.scrollWidth - 2));
+  }
+  tabbar.addEventListener('scroll', updateTabScrollButtons);
+  window.addEventListener('resize', updateTabScrollButtons);
+  if(window.ResizeObserver){
+    new ResizeObserver(updateTabScrollButtons).observe(tabbar);
+  }
+  tabScrollLeftBtn.addEventListener('click', function(){ tabbar.scrollBy({ left: -160, behavior: 'smooth' }); });
+  tabScrollRightBtn.addEventListener('click', function(){ tabbar.scrollBy({ left: 160, behavior: 'smooth' }); });
 
   function ensureTab(id){
     var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
@@ -232,11 +382,17 @@
 
   function activate(id){
     emptyPane.classList.remove('active');
-    tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.dataset.id === id); });
+    var activeTab = null;
+    tabbar.querySelectorAll('.tab').forEach(function(t){
+      var match = t.dataset.id === id;
+      t.classList.toggle('active', match);
+      if(match) activeTab = t;
+    });
     panes.querySelectorAll('.pane').forEach(function(p){ p.classList.toggle('active', p.dataset.id === id); });
     tree.querySelectorAll('.server').forEach(function(s){ s.classList.toggle('selected', s.dataset.id === id); });
     inspectorFor(id);
     recordActive(id);
+    if(activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }
 
   function activateEmpty(filter){
@@ -250,6 +406,11 @@
   }
 
   function applyFilter(filter){
+    // 사이드바가 드래그로 완전히 접혀 있으면, 레일 버튼(전체/프로토콜) 클릭으로도 다시 펼친다.
+    var curSidebarW = parseInt(getComputedStyle(appEl).getPropertyValue('--sidebar-w'), 10) || 0;
+    if(curSidebarW < 20){
+      appEl.style.setProperty('--sidebar-w', SIDEBAR_FALLBACK_W + 'px');
+    }
     currentFilter = filter;
     applyTreeFilterVisual();
     tabbar.querySelectorAll('.tab').forEach(function(t){
@@ -285,6 +446,7 @@
   }
 
   function removeServerById(id){
+    if(hasMemoBridge) window.onegyeok.saveMemo(id, '');
     SERVERS = SERVERS.filter(function(s){ return s.id !== id; });
     var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
     if(tab){
@@ -317,7 +479,10 @@
     gf.innerHTML = '<option value="all">그룹 전체</option>' + opts;
     gf.value = manageGroupF;
     document.getElementById('manageBulkGroup').innerHTML = '<option value="">그룹 이동...</option>' + opts;
-    document.getElementById('groupDatalist').innerHTML = opts;
+    var fGroup = document.getElementById('f-group');
+    var prevValue = fGroup.value;
+    fGroup.innerHTML = opts + '<option value="__new__">+ 새 그룹 추가...</option>';
+    if(GROUP_ORDER.indexOf(prevValue) > -1) fGroup.value = prevValue;
   }
 
   function filteredSortedServers(){
@@ -456,6 +621,18 @@
   }
   document.getElementById('f-protocol').addEventListener('change', toggleSshOnlyFields);
 
+  var fGroupPrevValue = '';
+  document.getElementById('f-group').addEventListener('change', function(e){
+    if(e.target.value === '__new__'){
+      addNewGroup().then(function(created){
+        e.target.value = created || fGroupPrevValue || (GROUP_ORDER[0] || '');
+        fGroupPrevValue = e.target.value;
+      });
+      return;
+    }
+    fGroupPrevValue = e.target.value;
+  });
+
   function openEdit(id){
     editingId = id || null;
     var s = id ? SERVERS.find(function(x){ return x.id === id; }) : null;
@@ -473,6 +650,7 @@
     document.getElementById('editDeleteBtn').style.display = s ? '' : 'none';
     toggleSshOnlyFields();
     populateGroupSelectors();
+    fGroupPrevValue = document.getElementById('f-group').value;
     appEl.classList.add('edit-open');
     setTimeout(function(){ document.getElementById('f-name').focus(); }, 0);
   }
@@ -485,7 +663,22 @@
     if(pane) pane.dataset.id = newId;
     Object.keys(lastActiveByFilter).forEach(function(k){ if(lastActiveByFilter[k] === oldId) lastActiveByFilter[k] = newId; });
     SERVERS.forEach(function(s){ if(s.jump === oldId) s.jump = newId; });
+    if(currentInspectedId === oldId) currentInspectedId = newId;
+    if(hasMemoBridge) window.onegyeok.renameMemo(oldId, newId);
   }
+
+  // ==================================================================
+  // 연결 정보 패널 내부 탭 전환 (연결 정보 ↔ 메모)
+  // ==================================================================
+  var inspTabButtons = document.querySelectorAll('.insp-tab');
+  var inspPanes = document.querySelectorAll('.insp-pane');
+  inspTabButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      inspTabButtons.forEach(function(b){ b.classList.toggle('active', b === btn); });
+      inspPanes.forEach(function(p){ p.classList.toggle('active', p.dataset.pane === btn.dataset.tab); });
+      if(btn.dataset.tab === 'memo') setTimeout(function(){ memoEl.focus(); }, 0);
+    });
+  });
 
   document.getElementById('registerOpenBtn').addEventListener('click', function(){ openEdit(null); });
   document.getElementById('manageAddBtn').addEventListener('click', function(){ openEdit(null); });
@@ -650,6 +843,18 @@
   collapsedGroups = scraped.collapsed;
   renderTree();
   populateGroupSelectors();
+
+  if(hasMemoBridge){
+    window.onegyeok.loadMemos().then(function(memos){
+      SERVERS.forEach(function(s){
+        if(Object.prototype.hasOwnProperty.call(memos, s.id)) s.memo = memos[s.id];
+      });
+      if(currentInspectedId){
+        var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
+        memoEl.value = (srv && srv.memo) || '';
+      }
+    }).catch(function(err){ console.error('[memo] 초기 로드 실패', err); });
+  }
 
   renumberTabs();
   recordActive('prod-web-01');
