@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<title>onegyeok</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app">
+    <div class="palette-backdrop" id="paletteBackdrop">
+      <div class="palette">
+        <div class="palette-input">
+          <svg class="icon" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+          <input id="paletteInput" type="text" placeholder="서버 이름, 호스트로 검색..." autocomplete="off">
+        </div>
+        <div class="palette-list" id="paletteList"></div>
+        <div class="palette-hint">
+          <span><kbd>↑↓</kbd> 이동</span>
+          <span><kbd>Enter</kbd> 연결</span>
+          <span><kbd>Esc</kbd> 닫기</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- S7: 서버 관리 (전체 목록/편집) -->
+    <div class="manage-backdrop" id="manageBackdrop">
+      <div class="manage-panel">
+        <div class="manage-header">
+          <h2>서버 관리</h2>
+          <span class="manage-count" id="manageCount">0개 서버</span>
+          <span class="grow"></span>
+          <button class="btn-primary sm" id="manageAddBtn">
+            <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><line x1="10" y1="3" x2="10" y2="17"></line><line x1="3" y1="10" x2="17" y2="10"></line></svg>
+            서버 추가
+          </button>
+          <button class="icon-toggle" id="manageCloseBtn" title="닫기">
+            <svg class="icon" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+          </button>
+        </div>
+        <div class="manage-filters">
+          <div class="manage-search">
+            <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+            <input type="text" id="manageSearch" placeholder="이름 · 호스트 · 그룹 검색...">
+          </div>
+          <select id="manageProtoFilter">
+            <option value="all">프로토콜 전체</option>
+            <option value="ssh">SSH</option>
+            <option value="rdp">RDP</option>
+            <option value="vnc">VNC</option>
+            <option value="sftp">SFTP</option>
+            <option value="web">Web</option>
+          </select>
+          <select id="manageGroupFilter"><option value="all">그룹 전체</option></select>
+        </div>
+        <div class="manage-table-wrap">
+          <table class="manage-table">
+            <thead>
+              <tr>
+                <th class="col-check"><input type="checkbox" id="manageSelectAll"></th>
+                <th data-sort="name">이름</th>
+                <th data-sort="group">그룹</th>
+                <th data-sort="protocol">프로토콜</th>
+                <th data-sort="host">호스트</th>
+                <th data-sort="port">포트</th>
+                <th data-sort="auth">인증 방식</th>
+                <th>마지막 접속</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="manageTbody"></tbody>
+          </table>
+        </div>
+        <div class="manage-footer">
+          <span id="manageSelCount">선택된 항목: 0개</span>
+          <span class="grow"></span>
+          <select id="manageBulkGroup"><option value="">그룹 이동...</option></select>
+          <button class="insp-btn" id="manageBulkMoveBtn">이동</button>
+          <button class="insp-btn danger" id="manageBulkDeleteBtn">선택 삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- S2: 서버 등록/수정 모달 -->
+    <div class="edit-backdrop" id="editBackdrop">
+      <div class="edit-modal">
+        <div class="edit-header">
+          <h3 id="editTitle">서버 등록</h3>
+          <button class="icon-toggle" id="editCloseBtn" title="닫기">
+            <svg class="icon" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+          </button>
+        </div>
+        <div class="edit-body">
+          <label>이름<input type="text" id="f-name" placeholder="prod-web-01"></label>
+          <label>그룹<input type="text" id="f-group" list="groupDatalist" placeholder="운영"><datalist id="groupDatalist"></datalist></label>
+          <label>프로토콜
+            <select id="f-protocol">
+              <option value="ssh">SSH</option>
+              <option value="rdp">RDP</option>
+              <option value="vnc">VNC</option>
+              <option value="sftp">SFTP</option>
+              <option value="web">Web</option>
+            </select>
+          </label>
+          <div class="edit-row2">
+            <label>호스트<input type="text" id="f-host" placeholder="10.0.1.23"></label>
+            <label class="w-sm">포트<input type="number" id="f-port" placeholder="22"></label>
+          </div>
+          <label>인증 방식<input type="text" id="f-auth" placeholder="예: SSH Key, 비밀번호, Windows 계정"></label>
+          <label id="row-f-jump">점프 호스트<select id="f-jump"><option value="">없음</option></select></label>
+          <label id="row-f-tmux">tmux 세션 이름<input type="text" id="f-tmux" placeholder="비워두면 이름과 동일"></label>
+          <p class="edit-note">비밀번호·Passphrase는 저장하지 않습니다 — 접속할 때마다 직접 입력합니다.</p>
+          <p class="edit-error" id="editError"></p>
+        </div>
+        <div class="edit-footer">
+          <button class="insp-btn danger" id="editDeleteBtn" style="display:none;">삭제</button>
+          <span class="grow"></span>
+          <button class="insp-btn" id="editCancelBtn">취소</button>
+          <button class="btn-primary" id="editSaveBtn">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- icon rail: protocol context switcher -->
+    <nav class="rail" aria-label="프로토콜 컨텍스트 전환">
+      <div class="rail-mark">og</div>
+      <button class="rail-btn active" data-filter="all" title="전체 보기">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.2"></rect><rect x="11" y="3" width="6" height="6" rx="1.2"></rect><rect x="3" y="11" width="6" height="6" rx="1.2"></rect><rect x="11" y="11" width="6" height="6" rx="1.2"></rect></svg>
+      </button>
+      <button class="rail-btn" data-filter="ssh" title="SSH">
+        <svg class="icon" viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>
+      </button>
+      <button class="rail-btn future" data-filter="rdp" title="RDP · Phase 4 예정">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>
+        <span class="badge">P4</span>
+      </button>
+      <button class="rail-btn future" data-filter="vnc" title="VNC · Phase 5 예정">
+        <svg class="icon" viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>
+        <span class="badge">P5</span>
+      </button>
+      <button class="rail-btn future" data-filter="sftp" title="SFTP · Phase 2 예정">
+        <svg class="icon" viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+        <span class="badge">P2</span>
+      </button>
+      <button class="rail-btn future" data-filter="web" title="Web 콘솔 · Phase 5 예정">
+        <svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg>
+        <span class="badge">P5</span>
+      </button>
+      <div class="rail-spacer"></div>
+      <div class="rail-lock" title="마스터 패스워드로 잠금 해제됨">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8" rx="1.4"></rect><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"></path></svg>
+      </div>
+    </nav>
+
+    <!-- topbar -->
+    <header class="topbar">
+      <h1>onegyeok</h1>
+      <span class="mock-tag">컨셉 목업</span>
+      <button class="palette-trigger" id="paletteOpenBtn">
+        <svg class="icon" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+        서버 검색 / 빠른 연결
+        <kbd>⌘K</kbd>
+      </button>
+      <button class="icon-toggle" id="inspToggleBtn" aria-pressed="true" title="연결 정보 패널 토글 (⌘I)">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.4"></rect><line x1="13" y1="3.5" x2="13" y2="16.5"></line></svg>
+      </button>
+      <button class="btn-secondary" id="manageOpenBtn">
+        <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><rect x="2.5" y="4" width="15" height="12" rx="1.4"></rect><line x1="2.5" y1="8" x2="17.5" y2="8"></line></svg>
+        서버 관리
+      </button>
+      <button class="btn-primary" id="registerOpenBtn">
+        <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><line x1="10" y1="3" x2="10" y2="17"></line><line x1="3" y1="10" x2="17" y2="10"></line></svg>
+        서버 등록
+      </button>
+    </header>
+
+    <!-- sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-search">
+        <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+        <input type="text" placeholder="서버 검색...">
+      </div>
+      <div class="tree" id="tree">
+        <div class="group" data-group>
+          <div class="group-head" data-toggle>
+            <svg class="icon" viewBox="0 0 20 20"><polyline points="6 4 13 10 6 16"></polyline></svg>
+            운영
+          </div>
+          <div class="group-body">
+            <div class="server selected" data-id="prod-web-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.23:22" data-auth="SSH Key (id_rsa)" data-tmux="prod-web-01" data-status="on" data-since="12분 전 연결됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+              <span class="server-name">prod-web-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="prod-db-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.31:22" data-auth="비밀번호" data-tmux="prod-db-01" data-status="on" data-since="1시간 전 연결됨" data-jump="bastion-01">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+              <span class="server-name">prod-db-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="prod-cache" data-protocol="ssh" data-group="운영" data-host="10.0.1.44:22" data-auth="SSH Key (id_ed25519)" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">prod-cache</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="win-app-01" data-protocol="rdp" data-group="운영" data-host="10.0.1.55:3389" data-auth="Windows 계정" data-tmux="—" data-status="on" data-since="6분 전 연결됨" data-jump="없음">
+              <span class="proto-chip proto-rdp"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg><span class="stat on"></span></span>
+              <span class="server-name">win-app-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="grafana-console" data-protocol="web" data-group="운영" data-host="grafana.internal" data-auth="SSO" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-web"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg><span class="stat"></span></span>
+              <span class="server-name">grafana-console</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="group collapsed" data-group>
+          <div class="group-head" data-toggle>
+            <svg class="icon" viewBox="0 0 20 20"><polyline points="6 4 13 10 6 16"></polyline></svg>
+            스테이징
+          </div>
+          <div class="group-body">
+            <div class="server" data-id="stg-web-01" data-protocol="ssh" data-group="스테이징" data-host="10.0.2.10:22" data-auth="비밀번호" data-tmux="stg-web-01" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">stg-web-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="group" data-group>
+          <div class="group-head" data-toggle>
+            <svg class="icon" viewBox="0 0 20 20"><polyline points="6 4 13 10 6 16"></polyline></svg>
+            개발
+          </div>
+          <div class="group-body">
+            <div class="server" data-id="dev-01" data-protocol="ssh" data-group="개발" data-host="192.168.0.15:22" data-auth="비밀번호" data-tmux="dev-01" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">dev-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="bastion-01" data-protocol="ssh" data-group="개발" data-host="203.0.113.9:22" data-auth="SSH Key (id_rsa)" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
+              <span class="server-name">bastion-01 <span style="color:var(--text-faint);font-weight:400;">· Jump</span></span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="kiosk-01" data-protocol="vnc" data-group="개발" data-host="192.168.0.40:5900" data-auth="화면 공유 암호" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-vnc"><svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg><span class="stat"></span></span>
+              <span class="server-name">kiosk-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+            <div class="server" data-id="nas-01" data-protocol="sftp" data-group="개발" data-host="192.168.0.50:22" data-auth="비밀번호" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+              <span class="proto-chip proto-sftp"><svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg><span class="stat"></span></span>
+              <span class="server-name">nas-01</span>
+              <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="add-group">+ 그룹 추가</button>
+    </aside>
+
+    <!-- main / tabs / terminal -->
+    <section class="main">
+      <div class="tabbar" id="tabbar">
+        <div class="tab active" data-id="prod-web-01" data-protocol="ssh">
+          <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+          <span class="tab-name">prod-web-01</span><span class="tab-num">1</span>
+          <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+        </div>
+        <div class="tab" data-id="win-app-01" data-protocol="rdp">
+          <span class="proto-chip sm proto-rdp"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg><span class="stat on"></span></span>
+          <span class="tab-name">win-app-01</span><span class="tab-num">2</span>
+          <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+        </div>
+        <div class="tab" data-id="prod-db-01" data-protocol="ssh">
+          <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
+          <span class="tab-name">prod-db-01</span><span class="tab-num">3</span>
+          <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
+        </div>
+        <div class="tab-add" title="새 탭">
+          <svg class="icon" viewBox="0 0 20 20"><line x1="10" y1="4" x2="10" y2="16"></line><line x1="4" y1="10" x2="16" y2="10"></line></svg>
+        </div>
+        <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
+      </div>
+      <div class="panes" id="panes">
+        <div class="pane active" data-id="prod-web-01">
+          <div class="ln muted">Connecting to 10.0.1.23:22 ...</div>
+          <div class="ln muted">Last login: Tue Sep 30 09:12:41 2026 from 10.0.1.2</div>
+          <div class="ln muted">tmux: attaching to session 'prod-web-01' (created)</div>
+          <div class="ln">&nbsp;</div>
+          <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> ls -al /var/www</div>
+          <div class="ln muted">total 24</div>
+          <div class="ln muted">drwxr-xr-x  4 root root 4096 Sep 30 08:55 .</div>
+          <div class="ln muted">drwxr-xr-x 14 root root 4096 Aug 02 11:20 ..</div>
+          <div class="ln muted">drwxr-xr-x  3 root root 4096 Sep 30 08:55 onegyeok-web</div>
+          <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> systemctl status nginx --no-pager | head -3</div>
+          <div class="ln ok">● nginx.service - A high performance web server</div>
+          <div class="ln muted">   Active: active (running) since Mon 2026-09-29 03:10:02 UTC</div>
+          <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> <span class="cursor"></span></div>
+        </div>
+        <div class="pane screen" data-id="win-app-01">
+          <div class="screen-toolbar">
+            <span>win-app-01 · RDP · 1920×1080</span>
+            <span class="grow"></span>
+            <span class="icon-btn" title="클립보드 동기화"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><rect x="6" y="3" width="8" height="4" rx="1"></rect><path d="M5 5H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-1"></path></svg></span>
+            <span class="icon-btn" title="전체화면"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 7V4a1 1 0 0 0-1-1h-3M3 13v3a1 1 0 0 0 1 1h3M17 13v3a1 1 0 0 1-1 1h-3"></path></svg></span>
+            <span class="icon-btn" title="연결 종료"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg></span>
+          </div>
+          <div class="screen-canvas">
+            <div class="win" style="left:7%;top:10%;width:44%;height:54%;"></div>
+            <div class="win" style="left:38%;top:28%;width:40%;height:46%;"></div>
+            <span class="screen-badge">원격 제어 중 · 지연 24ms</span>
+            <div class="screen-taskbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          </div>
+        </div>
+        <div class="pane" data-id="prod-db-01">
+          <div class="ln muted">Connecting to 10.0.1.31:22 via bastion-01 ...</div>
+          <div class="ln muted">tmux: attaching to session 'prod-db-01' (created)</div>
+          <div class="ln">&nbsp;</div>
+          <div class="ln"><span class="prompt">svc@prod-db-01</span><span class="muted">:~$</span> sudo -i</div>
+          <div class="ln"><span class="prompt">root@prod-db-01</span><span class="muted">:~#</span> mysql -e "show slave status\G" | head -4</div>
+          <div class="ln muted">Slave_IO_Running: Yes</div>
+          <div class="ln muted">Slave_SQL_Running: Yes</div>
+          <div class="ln"><span class="prompt">root@prod-db-01</span><span class="muted">:~#</span> <span class="cursor"></span></div>
+        </div>
+        <div class="pane pane-empty" id="emptyPane" data-id="__empty">
+          <svg class="icon" viewBox="0 0 20 20" style="width:26px;height:26px;color:var(--term-muted)"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>
+          <div id="emptyMsg">왼쪽에서 서버를 선택하면 여기에 세션이 열립니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- inspector -->
+    <aside class="inspector" id="inspector">
+      <div class="insp-collapsed-handle" id="inspHandle" title="연결 정보 펼치기 (⌘I)">
+        <svg class="icon" viewBox="0 0 20 20"><polyline points="13 4 7 10 13 16"></polyline></svg>
+        <span class="insp-handle-label">연결 정보</span>
+      </div>
+      <div class="insp-body" id="inspBody">
+        <div class="insp-head">
+          <h2>연결 정보</h2>
+          <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="7 4 13 10 7 16"></polyline></svg>
+          </button>
+        </div>
+        <div class="insp-row"><span class="insp-label">서버</span><span class="insp-value" id="i-name">prod-web-01</span></div>
+        <div class="insp-row"><span class="insp-label">그룹</span><span class="insp-value" id="i-group">운영</span></div>
+        <div class="insp-row"><span class="insp-label">프로토콜</span><span class="insp-value" id="i-proto"><span class="proto-chip sm" id="i-proto-chip"></span><span id="i-proto-label"></span></span></div>
+        <div class="insp-row"><span class="insp-label">호스트</span><span class="insp-value" id="i-host">10.0.1.23:22</span></div>
+        <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
+        <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
+        <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
+        <div class="insp-row"><span class="insp-label">비밀번호 저장</span><span class="insp-value"><span class="pill off">저장 안 함 · 매번 직접 입력</span></span></div>
+        <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
+
+        <div class="insp-actions">
+          <button class="insp-btn disabled">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+            SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
+          </button>
+          <button class="insp-btn danger">
+            <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
+            연결 종료
+          </button>
+        </div>
+
+        <div class="insp-memo">
+          <div class="insp-memo-head">
+            <label for="i-memo">메모</label>
+            <span class="insp-memo-warn">민감정보 금지</span>
+          </div>
+          <textarea id="i-memo" placeholder="임시로 붙여넣거나 적어둘 메모 (배포 명령어, 체크리스트 등)"></textarea>
+        </div>
+
+        <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다(재접속 시 자동으로 이어짐). 단, 비밀번호는 저장되지 않으며 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다.</p>
+      </div>
+    </aside>
+
+    <!-- statusbar -->
+    <footer class="statusbar">
+      <span class="seg">
+        <svg class="icon" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8" rx="1.4"></rect><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"></path></svg>
+        잠금 해제됨
+      </span>
+      <span class="seg">3개 서버 연결됨 · 6개 대기</span>
+      <span class="seg">보기: <b id="filterLabel" style="color:var(--text);font-weight:700;">전체</b></span>
+      <span class="grow"></span>
+      <span class="seg"><kbd>⌘1‑9</kbd> 탭 전환</span>
+      <span class="seg"><kbd>⌘I</kbd> 연결정보</span>
+      <span class="seg">onegyeok v0.1</span>
+    </footer>
+  </div>
+
+<script src="renderer.js"></script>
+</body>
+</html>

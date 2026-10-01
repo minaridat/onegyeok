@@ -1,0 +1,14 @@
+{
+  "name": "onegyeok",
+  "version": "0.1.0",
+  "description": "SSH/RDP/VNC/SFTP/Web 통합 원격 접속 클라이언트 (사내 ISMS 심사 대응 보안 정책 적용)",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^44.5.1"
+  }
+}
