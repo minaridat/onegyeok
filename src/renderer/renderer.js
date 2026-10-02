@@ -376,7 +376,7 @@
     memoStatusEl.classList.remove('show');
 
     var connBtn = document.getElementById('inspConnActionBtn');
-    if(proto === 'ssh' || proto === 'sql'){
+    if(proto === 'ssh' || proto === 'sql' || proto === 'rdp'){
       connBtn.style.display = '';
       updateConnActionButton(tabId);
     } else {
@@ -402,16 +402,20 @@
     el.dataset.id = tabId;
     el.dataset.serverId = serverId;
     if(proto === 'ssh'){
-      el.className = 'pane ssh-pane';
-      var statusEl = document.createElement('div');
-      statusEl.className = 'ssh-connecting';
-      statusEl.textContent = '연결 준비 중...';
-      var hostEl = document.createElement('div');
-      hostEl.className = 'xterm-host';
-      el.appendChild(statusEl);
-      el.appendChild(hostEl);
+      el.className = 'pane pane-layout';
+      el.innerHTML =
+        '<div class="pane-split-controls">' +
+          '<button type="button" class="split-btn" data-orientation="row" title="세로 분할 (⌘D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="7" height="16" rx="1"></rect><rect x="11" y="2" width="7" height="16" rx="1"></rect></svg></button>' +
+          '<button type="button" class="split-btn" data-orientation="column" title="가로 분할 (⌘⇧D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="16" height="7" rx="1"></rect><rect x="2" y="11" width="16" height="7" rx="1"></rect></svg></button>' +
+        '</div>' +
+        '<div class="pane-cells"></div>';
+      el.classList.add('ssh-pane');
       panes.appendChild(el);
-      startSshSession(tabId, serverId, statusEl, hostEl);
+      tabLayouts[tabId] = { orientation: null, paneIds: [tabId] };
+      var firstCell = createPaneCellDom(tabId);
+      el.querySelector('.pane-cells').appendChild(firstCell.cellEl);
+      startSshSession(tabId, serverId, firstCell.statusEl, firstCell.hostEl);
+      updateLayoutChrome(tabId);
       return el;
     } else if(proto === 'sql'){
       el.className = 'pane sql-pane';
@@ -419,13 +423,10 @@
       startDbSession(tabId, serverId, el);
       return el;
     } else if(proto === 'rdp'){
-      el.className = 'pane screen';
-      el.innerHTML =
-        '<div class="screen-toolbar"><span>'+serverId+' · RDP</span><span class="grow"></span>' +
-        '<span class="icon-btn" title="전체화면"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 7V4a1 1 0 0 0-1-1h-3M3 13v3a1 1 0 0 0 1 1h3M17 13v3a1 1 0 0 1-1 1h-3"></path></svg></span></div>' +
-        '<div class="screen-canvas"><div class="win" style="left:12%;top:14%;width:50%;height:56%;"></div>' +
-        '<span class="screen-badge">원격 제어 중</span>' +
-        '<div class="screen-taskbar"><span class="dot"></span><span class="dot"></span></div></div>';
+      el.className = 'pane rdp-pane';
+      panes.appendChild(el);
+      startRdpSession(tabId, serverId, el);
+      return el;
     } else {
       el.className = 'pane placeholder-pane proto-' + proto;
       el.innerHTML =
@@ -450,6 +451,7 @@
   // ==================================================================
   var sshSessions = {}; // tabId -> { term, fitAddon, statusEl, hostEl, state, handleInput, srv }
   var dbSessions = {}; // tabId -> { state, srv, el, dom } (SQL 클라이언트 세션, 아래 쪽에서 정의)
+  var rdpSessions = {}; // tabId -> { state, srv, el, dom, client, mouse, keyboard } (RDP 세션, 아래 쪽에서 정의)
   var hasSshBridge = !!(window.onegyeok && window.onegyeok.ssh);
 
   // 사이드바의 서버 상태 점은 "그 서버로 열린 탭 중 하나라도 연결돼 있는지"를 보여준다
@@ -465,18 +467,22 @@
     }) || Object.keys(dbSessions).some(function(tid){
       var s = dbSessions[tid];
       return s && s.srv && s.srv.id === serverId && s.state === 'connected';
+    }) || Object.keys(rdpSessions).some(function(tid){
+      var s = rdpSessions[tid];
+      return s && s.srv && s.srv.id === serverId && s.state === 'connected';
     });
     row.dataset.status = anyConnected ? 'on' : 'off';
     var dot = row.querySelector('.proto-chip .stat');
     if(dot) dot.classList.toggle('on', anyConnected);
   }
 
-  // 인스펙터의 "연결 종료/재연결" 버튼은 SSH/SQL 세션 어느 쪽이든 같은 방식으로 상태를 읽는다.
-  function sessionFor(tabId){ return sshSessions[tabId] || dbSessions[tabId]; }
+  // 인스펙터의 "연결 종료/재연결" 버튼은 SSH/SQL/RDP 세션 어느 쪽이든 같은 방식으로 상태를 읽는다.
+  function sessionFor(tabId){ return sshSessions[tabId] || dbSessions[tabId] || rdpSessions[tabId]; }
 
   function disposeSession(tabId){
     if(sshSessions[tabId]) disposeSshSession(tabId);
     else if(dbSessions[tabId]) disposeDbSession(tabId);
+    else if(rdpSessions[tabId]) disposeRdpSession(tabId);
   }
 
   function setSshStatus(tabId, state, message){
@@ -503,6 +509,7 @@
       }
     }
     if(currentInspectedId === tabId) updateConnActionButton(tabId);
+    refreshAllSessionPickers();
   }
 
   function updateConnActionButton(id){
@@ -763,7 +770,303 @@
     broadcastSet.delete(tabId);
     if(broadcastMode) updateBroadcastCount();
     if(serverId) updateServerRowStatus(serverId);
+    refreshAllSessionPickers();
   }
+
+  // ==================================================================
+  // 탭 내 터미널 분할 (세션 복제 / 세션 선택 기반, tmux 비의존)
+  // docs/기능명세/04_터미널분할_기능명세.md — 분할로 생기는 새 pane에는 기본적으로 같은 서버의
+  // 새 독립 세션이 연결되고(F-216과 동일 원칙), pane 헤더의 세션 선택기로 이미 열려 있는 다른
+  // 세션(다른 탭 포함)을 그대로 가져와 이 자리에 배치할 수도 있다. v1은 한 탭 안에서 가로 일렬
+  // 또는 세로 일렬 중 하나의 방향만 지원한다(F-801).
+  // ==================================================================
+  var tabLayouts = {}; // tabId -> { orientation: 'row'|'column'|null, paneIds: string[] }
+  var splitSeq = 0;
+  var focusedPaneId = null;
+
+  function findTabForPane(paneId){
+    for(var tabId in tabLayouts){
+      if(tabLayouts[tabId].paneIds.indexOf(paneId) > -1) return tabId;
+    }
+    return null;
+  }
+
+  function sessionLabel(paneId){
+    var s = sshSessions[paneId];
+    if(!s || !s.srv) return paneId;
+    var tab = tabbar.querySelector('.tab[data-id="'+paneId+'"]');
+    var nameEl = tab && tab.querySelector('.tab-name');
+    return (nameEl && nameEl.textContent) || s.srv.id;
+  }
+
+  function createPaneCellDom(paneId){
+    var cellEl = document.createElement('div');
+    cellEl.className = 'pane-cell';
+    cellEl.dataset.paneId = paneId;
+    var headerEl = document.createElement('div');
+    headerEl.className = 'pane-cell-header';
+    var labelEl = document.createElement('span');
+    labelEl.className = 'pane-cell-label';
+    var pickerEl = document.createElement('select');
+    pickerEl.className = 'pane-cell-picker';
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'pane-cell-close';
+    closeBtn.title = 'pane 닫기';
+    closeBtn.innerHTML = '<svg class="icon" viewBox="0 0 20 20" style="width:10px;height:10px"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>';
+    headerEl.appendChild(labelEl);
+    headerEl.appendChild(pickerEl);
+    headerEl.appendChild(closeBtn);
+    var statusEl = document.createElement('div');
+    statusEl.className = 'ssh-connecting';
+    statusEl.textContent = '연결 준비 중...';
+    var hostEl = document.createElement('div');
+    hostEl.className = 'xterm-host';
+    cellEl.appendChild(headerEl);
+    cellEl.appendChild(statusEl);
+    cellEl.appendChild(hostEl);
+
+    populateSessionPicker(pickerEl, paneId);
+    pickerEl.addEventListener('change', function(){
+      var chosen = pickerEl.value;
+      pickerEl.value = '';
+      if(chosen) moveSessionIntoCell(chosen, paneId);
+    });
+    closeBtn.addEventListener('click', function(e){ e.stopPropagation(); closePaneCell(paneId); });
+    cellEl.addEventListener('mousedown', function(){ focusedPaneId = paneId; }, true);
+
+    return { cellEl: cellEl, statusEl: statusEl, hostEl: hostEl };
+  }
+
+  // 자기 자신을 뺀, 지금 떠 있는 모든 SSH 세션이 후보. 세션이 뜨거나 닫힐 때마다 모든 picker를
+  // 다시 채워 항상 최신 상태를 보장한다(마우스다운 시점에만 채우면 키보드 접근성·테스트 자동화에서
+  // 값이 비어 보이는 문제가 있어, 생성 시 + 주요 상태 변화 시점에 미리 채워둔다).
+  function populateSessionPicker(pickerEl, forPaneId){
+    var options = ['<option value="">— 세션 선택 —</option>'];
+    Object.keys(sshSessions).forEach(function(pid){
+      if(pid === forPaneId) return;
+      options.push('<option value="'+escapeHtml(pid)+'">'+escapeHtml(sessionLabel(pid))+'</option>');
+    });
+    pickerEl.innerHTML = options.join('');
+  }
+
+  function refreshAllSessionPickers(){
+    Array.prototype.slice.call(panes.querySelectorAll('.pane-cell')).forEach(function(cell){
+      var pickerEl = cell.querySelector('.pane-cell-picker');
+      if(pickerEl) populateSessionPicker(pickerEl, cell.dataset.paneId);
+    });
+  }
+
+  function refreshPaneCellHeader(cellEl, paneId){
+    var labelEl = cellEl.querySelector('.pane-cell-label');
+    if(labelEl) labelEl.textContent = sessionLabel(paneId);
+  }
+
+  function rebuildResizers(tabId){
+    var layout = tabLayouts[tabId];
+    if(!layout) return;
+    var container = panes.querySelector('.pane[data-id="'+tabId+'"] .pane-cells');
+    if(!container) return;
+    Array.prototype.slice.call(container.querySelectorAll('.pane-resizer')).forEach(function(r){ r.remove(); });
+    if(layout.paneIds.length < 2) return;
+    var cells = layout.paneIds.map(function(pid){ return container.querySelector('.pane-cell[data-pane-id="'+pid+'"]'); });
+    for(var i = 0; i < cells.length - 1; i++){
+      var resizer = document.createElement('div');
+      resizer.className = 'pane-resizer ' + layout.orientation;
+      container.insertBefore(resizer, cells[i + 1]);
+      attachResizerDrag(resizer, cells[i], cells[i + 1], layout.orientation, tabId);
+    }
+  }
+
+  function attachResizerDrag(resizer, beforeEl, afterEl, orientation, tabId){
+    var dragging = false, startPos = 0, startBefore = 0, startAfter = 0;
+    resizer.addEventListener('mousedown', function(e){
+      dragging = true;
+      resizer.classList.add('dragging');
+      startPos = orientation === 'row' ? e.clientX : e.clientY;
+      startBefore = orientation === 'row' ? beforeEl.offsetWidth : beforeEl.offsetHeight;
+      startAfter = orientation === 'row' ? afterEl.offsetWidth : afterEl.offsetHeight;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e){
+      if(!dragging) return;
+      var pos = orientation === 'row' ? e.clientX : e.clientY;
+      var delta = pos - startPos;
+      var newBefore = Math.max(60, startBefore + delta);
+      var newAfter = Math.max(60, startAfter - delta);
+      beforeEl.style.flex = '0 0 ' + newBefore + 'px';
+      afterEl.style.flex = '0 0 ' + newAfter + 'px';
+    });
+    document.addEventListener('mouseup', function(){
+      if(!dragging) return;
+      dragging = false;
+      resizer.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      var layout = tabLayouts[tabId];
+      if(layout) layout.paneIds.forEach(function(pid){ if(sshSessions[pid]) fitSshSession(pid); });
+    });
+  }
+
+  function updateLayoutChrome(tabId){
+    var layout = tabLayouts[tabId];
+    var paneEl = panes.querySelector('.pane[data-id="'+tabId+'"]');
+    if(!layout || !paneEl) return;
+    var container = paneEl.querySelector('.pane-cells');
+    container.classList.toggle('row', layout.orientation === 'row');
+    container.classList.toggle('column', layout.orientation === 'column');
+    container.classList.toggle('has-headers', layout.paneIds.length > 1);
+    var splitControls = paneEl.querySelector('.pane-split-controls');
+    // 분할 후에는 각 pane 헤더가 컨트롤을 맡는다 — 떠 있는 분할 버튼이 마지막 pane의 헤더(닫기 버튼 등)와
+    // 겹치는 걸 막기 위해, 분할 전(pane 1개)에만 보여주고 이후 추가 분할은 단축키(⌘D/⌘⇧D)로 한다.
+    if(splitControls) splitControls.style.display = layout.paneIds.length > 1 ? 'none' : '';
+    layout.paneIds.forEach(function(pid){
+      var cell = container.querySelector('.pane-cell[data-pane-id="'+pid+'"]');
+      if(cell){
+        cell.style.flex = '1 1 0';
+        refreshPaneCellHeader(cell, pid);
+      }
+    });
+    rebuildResizers(tabId);
+    layout.paneIds.forEach(function(pid){ if(sshSessions[pid]) fitSshSession(pid); });
+    refreshAllSessionPickers();
+  }
+
+  // 탭이 분할돼 있으면 그 안의 모든 pane을, 아니면 탭 자신의 세션 하나만 다시 맞춘다.
+  function fitAllPanesInTab(tabId){
+    if(tabLayouts[tabId] && tabLayouts[tabId].paneIds.length > 1){
+      tabLayouts[tabId].paneIds.forEach(function(pid){ if(sshSessions[pid]) fitSshSession(pid); });
+    } else if(sshSessions[tabId]){
+      fitSshSession(tabId);
+    }
+  }
+
+  function splitPane(tabId, orientation){
+    var layout = tabLayouts[tabId];
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    if(!layout || !tab) return;
+    var serverId = tab.dataset.serverId;
+    if(layout.paneIds.length === 1) layout.orientation = orientation;
+    var newPaneId = tabId + '/p' + (++splitSeq);
+    layout.paneIds.push(newPaneId);
+    var dom = createPaneCellDom(newPaneId);
+    panes.querySelector('.pane[data-id="'+tabId+'"] .pane-cells').appendChild(dom.cellEl);
+    startSshSession(newPaneId, serverId, dom.statusEl, dom.hostEl);
+    updateLayoutChrome(tabId);
+  }
+
+  // 탭을 완전히 닫는다 — skipDispose가 true면 세션은 이미 다른 곳으로 옮겨진 상태이므로
+  // 탭/레이아웃 UI만 정리하고 세션 자체는 건드리지 않는다(moveSessionIntoCell에서 사용).
+  function closeTabById(tabId, skipDispose){
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    if(!tab) return;
+    var wasActive = tab.classList.contains('active');
+    if(!skipDispose){
+      var layout = tabLayouts[tabId];
+      var ids = layout ? layout.paneIds.slice() : [tabId];
+      ids.forEach(function(id){ disposeSession(id); });
+    }
+    var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
+    tab.remove();
+    if(pane) pane.remove();
+    delete tabLayouts[tabId];
+    renumberTabs();
+    if(wasActive){
+      var remaining = visibleTabs()[0];
+      if(remaining) activate(remaining.dataset.id); else activateEmpty(currentFilter);
+    }
+  }
+
+  function closePaneCell(paneId){
+    var tabId = findTabForPane(paneId);
+    if(!tabId) return;
+    var layout = tabLayouts[tabId];
+    disposeSession(paneId);
+    layout.paneIds = layout.paneIds.filter(function(id){ return id !== paneId; });
+    var cell = panes.querySelector('.pane-cell[data-pane-id="'+paneId+'"]');
+    if(cell) cell.remove();
+    if(layout.paneIds.length === 0){
+      closeTabById(tabId, true);
+      return;
+    }
+    if(layout.paneIds.length === 1) layout.orientation = null;
+    updateLayoutChrome(tabId);
+  }
+
+  // pane 헤더의 세션 선택기로 다른 곳(다른 탭/다른 pane)의 세션을 이 자리로 가져온다.
+  // 원래 있던 자리의 세션은 옮겨질 뿐 끊기지 않고, 원래 자리가 비면 자동으로 정리된다(F-803/F-803a).
+  function moveSessionIntoCell(sourcePaneId, targetPaneId){
+    if(sourcePaneId === targetPaneId || !sshSessions[sourcePaneId]) return;
+    var srcTabId = findTabForPane(sourcePaneId);
+    var targetTabId = findTabForPane(targetPaneId);
+    if(!srcTabId || !targetTabId) return;
+    var srcLayout = tabLayouts[srcTabId];
+    var targetLayout = tabLayouts[targetTabId];
+    var wasOnlyPane = srcLayout.paneIds.length === 1;
+
+    var srcCell = panes.querySelector('.pane-cell[data-pane-id="'+sourcePaneId+'"]');
+    var targetCellsContainer = panes.querySelector('.pane[data-id="'+targetTabId+'"] .pane-cells');
+    var oldTargetCell = panes.querySelector('.pane-cell[data-pane-id="'+targetPaneId+'"]');
+    if(!srcCell || !targetCellsContainer || !oldTargetCell) return;
+
+    disposeSession(targetPaneId); // 타겟 자리에 있던 세션은 교체되면서 닫힌다
+
+    targetCellsContainer.insertBefore(srcCell, oldTargetCell);
+    oldTargetCell.remove();
+
+    srcLayout.paneIds = srcLayout.paneIds.filter(function(id){ return id !== sourcePaneId; });
+    var idx = targetLayout.paneIds.indexOf(targetPaneId);
+    targetLayout.paneIds[idx] = sourcePaneId;
+
+    if(wasOnlyPane){
+      closeTabById(srcTabId, true);
+    } else {
+      if(srcLayout.paneIds.length === 1) srcLayout.orientation = null;
+      updateLayoutChrome(srcTabId);
+    }
+    updateLayoutChrome(targetTabId);
+    requestAnimationFrame(function(){
+      fitSshSession(sourcePaneId);
+      if(sshSessions[sourcePaneId]) sshSessions[sourcePaneId].term.focus();
+    });
+  }
+
+  panes.addEventListener('click', function(e){
+    var splitBtn = e.target.closest('.split-btn');
+    if(!splitBtn) return;
+    var paneEl = e.target.closest('.pane-layout');
+    if(!paneEl) return;
+    splitPane(paneEl.dataset.id, splitBtn.dataset.orientation);
+  });
+
+  // ⌘D/⌘⇧D로 세로/가로 분할(F-801~802), ⌘[/⌘]로 pane 간 포커스 이동(F-804)
+  document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() === 'd'){
+      var activeTab = tabbar.querySelector('.tab.active');
+      if(!activeTab || activeTab.dataset.protocol !== 'ssh') return;
+      e.preventDefault();
+      splitPane(activeTab.dataset.id, e.shiftKey ? 'column' : 'row');
+      return;
+    }
+    if(e.key === '[' || e.key === ']'){
+      var activeTabEl = tabbar.querySelector('.tab.active');
+      var tid = activeTabEl && activeTabEl.dataset.id;
+      var layout = tid && tabLayouts[tid];
+      if(!layout || layout.paneIds.length < 2) return;
+      e.preventDefault();
+      var curIdx = focusedPaneId ? layout.paneIds.indexOf(focusedPaneId) : 0;
+      if(curIdx === -1) curIdx = 0;
+      var nextIdx = e.key === ']' ? (curIdx + 1) % layout.paneIds.length : (curIdx - 1 + layout.paneIds.length) % layout.paneIds.length;
+      focusedPaneId = layout.paneIds[nextIdx];
+      Array.prototype.slice.call(panes.querySelectorAll('.pane-cell.focused')).forEach(function(c){ c.classList.remove('focused'); });
+      var cell = panes.querySelector('.pane-cell[data-pane-id="'+focusedPaneId+'"]');
+      if(cell){
+        cell.classList.add('focused');
+        if(sshSessions[focusedPaneId]) sshSessions[focusedPaneId].term.focus();
+      }
+    }
+  });
 
   if(hasSshBridge){
     window.onegyeok.ssh.onData(function(id, chunk){
@@ -991,13 +1294,241 @@
     });
   }
 
-  // 창 크기 변경 / 패널 드래그 리사이즈 시 현재 보이는 터미널을 다시 맞춘다.
+  // ==================================================================
+  // RDP 클라이언트 (Apache Guacamole 기반 — docs/기술스택/03_RDP_기술스택.md)
+  //
+  // 메인 프로세스(IPC)는 로컬 WebSocket 주소 + 1회용 암호화 토큰만 돌려준다. 실제 화면
+  // 스트림은 여기서 그 주소로 직접 WebSocket을 열어 받는다(IPC를 거치지 않음 — 바이너리
+  // 화면 데이터를 IPC로 중계하면 느리고 무겁기 때문). 비밀번호는 SSH/SQL과 동일한 원칙으로
+  // 저장하지 않고, 탭 안의 접속 폼에 그때그때 직접 입력받는다.
+  // ==================================================================
+  var hasRdpBridge = !!(window.onegyeok && window.onegyeok.rdp);
+
+  function setRdpStatus(tabId, state, message){
+    var s = rdpSessions[tabId];
+    if(!s) return;
+    s.state = state;
+    if(s.srv) updateServerRowStatus(s.srv.id);
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    if(tab){
+      var tabDot = tab.querySelector('.proto-chip .stat');
+      if(tabDot) tabDot.classList.toggle('on', state === 'connected');
+      var reconnectBtn = tab.querySelector('.tab-reconnect');
+      if(reconnectBtn){
+        var idleFailed = (state === 'error' || state === 'disconnected');
+        reconnectBtn.classList.toggle('show', idleFailed);
+      }
+    }
+    if(currentInspectedId === tabId) updateConnActionButton(tabId);
+  }
+
+  function buildRdpPaneDom(el){
+    el.innerHTML =
+      '<div class="rdp-connect">' +
+        '<div class="rdp-connect-box">' +
+          '<div class="rdp-connect-title"></div>' +
+          '<label class="rdp-f-username-row" style="display:none">사용자명<input type="text" class="rdp-f-username" autocomplete="off"></label>' +
+          '<label>비밀번호<input type="password" class="rdp-f-password" autocomplete="off"></label>' +
+          '<div class="rdp-connect-error"></div>' +
+          '<button type="button" class="rdp-connect-btn">접속</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rdp-workspace">' +
+        '<div class="rdp-toolbar">' +
+          '<span class="rdp-meta"></span>' +
+          '<button type="button" class="rdp-disconnect-btn" title="연결 종료"><svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg></button>' +
+        '</div>' +
+        '<div class="rdp-display-wrap" tabindex="0"></div>' +
+      '</div>';
+    return {
+      titleEl: el.querySelector('.rdp-connect-title'),
+      usernameRow: el.querySelector('.rdp-f-username-row'),
+      usernameInput: el.querySelector('.rdp-f-username'),
+      passwordInput: el.querySelector('.rdp-f-password'),
+      connectError: el.querySelector('.rdp-connect-error'),
+      connectBtn: el.querySelector('.rdp-connect-btn'),
+      meta: el.querySelector('.rdp-meta'),
+      disconnectBtn: el.querySelector('.rdp-disconnect-btn'),
+      displayWrap: el.querySelector('.rdp-display-wrap'),
+    };
+  }
+
+  // Guacamole 프로토콜 상태 코드를 SSH/SQL과 동일한 kind('auth'/'network'/'other') 체계로 분류한다.
+  function classifyRdpStatus(code){
+    var C = window.Guacamole.Status.Code;
+    if(code === C.CLIENT_UNAUTHORIZED || code === C.CLIENT_FORBIDDEN) return 'auth';
+    if(code === C.UPSTREAM_NOT_FOUND || code === C.UPSTREAM_UNAVAILABLE || code === C.UPSTREAM_TIMEOUT) return 'network';
+    return 'other';
+  }
+  function rdpStatusMessage(kind){
+    if(kind === 'auth') return '인증 실패 — 사용자명 또는 비밀번호를 확인해주세요';
+    if(kind === 'network') return '대상 서버에 연결할 수 없습니다 — 호스트/포트를 확인해주세요';
+    return '연결 실패';
+  }
+
+  function showRdpConnectForm(tabId){
+    var s = rdpSessions[tabId];
+    if(!s) return;
+    s.el.classList.remove('connected');
+    s.dom.connectError.textContent = '';
+    s.dom.passwordInput.value = '';
+    s.dom.connectBtn.disabled = false;
+    s.dom.connectBtn.textContent = '접속';
+    if(s.client){
+      try { s.client.disconnect(); } catch(_e){ /* noop */ }
+      s.client = null; s.mouse = null; s.keyboard = null;
+    }
+    s.dom.displayWrap.innerHTML = '';
+    setTimeout(function(){
+      if(s.dom.usernameRow.style.display !== 'none') s.dom.usernameInput.focus();
+      else s.dom.passwordInput.focus();
+    }, 0);
+  }
+
+  function setupRdpInput(tabId){
+    var s = rdpSessions[tabId];
+    if(!s || !s.client) return;
+    var mouse = new window.Guacamole.Mouse(s.dom.displayWrap);
+    mouse.onEach(['mousedown', 'mousemove', 'mouseup'], function(e){
+      s.client.sendMouseState(e.state, true);
+    });
+    s.mouse = mouse;
+
+    var keyboard = new window.Guacamole.Keyboard(s.dom.displayWrap);
+    keyboard.onkeydown = function(keysym){ s.client.sendKeyEvent(1, keysym); };
+    keyboard.onkeyup = function(keysym){ s.client.sendKeyEvent(0, keysym); };
+    s.keyboard = keyboard;
+  }
+
+  function startGuacamoleClient(tabId, wsBaseUrl, token){
+    var s = rdpSessions[tabId];
+    if(!s) return;
+    // 토큰은 tunnel URL에 미리 붙이지 않는다 — WebSocketTunnel.connect(data)가 내부적으로
+    // `tunnelURL + "?" + data`로 자기 쿼리스트링을 붙이므로, client.connect()에 넘겨야 한다.
+    var tunnel = new window.Guacamole.WebSocketTunnel(wsBaseUrl);
+    var client = new window.Guacamole.Client(tunnel);
+    s.client = client;
+
+    s.dom.displayWrap.appendChild(client.getDisplay().getElement());
+
+    client.onstatechange = function(state){
+      if(!rdpSessions[tabId]) return;
+      var STATE = window.Guacamole.Client.State;
+      if(state === STATE.CONNECTED){
+        s.dom.connectBtn.disabled = false;
+        s.dom.connectBtn.textContent = '접속';
+        s.el.classList.add('connected');
+        s.dom.meta.textContent = s.srv.host + ':' + (s.srv.port || 3389);
+        setRdpStatus(tabId, 'connected', '');
+        setupRdpInput(tabId);
+        setTimeout(function(){ s.dom.displayWrap.focus(); }, 0);
+      } else if(state === STATE.DISCONNECTED){
+        if(s.state === 'connected'){
+          setRdpStatus(tabId, 'disconnected', '연결이 종료되었습니다.');
+          showRdpConnectForm(tabId);
+        }
+      }
+    };
+
+    client.onerror = function(status){
+      if(!rdpSessions[tabId]) return;
+      var kind = classifyRdpStatus(status.code);
+      var message = rdpStatusMessage(kind);
+      s.dom.connectBtn.disabled = false;
+      s.dom.connectBtn.textContent = '접속';
+      s.dom.connectError.textContent = message;
+      setRdpStatus(tabId, 'error', message);
+    };
+
+    client.connect('token=' + encodeURIComponent(token));
+  }
+
+  function attemptRdpConnect(tabId){
+    var s = rdpSessions[tabId];
+    if(!s) return;
+    var srv = s.srv;
+    var username = srv.username || s.dom.usernameInput.value.trim();
+    if(!username){
+      s.dom.connectError.textContent = '사용자명을 입력해주세요.';
+      return;
+    }
+    var password = s.dom.passwordInput.value;
+    s.dom.connectError.textContent = '';
+    s.dom.connectBtn.disabled = true;
+    s.dom.connectBtn.textContent = '접속 중...';
+    setRdpStatus(tabId, 'connecting', '');
+
+    var rect = s.dom.displayWrap.getBoundingClientRect();
+    var width = Math.max(320, Math.round(rect.width) || 1024);
+    var height = Math.max(240, Math.round(rect.height) || 768);
+
+    window.onegyeok.rdp.connect(tabId, {
+      host: srv.host, port: srv.port || 3389, username: username, password: password,
+      width: width, height: height,
+    }).then(function(res){
+      if(!rdpSessions[tabId]) return;
+      if(!res.ok){
+        s.dom.connectBtn.disabled = false;
+        s.dom.connectBtn.textContent = '접속';
+        s.dom.connectError.textContent = res.error || '연결 실패';
+        setRdpStatus(tabId, 'error', res.error);
+        return;
+      }
+      startGuacamoleClient(tabId, res.wsBaseUrl, res.token);
+    });
+  }
+
+  // 연결된 상태에서 "연결 종료"를 누르면 탭은 유지한 채 다시 접속 폼으로 되돌린다.
+  function disconnectRdpKeepTab(tabId){
+    var s = rdpSessions[tabId];
+    if(!s) return;
+    if(hasRdpBridge) window.onegyeok.rdp.disconnect(tabId);
+    setRdpStatus(tabId, 'disconnected', '연결이 종료되었습니다.');
+    showRdpConnectForm(tabId);
+  }
+
+  function startRdpSession(tabId, serverId, el){
+    var srv = SERVERS.find(function(s){ return s.id === serverId; });
+    if(!srv) return;
+    var dom = buildRdpPaneDom(el);
+    dom.titleEl.textContent = srv.host + ':' + (srv.port || 3389);
+    var showUsernameField = !srv.username;
+    dom.usernameRow.style.display = showUsernameField ? '' : 'none';
+
+    var session = { state: 'disconnected', srv: srv, el: el, dom: dom, client: null, mouse: null, keyboard: null };
+    rdpSessions[tabId] = session;
+
+    dom.connectBtn.addEventListener('click', function(){ attemptRdpConnect(tabId); });
+    dom.passwordInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); attemptRdpConnect(tabId); } });
+    dom.disconnectBtn.addEventListener('click', function(){ disconnectRdpKeepTab(tabId); });
+
+    if(!hasRdpBridge || !window.Guacamole){
+      dom.connectError.textContent = 'RDP 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)';
+      dom.connectBtn.disabled = true;
+      return;
+    }
+    setTimeout(function(){
+      if(showUsernameField) dom.usernameInput.focus(); else dom.passwordInput.focus();
+    }, 0);
+  }
+
+  function disposeRdpSession(tabId){
+    var s = rdpSessions[tabId];
+    if(!s) return;
+    if(s.client){ try { s.client.disconnect(); } catch(_e){ /* noop */ } }
+    if(hasRdpBridge) window.onegyeok.rdp.disconnect(tabId);
+    var serverId = s.srv && s.srv.id;
+    delete rdpSessions[tabId];
+    if(serverId) updateServerRowStatus(serverId);
+  }
+
+  // 창 크기 변경 / 패널 드래그 리사이즈 시 현재 보이는 터미널(들)을 다시 맞춘다.
   window.addEventListener('resize', function(){
-    if(currentInspectedId && sshSessions[currentInspectedId]) fitSshSession(currentInspectedId);
+    if(currentInspectedId) fitAllPanesInTab(currentInspectedId);
   });
   if(window.ResizeObserver){
     new ResizeObserver(function(){
-      if(currentInspectedId && sshSessions[currentInspectedId]) fitSshSession(currentInspectedId);
+      if(currentInspectedId) fitAllPanesInTab(currentInspectedId);
     }).observe(panes);
   }
 
@@ -1018,6 +1549,12 @@
     if(d){
       if(d.state === 'connected') disconnectDbKeepTab(id);
       else attemptDbConnect(id);
+      return;
+    }
+    var r = rdpSessions[id];
+    if(r){
+      if(r.state === 'connected') disconnectRdpKeepTab(id);
+      else attemptRdpConnect(id);
     }
   });
 
@@ -1076,7 +1613,7 @@
     tab.dataset.id = tabId;
     tab.dataset.serverId = serverId;
     tab.dataset.protocol = proto;
-    var reconnectBtn = (proto === 'ssh' || proto === 'sql')
+    var reconnectBtn = (proto === 'ssh' || proto === 'sql' || proto === 'rdp')
       ? '<button type="button" class="tab-reconnect" title="빠른 재연결"><svg class="icon" viewBox="0 0 20 20"><polyline points="3 9 3 4 8 4"></polyline><path d="M3.5 13a6.5 6.5 0 1 0 1.6-6.8L3 9"></path></svg></button>'
       : '';
     tab.innerHTML =
@@ -1110,7 +1647,7 @@
     if(activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
     if(sshSessions[id]){
       requestAnimationFrame(function(){
-        fitSshSession(id);
+        fitAllPanesInTab(id);
         if(sshSessions[id]) sshSessions[id].term.focus();
       });
     }
@@ -1172,23 +1709,10 @@
   // 서버를 완전히 삭제할 때는 그 서버로 열려 있는 탭/세션을 전부 닫는다(여러 개 열려 있을 수 있음).
   function removeServerById(serverId){
     if(hasMemoBridge) window.onegyeok.saveMemo(serverId, '');
-    var tabsToRemove = Array.prototype.slice.call(tabbar.querySelectorAll('.tab[data-server-id="'+serverId+'"]'));
-    var hadActive = tabsToRemove.some(function(t){ return t.classList.contains('active'); });
-    tabsToRemove.forEach(function(t){
-      var tabId = t.dataset.id;
-      disposeSession(tabId);
-      var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
-      t.remove();
-      if(pane) pane.remove();
-    });
+    var tabIdsToRemove = Array.prototype.map.call(tabbar.querySelectorAll('.tab[data-server-id="'+serverId+'"]'), function(t){ return t.dataset.id; });
+    // closeTabById가 분할된 탭이면 그 안의 pane 세션까지 전부 정리한다(tabLayouts 기준).
+    tabIdsToRemove.forEach(function(tabId){ closeTabById(tabId); });
     SERVERS = SERVERS.filter(function(s){ return s.id !== serverId; });
-    if(tabsToRemove.length){
-      renumberTabs();
-      if(hadActive){
-        var remaining = visibleTabs()[0];
-        if(remaining) activate(remaining.dataset.id); else activateEmpty(currentFilter);
-      }
-    }
     selectedManageIds.delete(serverId);
   }
 
@@ -1536,6 +2060,12 @@
       if(rd && rd.state !== 'connected' && rd.state !== 'connecting'){
         showDbConnectForm(rid);
         activate(rid);
+        return;
+      }
+      var rr = rdpSessions[rid];
+      if(rr && rr.state !== 'connected' && rr.state !== 'connecting'){
+        showRdpConnectForm(rid);
+        activate(rid);
       }
       return;
     }
@@ -1543,17 +2073,9 @@
     var tab = e.target.closest('.tab');
     if(!tab) return;
     if(close){
-      var id = tab.dataset.id;
-      var wasActive = tab.classList.contains('active');
-      disposeSession(id); // 탭을 닫으면 그 탭의 클라이언트↔서버 연결만 종료된다
-      var pane = panes.querySelector('.pane[data-id="'+id+'"]');
-      tab.remove();
-      if(pane) pane.remove();
-      renumberTabs();
-      if(wasActive){
-        var remaining = visibleTabs()[0];
-        if(remaining) activate(remaining.dataset.id); else activateEmpty(currentFilter);
-      }
+      // 탭을 닫으면 그 탭의 모든 pane(분할돼 있었다면 전부)의 세션이 종료된다 — closeTabById가
+      // tabLayouts를 참고해 분할된 탭이면 paneId 전부를, 아니면 탭 자신만 정리한다.
+      closeTabById(tab.dataset.id);
       return;
     }
     activate(tab.dataset.id);

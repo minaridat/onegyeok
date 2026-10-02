@@ -282,6 +282,37 @@
     font-size:var(--fs-sm);padding:4px 2px 8px;flex:none;}
   .ssh-connecting.err{color:var(--danger);}
 
+  /* 탭 내 터미널 분할(세션 복제/세션 선택) — docs/기능명세/04_터미널분할_기능명세.md */
+  .pane-layout{position:relative;}
+  .pane-split-controls{position:absolute;top:4px;right:4px;z-index:2;display:flex;gap:2px;
+    background:rgba(0,0,0,.35);border-radius:6px;padding:2px;opacity:.35;transition:opacity .12s;}
+  .pane-layout:hover .pane-split-controls{opacity:1;}
+  .split-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border:none;
+    background:transparent;color:var(--term-text);border-radius:4px;cursor:pointer;}
+  .split-btn:hover{background:rgba(255,255,255,.18);}
+  .pane-cells{display:flex;flex:1;min-height:0;height:100%;}
+  .pane-cells.row{flex-direction:row;}
+  .pane-cells.column{flex-direction:column;}
+  .pane-cell{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1 1 0;position:relative;}
+  .pane-cell.focused{outline:1px solid var(--term-accent);outline-offset:-1px;}
+  .pane-cell-header{display:none;align-items:center;gap:6px;padding:2px 4px 2px 8px;flex:none;
+    background:var(--term-panel);border-bottom:1px solid rgba(255,255,255,.08);}
+  .pane-cells.has-headers .pane-cell-header{display:flex;}
+  .pane-cell-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:var(--fs-2xs);font-family:var(--font-mono);color:var(--term-muted);}
+  .pane-cell-picker{font-size:var(--fs-2xs);background:var(--term-bg);color:var(--term-text);
+    border:1px solid rgba(255,255,255,.14);border-radius:4px;max-width:120px;padding:1px 2px;}
+  .pane-cell-close{display:flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;
+    border:none;background:transparent;color:var(--term-muted);cursor:pointer;border-radius:3px;}
+  .pane-cell-close:hover{background:rgba(255,255,255,.14);color:var(--term-text);}
+  .pane-cell .xterm-host{flex:1;min-height:0;}
+  .pane-resizer{flex:none;background:transparent;position:relative;z-index:1;}
+  .pane-resizer.row{width:5px;cursor:col-resize;margin:0 -2px;}
+  .pane-resizer.column{height:5px;cursor:row-resize;margin:-2px 0;}
+  .pane-resizer::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:1px;background:rgba(255,255,255,.1);}
+  .pane-resizer.column::after{top:50%;bottom:auto;left:0;right:0;width:auto;height:1px;}
+  .pane-resizer:hover::after,.pane-resizer.dragging::after{background:var(--term-accent);}
+
   /* rdp-style screen pane */
   .pane.screen{padding:0;}
   .screen-toolbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(0,0,0,.28);
@@ -337,6 +368,34 @@
   .sql-empty-note{padding:var(--sp-4);color:var(--text-faint);font-size:var(--fs-sm);}
   .sql-error-box{margin:10px 12px;padding:8px 10px;border-radius:6px;background:var(--danger-soft);color:var(--danger);
     font-family:var(--font-mono);font-size:var(--fs-xs);white-space:pre-wrap;flex:none;}
+
+  /* RDP 클라이언트 pane (Apache Guacamole 기반 — docs/기술스택/03_RDP_기술스택.md) */
+  .pane.rdp-pane{padding:0;background:#161a20;color:var(--text);}
+  .rdp-connect{flex:1;display:flex;align-items:center;justify-content:center;}
+  .rdp-connect-box{width:280px;display:flex;flex-direction:column;gap:10px;}
+  .rdp-connect-title{font-size:var(--fs-sm);color:var(--text-muted);text-align:center;margin-bottom:4px;word-break:break-all;}
+  .rdp-connect-box label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-xs);color:var(--text-muted);}
+  .rdp-connect-box input{font:inherit;font-size:var(--fs-sm);padding:7px 9px;border-radius:7px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text);}
+  .rdp-connect-box input:focus{outline:none;border-color:var(--accent);}
+  .rdp-connect-error{color:var(--danger);font-size:var(--fs-xs);min-height:1em;}
+  .rdp-connect-btn{margin-top:4px;padding:8px;border-radius:7px;border:none;background:var(--accent);
+    color:var(--accent-contrast);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+  .rdp-connect-btn:hover{filter:brightness(1.06);}
+  .rdp-connect-btn:disabled{opacity:.6;cursor:default;}
+
+  .rdp-workspace{display:none;flex:1;min-height:0;flex-direction:column;}
+  .rdp-pane.connected .rdp-workspace{display:flex;}
+  .rdp-pane.connected .rdp-connect{display:none;}
+  .rdp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(0,0,0,.3);
+    border-bottom:1px solid rgba(255,255,255,.08);flex:none;}
+  .rdp-meta{font-size:var(--fs-xs);color:rgba(255,255,255,.6);font-family:var(--font-mono);}
+  .rdp-disconnect-btn{margin-left:auto;display:flex;align-items:center;justify-content:center;width:22px;height:22px;
+    border:none;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;border-radius:5px;}
+  .rdp-disconnect-btn:hover{background:rgba(255,255,255,.12);color:#fff;}
+  .rdp-display-wrap{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;outline:none;}
+  .rdp-display-wrap:focus-visible{box-shadow:inset 0 0 0 2px var(--term-accent);}
+  .rdp-display-wrap .guac-display canvas{display:block;}
 
   /* generic protocol placeholder pane */
   .placeholder-pane{align-items:center;justify-content:center;gap:8px;color:var(--term-text);

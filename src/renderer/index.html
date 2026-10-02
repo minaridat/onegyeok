@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*;">
 <title>onegyeok</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="vendor/xterm.css">
@@ -172,9 +172,8 @@
       <button class="rail-btn" data-filter="sql" title="SQL">
         <svg class="icon" viewBox="0 0 20 20"><ellipse cx="10" cy="5" rx="7" ry="2.6"></ellipse><path d="M3 5v10c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5"></path><path d="M3 10c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"></path></svg>
       </button>
-      <button class="rail-btn future" data-filter="rdp" title="RDP · Phase 4 예정">
+      <button class="rail-btn" data-filter="rdp" title="RDP">
         <svg class="icon" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>
-        <span class="badge">P4</span>
       </button>
       <button class="rail-btn future" data-filter="vnc" title="VNC · Phase 5 예정">
         <svg class="icon" viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>
@@ -467,6 +466,7 @@
 
 <script src="vendor/xterm.js"></script>
 <script src="vendor/addon-fit.js"></script>
+<script src="vendor/guacamole-common.js"></script>
 <script src="renderer.js"></script>
 </body>
 </html>

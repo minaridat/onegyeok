@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const sshManager = require('./ssh-manager');
 const dbManager = require('./db-manager');
+const rdpManager = require('./rdp-manager');
 
 let mainWindow = null;
 
@@ -35,7 +36,8 @@ function createWindow() {
 function terminateAllSessions() {
   sshManager.disconnectAll();
   dbManager.disconnectAll();
-  // TODO(Phase2+): RDP/VNC/SFTP 연결 관리자가 추가되면 여기서 함께 종료한다.
+  rdpManager.disconnectAll();
+  // TODO(Phase2+): VNC/SFTP 연결 관리자가 추가되면 여기서 함께 종료한다.
 }
 
 ipcMain.handle('ping', () => 'pong');
@@ -90,6 +92,26 @@ ipcMain.handle('db:query', async (_event, sessionId, sql) => {
 
 ipcMain.handle('db:disconnect', async (_event, sessionId) => {
   await dbManager.disconnect(sessionId);
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
+// RDP 연결 (Apache Guacamole 기반 — docs/기술스택/03_RDP_기술스택.md)
+// 이 핸들러는 로컬 WebSocket 주소 + 1회용 암호화 토큰만 돌려준다. 실제 화면 스트림은
+// 렌더러가 그 주소로 직접 WebSocket을 열어 받는다(IPC로 중계하지 않음).
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('rdp:connect', async (_event, sessionId, params) => {
+  try {
+    const result = await rdpManager.connect(sessionId, params);
+    return { ok: true, wsBaseUrl: result.wsBaseUrl, token: result.token };
+  } catch (err) {
+    return { ok: false, error: err.message, kind: err.kind };
+  }
+});
+
+ipcMain.handle('rdp:disconnect', (_event, sessionId) => {
+  rdpManager.disconnect(sessionId);
   return { ok: true };
 });
 

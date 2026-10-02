@@ -38,4 +38,9 @@ contextBridge.exposeInMainWorld('onegyeok', {
       return () => ipcRenderer.removeListener('db:status', listener);
     },
   },
+
+  rdp: {
+    connect: (sessionId, params) => ipcRenderer.invoke('rdp:connect', sessionId, params),
+    disconnect: (sessionId) => ipcRenderer.invoke('rdp:disconnect', sessionId),
+  },
 });

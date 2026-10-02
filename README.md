@@ -33,6 +33,10 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
   (tmux 등 세션 유지 도구는 자동 실행하지 않습니다 — 필요하면 터미널에서 직접 실행하세요).
 - **SQL DB 클라이언트 ("SQL" 연결 종류)** — 디비버 느낌으로 MySQL/MariaDB, PostgreSQL, MS SQL Server에
   접속해 쿼리를 실행하고 결과를 테이블로 봅니다. 비밀번호는 SSH와 동일하게 저장하지 않습니다.
+- **RDP 원격 데스크톱** — Apache Guacamole(`guacd`) 기반으로 실제 원격 화면을 `<canvas>`에 렌더링하고
+  마우스/키보드를 그대로 전달합니다. ⚠️ SSH/SQL과 달리 `guacd`가 별도로 떠 있어야 접속됩니다(아래 참고).
+- **탭 안에서 터미널 분할** — 하나의 SSH 탭을 가로/세로로 나눠 같은 서버의 새 세션을 띄우거나,
+  이미 열려 있는 다른 세션을 그 자리로 그대로 가져올 수 있습니다(서버 측 tmux에 의존하지 않음).
 - **앱 종료 시 모든 연결 강제 종료** — 보안 요구사항(F-502). 프로토콜 필터·탭 전환 중에는 연결이
   끊기지 않지만, 앱을 종료하면 열려 있던 모든 세션이 예외 없이 끊깁니다.
 
@@ -61,6 +65,8 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
 
 - [Node.js](https://nodejs.org/) 18 이상 (LTS 권장)
 - [Git](https://git-scm.com/)
+- **RDP를 쓰려면**: [`guacd`](https://hub.docker.com/r/guacamole/guacd)가 별도로 떠 있어야 합니다(SSH/SQL은 필요 없음) —
+  `docker run -d -p 4822:4822 guacamole/guacd`. 자세한 이유는 [03_RDP_기술스택.md](./docs/기술스택/03_RDP_기술스택.md) 참고.
 
 설치 여부 확인:
 
@@ -186,10 +192,12 @@ npm start
 - [x] 서버 등록/수정/삭제/그룹 관리(드래그 재정렬 포함), 서버 관리 테이블(S7)
 - [x] SSH 접속 + xterm.js 터미널, 터미널 내 비밀번호/Passphrase 입력, 인증 실패 시 즉시 재시도
 - [x] 같은 서버로 여러 세션 동시 접속, 동시 입력(브로드캐스트) 모드
+- [x] 탭 안에서 터미널 분할(세션 복제/세션 선택, tmux 비의존)
 - [x] SQL DB 클라이언트("SQL" 연결 종류) — MySQL/MariaDB, PostgreSQL, MS SQL Server
-- [x] 앱 종료 시 전체 연결(SSH/SQL) 강제 종료
+- [x] RDP 원격 데스크톱("RDP" 연결 종류) — Apache Guacamole(`guacd`) 기반, 실제 화면 렌더링 + 마우스/키보드
+- [x] 앱 종료 시 전체 연결(SSH/SQL/RDP) 강제 종료
 - [ ] 마스터 패스워드 앱 잠금
 - [ ] 서버 목록 자체 암호화 저장, 접속 로그 기록
-- [ ] RDP/VNC/SFTP/탭 내 터미널 분할/Web — 기능 명세는 작성됨([docs/기능명세/](./docs/기능명세/)), 구현은 아직
+- [ ] VNC/SFTP/Web — 기능 명세는 작성됨([docs/기능명세/](./docs/기능명세/)), 구현은 아직
 
 전체 체크리스트는 [docs/기능명세/](./docs/기능명세/)의 각 파일 "완료 기준" 절 참고.
