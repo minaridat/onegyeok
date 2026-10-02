@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const sshManager = require('./ssh-manager');
 
 let mainWindow = null;
 
@@ -30,12 +31,45 @@ function createWindow() {
 }
 
 // Phase1 F-502: 프로그램 종료 시 SSH/RDP/VNC/SFTP/Web 연결을 예외 없이 강제 종료한다.
-// 아직 실제 프로토콜 연결 관리자가 없어 자리만 잡아둔다 — SSH 등 연동이 들어오면 여기서 호출한다.
 function terminateAllSessions() {
-  // TODO(Phase1): connection-manager와 연동해 열려 있는 모든 세션을 강제 종료 (F-502)
+  sshManager.disconnectAll();
+  // TODO(Phase2+): RDP/VNC/SFTP 연결 관리자가 추가되면 여기서 함께 종료한다.
 }
 
 ipcMain.handle('ping', () => 'pong');
+
+// ---------------------------------------------------------------------------
+// SSH 연결 (Phase1 F-201~213)
+// 비밀번호/Passphrase는 이 IPC 호출의 인자로만 전달되고 어디에도 저장하지 않는다 (F-301/601).
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('ssh:connect', async (_event, sessionId, params) => {
+  try {
+    await sshManager.connect(
+      sessionId,
+      params,
+      (chunk) => { if (mainWindow) mainWindow.webContents.send('ssh:data', sessionId, chunk); },
+      (status) => { if (mainWindow) mainWindow.webContents.send('ssh:status', sessionId, status); }
+    );
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.on('ssh:input', (_event, sessionId, data) => { sshManager.write(sessionId, data); });
+ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { sshManager.resize(sessionId, cols, rows); });
+ipcMain.handle('ssh:disconnect', (_event, sessionId) => { sshManager.disconnect(sessionId); return { ok: true }; });
+
+ipcMain.handle('dialog:pick-key-file', async () => {
+  if (!mainWindow) return { canceled: true };
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'SSH 개인키 선택',
+    defaultPath: app.getPath('home') + '/.ssh',
+    properties: ['openFile'],
+  });
+  return { canceled: result.canceled, filePath: result.filePaths[0] || null };
+});
 
 // ---------------------------------------------------------------------------
 // 서버별 메모 저장 (Phase1 F-108)

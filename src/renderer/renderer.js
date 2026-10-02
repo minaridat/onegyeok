@@ -79,6 +79,16 @@
   }
   function joinHostPort(host, port){ return port ? (host + ':' + port) : host; }
 
+  // 인증정보(비밀번호·Passphrase)는 저장하지 않는다(F-301/601) — authMethod/keyFilePath는
+  // "어떻게 물어볼지"를 결정하는 메타데이터일 뿐, 실제 비밀값은 접속 시점에만 메모리에 存在한다.
+  function authLabel(s){
+    if(s.authMethod === 'publickey'){
+      var base = s.keyFilePath ? s.keyFilePath.split('/').pop() : null;
+      return 'SSH Key' + (base ? ' (' + base + ')' : '');
+    }
+    return '비밀번호';
+  }
+
   // ---- server data (drives sidebar tree AND S7 management table) ----
   var SERVERS = [];
   var GROUP_ORDER = [];
@@ -95,12 +105,17 @@
     });
     tree.querySelectorAll('.server').forEach(function(s){
       var hp = parseHostPort(s.dataset.host);
-      list.push({
+      var authMethod = s.dataset.authMethod === 'publickey' ? 'publickey' : 'password';
+      var keyFilePath = s.dataset.keyPath || null;
+      var srv = {
         id: s.dataset.id, name: s.dataset.id, group: s.dataset.group, protocol: s.dataset.protocol,
-        host: hp.host, port: hp.port, auth: s.dataset.auth, tmux: s.dataset.tmux,
+        host: hp.host, port: hp.port, username: s.dataset.username || '',
+        authMethod: authMethod, keyFilePath: keyFilePath, tmux: s.dataset.tmux,
         jump: (s.dataset.jump && s.dataset.jump !== '없음') ? s.dataset.jump : null,
         status: s.dataset.status, since: s.dataset.since
-      });
+      };
+      srv.auth = authLabel(srv);
+      list.push(srv);
     });
     return { list: list, order: order, collapsed: collapsed };
   }
@@ -111,7 +126,8 @@
     var hostDisplay = joinHostPort(s.host, s.port);
     var jumpTag = isJumpHost(s.id) ? ' <span style="color:var(--text-faint);font-weight:400;">· Jump</span>' : '';
     return '<div class="server" data-id="'+escapeHtml(s.id)+'" data-protocol="'+s.protocol+'" data-group="'+escapeHtml(s.group)+'" ' +
-      'data-host="'+escapeHtml(hostDisplay)+'" data-auth="'+escapeHtml(s.auth)+'" data-tmux="'+escapeHtml(s.tmux||'—')+'" ' +
+      'data-host="'+escapeHtml(hostDisplay)+'" data-username="'+escapeHtml(s.username||'')+'" data-auth="'+escapeHtml(authLabel(s))+'" ' +
+      'data-auth-method="'+s.authMethod+'" data-key-path="'+escapeHtml(s.keyFilePath||'')+'" data-tmux="'+escapeHtml(s.tmux||'—')+'" ' +
       'data-status="'+s.status+'" data-since="'+escapeHtml(s.since)+'" data-jump="'+escapeHtml(s.jump||'없음')+'">' +
       '<span class="proto-chip proto-'+s.protocol+'">'+PROTO[s.protocol].icon+'<span class="stat'+(s.status==='on'?' on':'')+'"></span></span>' +
       '<span class="server-name">'+escapeHtml(s.name)+jumpTag+'</span>' +
@@ -261,6 +277,7 @@
     document.getElementById('i-name').textContent = id;
     document.getElementById('i-group').textContent = row.dataset.group;
     document.getElementById('i-host').textContent = row.dataset.host;
+    document.getElementById('i-username').textContent = row.dataset.username || '—';
     document.getElementById('i-auth').textContent = row.dataset.auth;
     document.getElementById('i-jump').textContent = row.dataset.jump;
     document.getElementById('i-tmux').textContent = row.dataset.tmux;
@@ -271,9 +288,18 @@
     chip.innerHTML = PROTO[proto].icon;
     document.getElementById('row-jump').style.display = proto === 'ssh' ? '' : 'none';
     document.getElementById('row-tmux').style.display = proto === 'ssh' ? '' : 'none';
+    document.getElementById('row-username').style.display = proto === 'web' ? 'none' : '';
     var srv = SERVERS.find(function(s){ return s.id === id; });
     memoEl.value = (srv && srv.memo) || '';
     memoStatusEl.classList.remove('show');
+
+    var connBtn = document.getElementById('inspConnActionBtn');
+    if(proto === 'ssh'){
+      connBtn.style.display = '';
+      updateConnActionButton(id);
+    } else {
+      connBtn.style.display = 'none';
+    }
   }
 
   memoEl.addEventListener('input', function(e){
@@ -293,12 +319,17 @@
     var el = document.createElement('div');
     el.dataset.id = id;
     if(proto === 'ssh'){
-      el.className = 'pane';
-      el.innerHTML =
-        '<div class="ln muted">Connecting to '+row.dataset.host+' ...</div>' +
-        '<div class="ln muted">tmux: attaching to session \''+row.dataset.tmux+'\' (created)</div>' +
-        '<div class="ln">&nbsp;</div>' +
-        '<div class="ln"><span class="prompt">root@'+id+'</span><span class="muted">:~#</span> <span class="cursor"></span></div>';
+      el.className = 'pane ssh-pane';
+      var statusEl = document.createElement('div');
+      statusEl.className = 'ssh-connecting';
+      statusEl.textContent = '연결 준비 중...';
+      var hostEl = document.createElement('div');
+      hostEl.className = 'xterm-host';
+      el.appendChild(statusEl);
+      el.appendChild(hostEl);
+      panes.appendChild(el);
+      startSshSession(id, statusEl, hostEl);
+      return el;
     } else if(proto === 'rdp'){
       el.className = 'pane screen';
       el.innerHTML =
@@ -317,6 +348,269 @@
     panes.appendChild(el);
     return el;
   }
+
+  // ==================================================================
+  // SSH 세션 (Phase1 F-201~213) — xterm.js 터미널 + ssh2(main 프로세스) 연동
+  //
+  // 인증(비밀번호/Key Passphrase)은 별도 모달이 아니라 "user@host's password:" 같은
+  // 프롬프트를 터미널 안에 직접 띄우고, 사용자가 그 자리에서 타이핑하는 방식으로 받는다
+  // (일반 ssh 커맨드라인과 동일한 경험). 입력된 값은 연결 1회에만 쓰이고 저장하지 않는다(F-301/601).
+  //
+  // 모든 키 입력은 터미널별 handleInput 함수로 들어가며, 동시 입력(브로드캐스트) 모드일 때는
+  // 같은 키 입력이 선택된 모든 세션의 handleInput으로 동시에 전달된다 — 그래서 비밀번호
+  // 프롬프트 단계든 셸 접속 이후든 구분 없이 "한 번 타이핑하면 여러 서버에 동시 입력"이 된다.
+  // ==================================================================
+  var sshSessions = {}; // id -> { term, fitAddon, statusEl, hostEl, state, handleInput }
+  var hasSshBridge = !!(window.onegyeok && window.onegyeok.ssh);
+
+  function setSshStatus(id, state, message){
+    var s = sshSessions[id];
+    if(!s) return;
+    s.state = state;
+    if(state === 'error' || state === 'disconnected' || state === 'canceled'){
+      s.statusEl.style.display = '';
+      s.statusEl.textContent = message || '';
+      s.statusEl.classList.toggle('err', state === 'error');
+    } else {
+      s.statusEl.style.display = 'none';
+    }
+    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    if(row){
+      row.dataset.status = (state === 'connected') ? 'on' : 'off';
+      var dot = row.querySelector('.proto-chip .stat');
+      if(dot) dot.classList.toggle('on', state === 'connected');
+    }
+    var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+    if(tab){
+      var tabDot = tab.querySelector('.proto-chip .stat');
+      if(tabDot) tabDot.classList.toggle('on', state === 'connected');
+    }
+    if(currentInspectedId === id) updateConnActionButton(id);
+  }
+
+  function updateConnActionButton(id){
+    var btn = document.getElementById('inspConnActionBtn');
+    var label = document.getElementById('inspConnActionLabel');
+    var endIcon = btn.querySelector('.conn-action-icon-end');
+    var retryIcon = btn.querySelector('.conn-action-icon-retry');
+    var s = sshSessions[id];
+    var connected = s && s.state === 'connected';
+    btn.classList.toggle('danger', connected);
+    label.textContent = connected ? '연결 종료' : '재연결';
+    endIcon.style.display = connected ? '' : 'none';
+    retryIcon.style.display = connected ? 'none' : '';
+  }
+
+  function fitSshSession(id){
+    var s = sshSessions[id];
+    if(!s || !s.fitAddon) return;
+    try {
+      s.fitAddon.fit();
+      if(s.state === 'connected' && hasSshBridge) {
+        window.onegyeok.ssh.resize(id, s.term.cols, s.term.rows);
+      }
+    } catch(_e){ /* 패널이 아직 비표시 상태면 치수 계산이 실패할 수 있음 — 무시 */ }
+  }
+
+  // ---- 동시 입력(브로드캐스트) 모드 — Phase1 S8/F-208~212 ----
+  // v1: 토글을 켜면 "현재 열려 있는 모든 SSH 탭"이 자동으로 그룹이 된다(탭별 체크박스 선택은 추후 고도화).
+  var broadcastMode = false;
+  var broadcastSet = new Set();
+  var broadcastToggleBtn = document.getElementById('broadcastToggleBtn');
+  var broadcastBanner = document.getElementById('broadcastBanner');
+  var broadcastCountEl = document.getElementById('broadcastCount');
+
+  function dispatchTerminalInput(sourceId, data){
+    var targets = (broadcastMode && broadcastSet.has(sourceId)) ? Array.from(broadcastSet) : [sourceId];
+    targets.forEach(function(tid){
+      var s = sshSessions[tid];
+      if(s && s.handleInput) s.handleInput(data);
+    });
+  }
+
+  function refreshBroadcastSet(){
+    broadcastSet = new Set(
+      Array.prototype.map.call(tabbar.querySelectorAll('.tab[data-protocol="ssh"]'), function(t){ return t.dataset.id; })
+        .filter(function(id){ return !!sshSessions[id]; }) // 데모 시드 탭처럼 실제 세션이 없는 탭은 제외
+    );
+    broadcastCountEl.textContent = broadcastSet.size;
+    tabbar.querySelectorAll('.tab').forEach(function(t){
+      t.classList.toggle('broadcast-active', broadcastMode && broadcastSet.has(t.dataset.id));
+    });
+  }
+
+  function setBroadcastMode(on){
+    broadcastMode = on;
+    broadcastToggleBtn.classList.toggle('active', on);
+    broadcastBanner.style.display = on ? 'flex' : 'none';
+    if(on) refreshBroadcastSet();
+    else {
+      broadcastSet.clear();
+      tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('broadcast-active'); });
+    }
+  }
+
+  broadcastToggleBtn.addEventListener('click', function(){ setBroadcastMode(!broadcastMode); });
+  document.getElementById('broadcastOffBtn').addEventListener('click', function(){ setBroadcastMode(false); });
+
+  // 터미널 안에서 한 줄을 로컬로 입력받는다 (비밀번호 입력처럼 화면에 echo하지 않음).
+  // 브로드캐스트 중에는 세션마다 독립된 버퍼를 가지므로, 같은 키 입력이 동시에 들어와도
+  // 각자 알아서 자기 줄을 완성하고 각자 접속을 진행한다.
+  function createLinePrompter(onSubmit, onCancel){
+    var buf = '';
+    return function handleInput(data){
+      for(var i = 0; i < data.length; i++){
+        var ch = data[i];
+        var code = data.charCodeAt(i);
+        if(ch === '\r' || ch === '\n'){
+          var value = buf; buf = '';
+          onSubmit(value);
+          return;
+        } else if(code === 3){ // Ctrl+C
+          buf = '';
+          onCancel();
+          return;
+        } else if(code === 127 || code === 8){ // Backspace
+          buf = buf.slice(0, -1);
+        } else if(code >= 32){
+          buf += ch;
+        }
+      }
+    };
+  }
+
+  function promptAndConnect(id, srv, term, session){
+    session.state = 'prompting';
+    setSshStatus(id, 'prompting', '');
+    if(srv.authMethod === 'publickey'){
+      term.write("Enter passphrase for key '" + (srv.keyFilePath || '') + "' (없으면 Enter): ");
+      session.handleInput = createLinePrompter(
+        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, { passphrase: value || undefined }); },
+        function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+      );
+    } else {
+      term.write((srv.username || '') + '@' + srv.host + "'s password: ");
+      session.handleInput = createLinePrompter(
+        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, { password: value }); },
+        function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+      );
+    }
+  }
+
+  function finishPrompt(id, srv, term, session, secretParams){
+    session.handleInput = function(){}; // 연결 결과가 오기 전까지 추가 키 입력은 무시
+    setSshStatus(id, 'connecting', '');
+    var params = {
+      host: srv.host, port: srv.port || 22, username: srv.username,
+      authMethod: srv.authMethod, keyFilePath: srv.keyFilePath,
+      tmuxSessionName: (srv.tmux && srv.tmux !== '—') ? srv.tmux : null,
+      cols: term.cols, rows: term.rows,
+    };
+    if(secretParams.password !== undefined) params.password = secretParams.password;
+    if(secretParams.passphrase !== undefined) params.passphrase = secretParams.passphrase;
+
+    window.onegyeok.ssh.connect(id, params).then(function(res){
+      if(!sshSessions[id]) return; // 그 사이 탭이 닫혔을 수 있음
+      var cur = sshSessions[id].state;
+      // 'ssh:status' 푸시 이벤트가 이미 처리했을 수 있으므로, 아직 반영 전일 때만 폴백으로 표시한다.
+      if(!res.ok && cur !== 'error' && cur !== 'connected'){
+        term.writeln('\x1b[31m' + (res.error || '연결 실패') + '\x1b[0m');
+        setSshStatus(id, 'error', res.error);
+      }
+    });
+  }
+
+  function startSshSession(id, statusEl, hostEl){
+    var srv = SERVERS.find(function(s){ return s.id === id; });
+    if(!srv) return;
+
+    var term = new window.Terminal({
+      fontFamily: 'ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", "D2Coding", Consolas, monospace',
+      fontSize: 13,
+      theme: { background: '#18150f', foreground: '#ece7d8', cursor: '#e2a765' },
+      cursorBlink: true,
+      scrollback: 5000,
+    });
+    var fitAddon = new window.FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(hostEl);
+
+    var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null };
+    sshSessions[id] = session;
+    statusEl.style.display = 'none';
+
+    term.onData(function(data){ dispatchTerminalInput(id, data); });
+
+    requestAnimationFrame(function(){ fitSshSession(id); });
+    if(broadcastMode) refreshBroadcastSet();
+
+    if(!hasSshBridge){
+      term.writeln('SSH 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)');
+      setSshStatus(id, 'error', '');
+      return;
+    }
+
+    term.writeln('Connecting to ' + srv.host + ':' + (srv.port || 22) + ' ...');
+    promptAndConnect(id, srv, term, session);
+  }
+
+  function disposeSshSession(id){
+    var s = sshSessions[id];
+    if(!s) return;
+    if(hasSshBridge) window.onegyeok.ssh.disconnect(id);
+    try { s.term.dispose(); } catch(_e){ /* noop */ }
+    delete sshSessions[id];
+    broadcastSet.delete(id);
+    if(broadcastMode) refreshBroadcastSet();
+  }
+
+  if(hasSshBridge){
+    window.onegyeok.ssh.onData(function(id, chunk){
+      var s = sshSessions[id];
+      if(s) s.term.write(chunk);
+    });
+    window.onegyeok.ssh.onStatus(function(id, status){
+      var s = sshSessions[id];
+      if(!s) return;
+      if(status.state === 'connected'){
+        setSshStatus(id, 'connected');
+        s.handleInput = function(data){ window.onegyeok.ssh.input(id, data); };
+        fitSshSession(id);
+      } else if(status.state === 'error'){
+        s.term.writeln('\r\n\x1b[31m' + (status.message || '연결 오류') + '\x1b[0m');
+        setSshStatus(id, 'error', status.message);
+        s.handleInput = function(){};
+      } else if(status.state === 'disconnected'){
+        s.term.writeln('\r\n\x1b[33m연결이 종료되었습니다.\x1b[0m');
+        setSshStatus(id, 'disconnected', '연결이 종료되었습니다.');
+        s.handleInput = function(){};
+      }
+    });
+  }
+
+  // 창 크기 변경 / 패널 드래그 리사이즈 시 현재 보이는 터미널을 다시 맞춘다.
+  window.addEventListener('resize', function(){
+    if(currentInspectedId && sshSessions[currentInspectedId]) fitSshSession(currentInspectedId);
+  });
+  if(window.ResizeObserver){
+    new ResizeObserver(function(){
+      if(currentInspectedId && sshSessions[currentInspectedId]) fitSshSession(currentInspectedId);
+    }).observe(panes);
+  }
+
+  document.getElementById('inspConnActionBtn').addEventListener('click', function(){
+    var id = currentInspectedId;
+    if(!id) return;
+    var s = sshSessions[id];
+    if(s && s.state === 'connected'){
+      if(hasSshBridge) window.onegyeok.ssh.disconnect(id);
+    } else if(s){
+      var srv = SERVERS.find(function(x){ return x.id === id; });
+      if(!srv) return;
+      s.term.writeln('');
+      promptAndConnect(id, srv, s.term, s);
+    }
+  });
 
   var currentFilter = 'all';
   var lastActiveByFilter = {};
@@ -393,6 +687,12 @@
     inspectorFor(id);
     recordActive(id);
     if(activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+    if(sshSessions[id]){
+      requestAnimationFrame(function(){
+        fitSshSession(id);
+        if(sshSessions[id]) sshSessions[id].term.focus();
+      });
+    }
   }
 
   function activateEmpty(filter){
@@ -447,6 +747,7 @@
 
   function removeServerById(id){
     if(hasMemoBridge) window.onegyeok.saveMemo(id, '');
+    disposeSshSession(id);
     SERVERS = SERVERS.filter(function(s){ return s.id !== id; });
     var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
     if(tab){
@@ -615,11 +916,26 @@
   }
 
   function toggleSshOnlyFields(){
-    var isSsh = document.getElementById('f-protocol').value === 'ssh';
+    var proto = document.getElementById('f-protocol').value;
+    var isSsh = proto === 'ssh';
     document.getElementById('row-f-jump').style.display = isSsh ? '' : 'none';
     document.getElementById('row-f-tmux').style.display = isSsh ? '' : 'none';
+    document.getElementById('row-f-username').style.display = (proto === 'web') ? 'none' : '';
   }
   document.getElementById('f-protocol').addEventListener('change', toggleSshOnlyFields);
+
+  function toggleKeyPathField(){
+    var isKey = document.getElementById('f-auth-method').value === 'publickey';
+    document.getElementById('row-f-keypath').style.display = isKey ? '' : 'none';
+  }
+  document.getElementById('f-auth-method').addEventListener('change', toggleKeyPathField);
+
+  document.getElementById('pickKeyFileBtn').addEventListener('click', function(){
+    if(!window.onegyeok || !window.onegyeok.pickKeyFile) return;
+    window.onegyeok.pickKeyFile().then(function(res){
+      if(res && !res.canceled && res.filePath) document.getElementById('f-key-path').value = res.filePath;
+    });
+  });
 
   var fGroupPrevValue = '';
   document.getElementById('f-group').addEventListener('change', function(e){
@@ -642,13 +958,16 @@
     document.getElementById('f-protocol').value = s ? s.protocol : 'ssh';
     document.getElementById('f-host').value = s ? s.host : '';
     document.getElementById('f-port').value = s && s.port ? s.port : '';
-    document.getElementById('f-auth').value = s ? s.auth : '';
+    document.getElementById('f-username').value = s ? s.username : '';
+    document.getElementById('f-auth-method').value = s ? s.authMethod : 'password';
+    document.getElementById('f-key-path').value = s && s.keyFilePath ? s.keyFilePath : '';
     document.getElementById('f-tmux').value = s && s.tmux !== '—' ? s.tmux : '';
     populateJumpSelect(id);
     document.getElementById('f-jump').value = s && s.jump ? s.jump : '';
     document.getElementById('editError').textContent = '';
     document.getElementById('editDeleteBtn').style.display = s ? '' : 'none';
     toggleSshOnlyFields();
+    toggleKeyPathField();
     populateGroupSelectors();
     fGroupPrevValue = document.getElementById('f-group').value;
     appEl.classList.add('edit-open');
@@ -704,14 +1023,18 @@
     var host = document.getElementById('f-host').value.trim();
     var portRaw = document.getElementById('f-port').value.trim();
     var port = portRaw ? parseInt(portRaw, 10) : null;
-    var auth = document.getElementById('f-auth').value.trim();
+    var username = document.getElementById('f-username').value.trim();
+    var authMethod = document.getElementById('f-auth-method').value === 'publickey' ? 'publickey' : 'password';
+    var keyFilePath = authMethod === 'publickey' ? document.getElementById('f-key-path').value.trim() || null : null;
     var jump = document.getElementById('f-jump').value || null;
     var tmux = document.getElementById('f-tmux').value.trim();
     var errEl = document.getElementById('editError');
 
     if(!name || !host){ errEl.textContent = '이름과 호스트는 필수입니다.'; return; }
+    if(protocol !== 'web' && !username){ errEl.textContent = '사용자명을 입력해주세요.'; return; }
     var dup = SERVERS.find(function(s){ return s.id === name && s.id !== editingId; });
     if(dup){ errEl.textContent = '이미 사용 중인 이름입니다.'; return; }
+    if(authMethod === 'publickey' && !keyFilePath){ errEl.textContent = 'SSH Key 파일 경로를 지정해주세요.'; return; }
 
     if(GROUP_ORDER.indexOf(group) === -1) GROUP_ORDER.push(group);
 
@@ -719,13 +1042,17 @@
       var s = SERVERS.find(function(x){ return x.id === editingId; });
       var oldId = s.id;
       s.name = name; s.id = name; s.group = group; s.protocol = protocol; s.host = host; s.port = port;
-      s.auth = auth; s.jump = jump; s.tmux = protocol === 'ssh' ? (tmux || name) : '—';
+      s.username = username; s.authMethod = authMethod; s.keyFilePath = keyFilePath; s.auth = authLabel(s);
+      s.jump = jump; s.tmux = protocol === 'ssh' ? (tmux || name) : '—';
       if(oldId !== name) propagateIdRename(oldId, name);
     } else {
-      SERVERS.push({
-        id: name, name: name, group: group, protocol: protocol, host: host, port: port, auth: auth,
+      var newServer = {
+        id: name, name: name, group: group, protocol: protocol, host: host, port: port,
+        username: username, authMethod: authMethod, keyFilePath: keyFilePath,
         jump: jump, tmux: protocol === 'ssh' ? (tmux || name) : '—', status: 'off', since: '연결 안 됨'
-      });
+      };
+      newServer.auth = authLabel(newServer);
+      SERVERS.push(newServer);
     }
     closeEdit();
     renderTree(); renderManageTable(); populateGroupSelectors();
@@ -743,6 +1070,7 @@
     if(close){
       var id = tab.dataset.id;
       var wasActive = tab.classList.contains('active');
+      disposeSshSession(id); // F-206: 탭을 닫으면 클라이언트↔서버 연결만 종료(서버 측 tmux는 별개)
       var pane = panes.querySelector('.pane[data-id="'+id+'"]');
       tab.remove();
       if(pane) pane.remove();
