@@ -277,7 +277,7 @@
     document.getElementById('i-name').textContent = id;
     document.getElementById('i-group').textContent = row.dataset.group;
     document.getElementById('i-host').textContent = row.dataset.host;
-    document.getElementById('i-username').textContent = row.dataset.username || '—';
+    document.getElementById('i-username').textContent = row.dataset.username || '(접속 시 입력)';
     document.getElementById('i-auth').textContent = row.dataset.auth;
     document.getElementById('i-jump').textContent = row.dataset.jump;
     document.getElementById('i-tmux').textContent = row.dataset.tmux;
@@ -413,7 +413,8 @@
   }
 
   // ---- 동시 입력(브로드캐스트) 모드 — Phase1 S8/F-208~212 ----
-  // v1: 토글을 켜면 "현재 열려 있는 모든 SSH 탭"이 자동으로 그룹이 된다(탭별 체크박스 선택은 추후 고도화).
+  // 토글을 켜면 실제 세션이 있는 SSH 탭마다 체크박스가 나타난다. 기본은 전체 선택이며,
+  // 사용자가 탭별로 체크를 풀어 그룹에서 빼낼 수 있다.
   var broadcastMode = false;
   var broadcastSet = new Set();
   var broadcastToggleBtn = document.getElementById('broadcastToggleBtn');
@@ -428,26 +429,48 @@
     });
   }
 
-  function refreshBroadcastSet(){
-    broadcastSet = new Set(
-      Array.prototype.map.call(tabbar.querySelectorAll('.tab[data-protocol="ssh"]'), function(t){ return t.dataset.id; })
-        .filter(function(id){ return !!sshSessions[id]; }) // 데모 시드 탭처럼 실제 세션이 없는 탭은 제외
-    );
+  function updateBroadcastCount(){
     broadcastCountEl.textContent = broadcastSet.size;
-    tabbar.querySelectorAll('.tab').forEach(function(t){
-      t.classList.toggle('broadcast-active', broadcastMode && broadcastSet.has(t.dataset.id));
+  }
+
+  function ensureBroadcastCheckbox(tabEl){
+    var cb = tabEl.querySelector('.tab-broadcast-check');
+    if(cb) return cb;
+    cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'tab-broadcast-check';
+    cb.title = '동시 입력 그룹에 포함';
+    cb.addEventListener('click', function(e){ e.stopPropagation(); }); // 탭 전환 방지
+    cb.addEventListener('change', function(e){
+      setTabBroadcastChecked(tabEl, e.target.checked);
+      updateBroadcastCount();
     });
+    tabEl.insertBefore(cb, tabEl.firstChild);
+    return cb;
+  }
+
+  function setTabBroadcastChecked(tabEl, checked){
+    var id = tabEl.dataset.id;
+    var cb = ensureBroadcastCheckbox(tabEl);
+    cb.checked = checked;
+    if(checked) broadcastSet.add(id); else broadcastSet.delete(id);
+    tabEl.classList.toggle('broadcast-active', checked);
   }
 
   function setBroadcastMode(on){
     broadcastMode = on;
     broadcastToggleBtn.classList.toggle('active', on);
     broadcastBanner.style.display = on ? 'flex' : 'none';
-    if(on) refreshBroadcastSet();
-    else {
-      broadcastSet.clear();
-      tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('broadcast-active'); });
-    }
+    broadcastSet.clear();
+    tabbar.querySelectorAll('.tab[data-protocol="ssh"]').forEach(function(t){
+      var cb = ensureBroadcastCheckbox(t);
+      var hasSession = !!sshSessions[t.dataset.id]; // 데모 시드 탭처럼 실제 세션이 없으면 선택 불가
+      cb.classList.toggle('show', on);
+      cb.disabled = !hasSession;
+      if(on && hasSession) setTabBroadcastChecked(t, true); // 기본값: 전체 선택
+      else { cb.checked = false; t.classList.remove('broadcast-active'); }
+    });
+    updateBroadcastCount();
   }
 
   broadcastToggleBtn.addEventListener('click', function(){ setBroadcastMode(!broadcastMode); });
@@ -479,29 +502,53 @@
     };
   }
 
+  // 등록 시 사용자명을 비워뒀다면(다른 사용자로 로그인하는 경우 대비) 접속할 때마다
+  // "login as:"를 먼저 물어본다 — 이 값은 저장하지 않으므로 매번 다른 사용자로 접속 가능하다.
   function promptAndConnect(id, srv, term, session){
     session.state = 'prompting';
     setSshStatus(id, 'prompting', '');
+    if(srv.username){
+      promptAuthStep(id, srv, term, session, srv.username);
+      return;
+    }
+    term.write('login as: ');
+    session.handleInput = createLinePrompter(
+      function(value){
+        term.write('\r\n');
+        var username = value.trim();
+        if(!username){
+          term.writeln('사용자명이 필요합니다. 재연결 버튼으로 다시 시도해주세요.');
+          setSshStatus(id, 'canceled', '');
+          session.handleInput = function(){};
+          return;
+        }
+        promptAuthStep(id, srv, term, session, username);
+      },
+      function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+    );
+  }
+
+  function promptAuthStep(id, srv, term, session, username){
     if(srv.authMethod === 'publickey'){
       term.write("Enter passphrase for key '" + (srv.keyFilePath || '') + "' (없으면 Enter): ");
       session.handleInput = createLinePrompter(
-        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, { passphrase: value || undefined }); },
+        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, username, { passphrase: value || undefined }); },
         function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
       );
     } else {
-      term.write((srv.username || '') + '@' + srv.host + "'s password: ");
+      term.write(username + '@' + srv.host + "'s password: ");
       session.handleInput = createLinePrompter(
-        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, { password: value }); },
+        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, username, { password: value }); },
         function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
       );
     }
   }
 
-  function finishPrompt(id, srv, term, session, secretParams){
+  function finishPrompt(id, srv, term, session, username, secretParams){
     session.handleInput = function(){}; // 연결 결과가 오기 전까지 추가 키 입력은 무시
     setSshStatus(id, 'connecting', '');
     var params = {
-      host: srv.host, port: srv.port || 22, username: srv.username,
+      host: srv.host, port: srv.port || 22, username: username,
       authMethod: srv.authMethod, keyFilePath: srv.keyFilePath,
       tmuxSessionName: (srv.tmux && srv.tmux !== '—') ? srv.tmux : null,
       cols: term.cols, rows: term.rows,
@@ -542,7 +589,13 @@
     term.onData(function(data){ dispatchTerminalInput(id, data); });
 
     requestAnimationFrame(function(){ fitSshSession(id); });
-    if(broadcastMode) refreshBroadcastSet();
+    // 브로드캐스트 모드가 이미 켜져 있는 상태에서 새 SSH 탭이 열리면, 기본으로 그룹에 합류시킨다
+    // (체크박스로 바로 빼낼 수 있음).
+    if(broadcastMode){
+      var newTab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+      if(newTab) setTabBroadcastChecked(newTab, true);
+      updateBroadcastCount();
+    }
 
     if(!hasSshBridge){
       term.writeln('SSH 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)');
@@ -561,7 +614,7 @@
     try { s.term.dispose(); } catch(_e){ /* noop */ }
     delete sshSessions[id];
     broadcastSet.delete(id);
-    if(broadcastMode) refreshBroadcastSet();
+    if(broadcastMode) updateBroadcastCount();
   }
 
   if(hasSshBridge){
@@ -1031,7 +1084,7 @@
     var errEl = document.getElementById('editError');
 
     if(!name || !host){ errEl.textContent = '이름과 호스트는 필수입니다.'; return; }
-    if(protocol !== 'web' && !username){ errEl.textContent = '사용자명을 입력해주세요.'; return; }
+    // 사용자명은 선택 — 비워두면 접속할 때마다 터미널에서 직접 물어본다(다른 사용자로 로그인하는 경우 대비).
     var dup = SERVERS.find(function(s){ return s.id === name && s.id !== editingId; });
     if(dup){ errEl.textContent = '이미 사용 중인 이름입니다.'; return; }
     if(authMethod === 'publickey' && !keyFilePath){ errEl.textContent = 'SSH Key 파일 경로를 지정해주세요.'; return; }
