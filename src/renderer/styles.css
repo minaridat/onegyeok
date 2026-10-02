@@ -16,6 +16,7 @@
     --shadow:0 10px 32px rgba(34,29,20,.14);
 
     --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+    --proto-sql:#1b8a9c; --proto-sql-soft:rgba(27,138,156,.12);
     --proto-rdp:#3f77b8; --proto-rdp-soft:rgba(63,119,184,.12);
     --proto-vnc:#7a5bc4; --proto-vnc-soft:rgba(122,91,196,.12);
     --proto-sftp:#2f8f7a; --proto-sftp-soft:rgba(47,143,122,.12);
@@ -45,6 +46,7 @@
       --danger:#d97469; --danger-soft:rgba(217,116,105,.14);
       --shadow:0 10px 32px rgba(0,0,0,.5);
       --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+      --proto-sql:#4fc8db; --proto-sql-soft:rgba(79,200,219,.16);
       --proto-rdp:#6aa8e8; --proto-rdp-soft:rgba(106,168,232,.16);
       --proto-vnc:#a48ee0; --proto-vnc-soft:rgba(164,142,224,.16);
       --proto-sftp:#5cc2a8; --proto-sftp-soft:rgba(92,194,168,.16);
@@ -61,6 +63,7 @@
     --danger:#d97469; --danger-soft:rgba(217,116,105,.14);
     --shadow:0 10px 32px rgba(0,0,0,.5);
     --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+    --proto-sql:#4fc8db; --proto-sql-soft:rgba(79,200,219,.16);
     --proto-rdp:#6aa8e8; --proto-rdp-soft:rgba(106,168,232,.16);
     --proto-vnc:#a48ee0; --proto-vnc-soft:rgba(164,142,224,.16);
     --proto-sftp:#5cc2a8; --proto-sftp-soft:rgba(92,194,168,.16);
@@ -76,6 +79,7 @@
     --danger:#b1433a; --danger-soft:rgba(177,67,58,.12);
     --shadow:0 10px 32px rgba(34,29,20,.14);
     --proto-ssh:var(--accent); --proto-ssh-soft:var(--accent-soft);
+    --proto-sql:#1b8a9c; --proto-sql-soft:rgba(27,138,156,.12);
     --proto-rdp:#3f77b8; --proto-rdp-soft:rgba(63,119,184,.12);
     --proto-vnc:#7a5bc4; --proto-vnc-soft:rgba(122,91,196,.12);
     --proto-sftp:#2f8f7a; --proto-sftp-soft:rgba(47,143,122,.12);
@@ -149,6 +153,7 @@
   .proto-chip.sm .stat{width:6px;height:6px;}
   .proto-chip .stat.on{background:var(--ok);}
   .proto-chip.proto-ssh{color:var(--proto-ssh);background:var(--proto-ssh-soft);}
+  .proto-chip.proto-sql{color:var(--proto-sql);background:var(--proto-sql-soft);}
   .proto-chip.proto-rdp{color:var(--proto-rdp);background:var(--proto-rdp-soft);}
   .proto-chip.proto-vnc{color:var(--proto-vnc);background:var(--proto-vnc-soft);}
   .proto-chip.proto-sftp{color:var(--proto-sftp);background:var(--proto-sftp-soft);}
@@ -295,6 +300,43 @@
   .screen-taskbar{position:absolute;left:0;right:0;bottom:0;height:34px;background:rgba(10,14,18,.78);
     display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid rgba(255,255,255,.08);}
   .screen-taskbar .dot{width:6px;height:6px;border-radius:50%;background:var(--proto-rdp);opacity:.85;}
+
+  /* SQL DB 클라이언트 pane (디비버 느낌: 쿼리 에디터 + 결과 테이블) */
+  .pane.sql-pane{padding:0;background:var(--bg-elevated);color:var(--text);}
+  .sql-connect{flex:1;display:flex;align-items:center;justify-content:center;}
+  .sql-connect-box{width:280px;display:flex;flex-direction:column;gap:10px;}
+  .sql-connect-title{font-size:var(--fs-sm);color:var(--text-muted);text-align:center;margin-bottom:4px;word-break:break-all;}
+  .sql-connect-box label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-xs);color:var(--text-muted);}
+  .sql-connect-box input{font:inherit;font-size:var(--fs-sm);padding:7px 9px;border-radius:7px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text);}
+  .sql-connect-box input:focus{outline:none;border-color:var(--accent);}
+  .sql-connect-error{color:var(--danger);font-size:var(--fs-xs);min-height:1em;}
+  .sql-connect-btn{margin-top:4px;padding:8px;border-radius:7px;border:none;background:var(--accent);
+    color:var(--accent-contrast);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+  .sql-connect-btn:hover{filter:brightness(1.06);}
+  .sql-connect-btn:disabled{opacity:.6;cursor:default;}
+
+  .sql-workspace{display:none;flex:1;min-height:0;flex-direction:column;}
+  .sql-pane.connected .sql-workspace{display:flex;}
+  .sql-pane.connected .sql-connect{display:none;}
+  .sql-toolbar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);flex:none;}
+  .sql-run-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:none;
+    background:var(--accent);color:var(--accent-contrast);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+  .sql-run-btn:hover{filter:brightness(1.06);}
+  .sql-run-btn:disabled{opacity:.55;cursor:default;}
+  .sql-run-hint{font-size:var(--fs-2xs);color:var(--text-faint);font-family:var(--font-mono);}
+  .sql-meta{margin-left:auto;font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums;}
+  .sql-editor{flex:none;height:110px;resize:vertical;border:none;border-bottom:1px solid var(--border);padding:10px 12px;
+    font-family:var(--font-mono);font-size:var(--fs-sm);background:var(--bg-elevated);color:var(--text);outline:none;}
+  .sql-results-wrap{flex:1;min-height:0;overflow:auto;}
+  .sql-results-table{border-collapse:collapse;font-family:var(--font-mono);font-size:var(--fs-xs);width:max-content;min-width:100%;}
+  .sql-results-table th{position:sticky;top:0;background:var(--bg-sunken);text-align:left;padding:6px 10px;
+    border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap;}
+  .sql-results-table td{padding:5px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .sql-results-table tr:hover td{background:var(--accent-soft);}
+  .sql-empty-note{padding:var(--sp-4);color:var(--text-faint);font-size:var(--fs-sm);}
+  .sql-error-box{margin:10px 12px;padding:8px 10px;border-radius:6px;background:var(--danger-soft);color:var(--danger);
+    font-family:var(--font-mono);font-size:var(--fs-xs);white-space:pre-wrap;flex:none;}
 
   /* generic protocol placeholder pane */
   .placeholder-pane{align-items:center;justify-content:center;gap:8px;color:var(--term-text);

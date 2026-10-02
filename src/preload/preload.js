@@ -27,4 +27,15 @@ contextBridge.exposeInMainWorld('onegyeok', {
       return () => ipcRenderer.removeListener('ssh:status', listener);
     },
   },
+
+  db: {
+    connect: (sessionId, params) => ipcRenderer.invoke('db:connect', sessionId, params),
+    query: (sessionId, sql) => ipcRenderer.invoke('db:query', sessionId, sql),
+    disconnect: (sessionId) => ipcRenderer.invoke('db:disconnect', sessionId),
+    onStatus: (callback) => {
+      const listener = (_event, sessionId, status) => callback(sessionId, status);
+      ipcRenderer.on('db:status', listener);
+      return () => ipcRenderer.removeListener('db:status', listener);
+    },
+  },
 });

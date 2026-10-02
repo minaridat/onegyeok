@@ -58,11 +58,14 @@
 
   var PROTO = {
     ssh:  { label:'SSH',  icon:'<svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>' },
+    sql:  { label:'SQL',  icon:'<svg viewBox="0 0 20 20"><ellipse cx="10" cy="5" rx="7" ry="2.6"></ellipse><path d="M3 5v10c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5"></path><path d="M3 10c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"></path></svg>' },
     rdp:  { label:'RDP',  icon:'<svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>' },
     vnc:  { label:'VNC',  icon:'<svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>' },
     sftp: { label:'SFTP', icon:'<svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>' },
     web:  { label:'Web',  icon:'<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg>' }
   };
+
+  var SQL_ENGINE_LABELS = { mysql: 'MySQL / MariaDB', postgres: 'PostgreSQL', mssql: 'MS SQL Server' };
 
   function escapeHtml(str){
     return String(str == null ? '' : str).replace(/[&<>"']/g, function(c){
@@ -111,6 +114,7 @@
         id: s.dataset.id, name: s.dataset.id, group: s.dataset.group, protocol: s.dataset.protocol,
         host: hp.host, port: hp.port, username: s.dataset.username || '',
         authMethod: authMethod, keyFilePath: keyFilePath,
+        sqlEngine: s.dataset.sqlEngine || 'mysql', database: s.dataset.database || '',
         jump: (s.dataset.jump && s.dataset.jump !== '없음') ? s.dataset.jump : null,
         status: s.dataset.status, since: s.dataset.since
       };
@@ -128,6 +132,7 @@
     return '<div class="server" draggable="true" data-id="'+escapeHtml(s.id)+'" data-protocol="'+s.protocol+'" data-group="'+escapeHtml(s.group)+'" ' +
       'data-host="'+escapeHtml(hostDisplay)+'" data-username="'+escapeHtml(s.username||'')+'" data-auth="'+escapeHtml(authLabel(s))+'" ' +
       'data-auth-method="'+s.authMethod+'" data-key-path="'+escapeHtml(s.keyFilePath||'')+'" ' +
+      'data-sql-engine="'+escapeHtml(s.sqlEngine||'mysql')+'" data-database="'+escapeHtml(s.database||'')+'" ' +
       'data-status="'+s.status+'" data-since="'+escapeHtml(s.since)+'" data-jump="'+escapeHtml(s.jump||'없음')+'">' +
       '<span class="proto-chip proto-'+s.protocol+'">'+PROTO[s.protocol].icon+'<span class="stat'+(s.status==='on'?' on':'')+'"></span></span>' +
       '<span class="server-name">'+escapeHtml(s.name)+jumpTag+'</span>' +
@@ -359,13 +364,19 @@
     chip.className = 'proto-chip sm proto-' + proto;
     chip.innerHTML = PROTO[proto].icon;
     document.getElementById('row-jump').style.display = proto === 'ssh' ? '' : 'none';
+    document.getElementById('row-sql-engine').style.display = proto === 'sql' ? '' : 'none';
+    document.getElementById('row-sql-database').style.display = proto === 'sql' ? '' : 'none';
     document.getElementById('row-username').style.display = proto === 'web' ? 'none' : '';
     var srv = SERVERS.find(function(s){ return s.id === serverId; });
+    if(proto === 'sql'){
+      document.getElementById('i-sql-engine').textContent = SQL_ENGINE_LABELS[row.dataset.sqlEngine] || row.dataset.sqlEngine;
+      document.getElementById('i-sql-database').textContent = row.dataset.database || '(기본값)';
+    }
     memoEl.value = (srv && srv.memo) || '';
     memoStatusEl.classList.remove('show');
 
     var connBtn = document.getElementById('inspConnActionBtn');
-    if(proto === 'ssh'){
+    if(proto === 'ssh' || proto === 'sql'){
       connBtn.style.display = '';
       updateConnActionButton(tabId);
     } else {
@@ -402,6 +413,11 @@
       panes.appendChild(el);
       startSshSession(tabId, serverId, statusEl, hostEl);
       return el;
+    } else if(proto === 'sql'){
+      el.className = 'pane sql-pane';
+      panes.appendChild(el);
+      startDbSession(tabId, serverId, el);
+      return el;
     } else if(proto === 'rdp'){
       el.className = 'pane screen';
       el.innerHTML =
@@ -433,20 +449,34 @@
   // 프롬프트 단계든 셸 접속 이후든 구분 없이 "한 번 타이핑하면 여러 서버에 동시 입력"이 된다.
   // ==================================================================
   var sshSessions = {}; // tabId -> { term, fitAddon, statusEl, hostEl, state, handleInput, srv }
+  var dbSessions = {}; // tabId -> { state, srv, el, dom } (SQL 클라이언트 세션, 아래 쪽에서 정의)
   var hasSshBridge = !!(window.onegyeok && window.onegyeok.ssh);
 
   // 사이드바의 서버 상태 점은 "그 서버로 열린 탭 중 하나라도 연결돼 있는지"를 보여준다
   // (같은 서버로 여러 탭을 동시에 열 수 있으므로 하나의 세션 상태만으로는 부족하다).
+  // SSH/SQL 두 세션 저장소를 모두 확인한다 — 한 서버는 둘 중 한 프로토콜만 가지지만, 조회 쪽을
+  // 프로토콜 불문하고 공용으로 써도 무방하도록 통합했다.
   function updateServerRowStatus(serverId){
     var row = tree.querySelector('.server[data-id="'+serverId+'"]');
     if(!row) return;
     var anyConnected = Object.keys(sshSessions).some(function(tid){
       var s = sshSessions[tid];
       return s && s.srv && s.srv.id === serverId && s.state === 'connected';
+    }) || Object.keys(dbSessions).some(function(tid){
+      var s = dbSessions[tid];
+      return s && s.srv && s.srv.id === serverId && s.state === 'connected';
     });
     row.dataset.status = anyConnected ? 'on' : 'off';
     var dot = row.querySelector('.proto-chip .stat');
     if(dot) dot.classList.toggle('on', anyConnected);
+  }
+
+  // 인스펙터의 "연결 종료/재연결" 버튼은 SSH/SQL 세션 어느 쪽이든 같은 방식으로 상태를 읽는다.
+  function sessionFor(tabId){ return sshSessions[tabId] || dbSessions[tabId]; }
+
+  function disposeSession(tabId){
+    if(sshSessions[tabId]) disposeSshSession(tabId);
+    else if(dbSessions[tabId]) disposeDbSession(tabId);
   }
 
   function setSshStatus(tabId, state, message){
@@ -480,7 +510,7 @@
     var label = document.getElementById('inspConnActionLabel');
     var endIcon = btn.querySelector('.conn-action-icon-end');
     var retryIcon = btn.querySelector('.conn-action-icon-retry');
-    var s = sshSessions[id];
+    var s = sessionFor(id);
     var connected = s && s.state === 'connected';
     btn.classList.toggle('danger', connected);
     label.textContent = connected ? '연결 종료' : '재연결';
@@ -758,6 +788,209 @@
     });
   }
 
+  // ==================================================================
+  // SQL DB 클라이언트 (디비버 느낌의 "SQL" 연결 종류) — MySQL/PostgreSQL/MS SQL Server
+  //
+  // SSH와 동일한 보안 원칙: 비밀번호는 저장하지 않고, 탭 안의 접속 폼에 그때그때 직접
+  // 입력받는다. 터미널이 아니라 쿼리 에디터 + 결과 테이블로 구성된 일반적인 폼 UI라서,
+  // SSH처럼 키 입력을 가로채는 방식 대신 평범한 input/textarea를 그대로 사용한다.
+  // ==================================================================
+  var hasDbBridge = !!(window.onegyeok && window.onegyeok.db);
+
+  function setDbStatus(tabId, state, message){
+    var s = dbSessions[tabId];
+    if(!s) return;
+    s.state = state;
+    if(s.srv) updateServerRowStatus(s.srv.id);
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    if(tab){
+      var tabDot = tab.querySelector('.proto-chip .stat');
+      if(tabDot) tabDot.classList.toggle('on', state === 'connected');
+      var reconnectBtn = tab.querySelector('.tab-reconnect');
+      if(reconnectBtn){
+        var idleFailed = (state === 'error' || state === 'disconnected');
+        reconnectBtn.classList.toggle('show', idleFailed);
+      }
+    }
+    if(currentInspectedId === tabId) updateConnActionButton(tabId);
+  }
+
+  function buildSqlPaneDom(el){
+    el.innerHTML =
+      '<div class="sql-connect">' +
+        '<div class="sql-connect-box">' +
+          '<div class="sql-connect-title"></div>' +
+          '<label class="sql-f-username-row" style="display:none">사용자명<input type="text" class="sql-f-username" autocomplete="off"></label>' +
+          '<label>비밀번호<input type="password" class="sql-f-password" autocomplete="off"></label>' +
+          '<div class="sql-connect-error"></div>' +
+          '<button type="button" class="sql-connect-btn">접속</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sql-workspace">' +
+        '<div class="sql-toolbar">' +
+          '<button type="button" class="sql-run-btn">실행 ▶</button>' +
+          '<span class="sql-run-hint">⌘/Ctrl+Enter</span>' +
+          '<span class="sql-meta"></span>' +
+        '</div>' +
+        '<textarea class="sql-editor" placeholder="SELECT * FROM ..." spellcheck="false"></textarea>' +
+        '<div class="sql-error-box" style="display:none"></div>' +
+        '<div class="sql-results-wrap"><div class="sql-empty-note">쿼리를 실행하면 결과가 여기에 표시됩니다.</div></div>' +
+      '</div>';
+    return {
+      titleEl: el.querySelector('.sql-connect-title'),
+      usernameRow: el.querySelector('.sql-f-username-row'),
+      usernameInput: el.querySelector('.sql-f-username'),
+      passwordInput: el.querySelector('.sql-f-password'),
+      connectError: el.querySelector('.sql-connect-error'),
+      connectBtn: el.querySelector('.sql-connect-btn'),
+      runBtn: el.querySelector('.sql-run-btn'),
+      meta: el.querySelector('.sql-meta'),
+      editor: el.querySelector('.sql-editor'),
+      errorBox: el.querySelector('.sql-error-box'),
+      resultsWrap: el.querySelector('.sql-results-wrap'),
+    };
+  }
+
+  function renderSqlResults(dom, result){
+    dom.errorBox.style.display = 'none';
+    if(!result.columns || !result.columns.length){
+      dom.resultsWrap.innerHTML = '<div class="sql-empty-note">'+escapeHtml(result.message || ('영향받은 행 ' + result.rowCount + '개'))+'</div>';
+    } else {
+      var thead = '<thead><tr>' + result.columns.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>';
+      var tbody = '<tbody>' + result.rows.map(function(row){
+        return '<tr>' + result.columns.map(function(c){
+          var v = row[c];
+          return '<td>'+escapeHtml(v === null || v === undefined ? 'NULL' : String(v))+'</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+      dom.resultsWrap.innerHTML = '<table class="sql-results-table">'+thead+tbody+'</table>';
+    }
+    dom.meta.textContent = result.rowCount + '행 · ' + result.durationMs + 'ms';
+  }
+
+  function runSqlQuery(tabId){
+    var s = dbSessions[tabId];
+    if(!s || s.state !== 'connected') return;
+    var sql = s.dom.editor.value.trim();
+    if(!sql) return;
+    s.dom.runBtn.disabled = true;
+    s.dom.errorBox.style.display = 'none';
+    window.onegyeok.db.query(tabId, sql).then(function(res){
+      if(!dbSessions[tabId]) return;
+      s.dom.runBtn.disabled = false;
+      if(res.ok){
+        renderSqlResults(s.dom, res);
+      } else {
+        s.dom.errorBox.textContent = res.error || '쿼리 실행 실패';
+        s.dom.errorBox.style.display = '';
+      }
+    });
+  }
+
+  // 연결이 끊기거나 재연결 버튼을 누르면 접속 폼을 다시 보여준다(비밀번호는 매번 새로 입력).
+  function showDbConnectForm(tabId){
+    var s = dbSessions[tabId];
+    if(!s) return;
+    s.el.classList.remove('connected');
+    s.dom.connectError.textContent = '';
+    s.dom.passwordInput.value = '';
+    s.dom.connectBtn.disabled = false;
+    s.dom.connectBtn.textContent = '접속';
+    setTimeout(function(){
+      if(s.dom.usernameRow.style.display !== 'none') s.dom.usernameInput.focus();
+      else s.dom.passwordInput.focus();
+    }, 0);
+  }
+
+  function attemptDbConnect(tabId){
+    var s = dbSessions[tabId];
+    if(!s) return;
+    var srv = s.srv;
+    var username = srv.username || s.dom.usernameInput.value.trim();
+    if(!username){
+      s.dom.connectError.textContent = '사용자명을 입력해주세요.';
+      return;
+    }
+    var password = s.dom.passwordInput.value;
+    s.dom.connectError.textContent = '';
+    s.dom.connectBtn.disabled = true;
+    s.dom.connectBtn.textContent = '접속 중...';
+    setDbStatus(tabId, 'connecting', '');
+    window.onegyeok.db.connect(tabId, {
+      engine: srv.sqlEngine, host: srv.host, port: srv.port, username: username,
+      password: password, database: srv.database || undefined,
+    }).then(function(res){
+      if(!dbSessions[tabId]) return;
+      s.dom.connectBtn.disabled = false;
+      s.dom.connectBtn.textContent = '접속';
+      if(res.ok){
+        s.el.classList.add('connected');
+        setDbStatus(tabId, 'connected', '');
+        setTimeout(function(){ s.dom.editor.focus(); }, 0);
+      } else {
+        s.dom.connectError.textContent = res.error || '연결 실패';
+        setDbStatus(tabId, 'error', res.error);
+      }
+    });
+  }
+
+  // 연결된 상태에서 "연결 종료"를 누르면 탭은 유지한 채 다시 접속 폼으로 되돌린다.
+  function disconnectDbKeepTab(tabId){
+    var s = dbSessions[tabId];
+    if(!s) return;
+    if(hasDbBridge) window.onegyeok.db.disconnect(tabId);
+    setDbStatus(tabId, 'disconnected', '연결이 종료되었습니다.');
+    showDbConnectForm(tabId);
+  }
+
+  function startDbSession(tabId, serverId, el){
+    var srv = SERVERS.find(function(s){ return s.id === serverId; });
+    if(!srv) return;
+    var dom = buildSqlPaneDom(el);
+    dom.titleEl.textContent = (SQL_ENGINE_LABELS[srv.sqlEngine] || srv.sqlEngine) + ' · ' + srv.host + ':' + (srv.port || '') + (srv.database ? ' / ' + srv.database : '');
+    var showUsernameField = !srv.username;
+    dom.usernameRow.style.display = showUsernameField ? '' : 'none';
+
+    var session = { state: 'disconnected', srv: srv, el: el, dom: dom };
+    dbSessions[tabId] = session;
+
+    dom.connectBtn.addEventListener('click', function(){ attemptDbConnect(tabId); });
+    dom.passwordInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); attemptDbConnect(tabId); } });
+    dom.runBtn.addEventListener('click', function(){ runSqlQuery(tabId); });
+    dom.editor.addEventListener('keydown', function(e){
+      if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); runSqlQuery(tabId); }
+    });
+
+    if(!hasDbBridge){
+      dom.connectError.textContent = 'DB 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)';
+      dom.connectBtn.disabled = true;
+      return;
+    }
+    setTimeout(function(){
+      if(showUsernameField) dom.usernameInput.focus(); else dom.passwordInput.focus();
+    }, 0);
+  }
+
+  function disposeDbSession(tabId){
+    var s = dbSessions[tabId];
+    if(!s) return;
+    if(hasDbBridge) window.onegyeok.db.disconnect(tabId);
+    var serverId = s.srv && s.srv.id;
+    delete dbSessions[tabId];
+    if(serverId) updateServerRowStatus(serverId);
+  }
+
+  if(hasDbBridge && window.onegyeok.db.onStatus){
+    window.onegyeok.db.onStatus(function(id, status){
+      var s = dbSessions[id];
+      if(!s) return;
+      if(status.state === 'disconnected' && s.state === 'connected'){
+        setDbStatus(id, 'disconnected', '연결이 종료되었습니다.');
+        showDbConnectForm(id);
+      }
+    });
+  }
+
   // 창 크기 변경 / 패널 드래그 리사이즈 시 현재 보이는 터미널을 다시 맞춘다.
   window.addEventListener('resize', function(){
     if(currentInspectedId && sshSessions[currentInspectedId]) fitSshSession(currentInspectedId);
@@ -772,11 +1005,19 @@
     var id = currentInspectedId;
     if(!id) return;
     var s = sshSessions[id];
-    if(s && s.state === 'connected'){
-      if(hasSshBridge) window.onegyeok.ssh.disconnect(id);
-    } else if(s){
-      s.term.writeln('');
-      promptAndConnect(id, s);
+    if(s){
+      if(s.state === 'connected'){
+        if(hasSshBridge) window.onegyeok.ssh.disconnect(id);
+      } else {
+        s.term.writeln('');
+        promptAndConnect(id, s);
+      }
+      return;
+    }
+    var d = dbSessions[id];
+    if(d){
+      if(d.state === 'connected') disconnectDbKeepTab(id);
+      else attemptDbConnect(id);
     }
   });
 
@@ -835,7 +1076,7 @@
     tab.dataset.id = tabId;
     tab.dataset.serverId = serverId;
     tab.dataset.protocol = proto;
-    var reconnectBtn = proto === 'ssh'
+    var reconnectBtn = (proto === 'ssh' || proto === 'sql')
       ? '<button type="button" class="tab-reconnect" title="빠른 재연결"><svg class="icon" viewBox="0 0 20 20"><polyline points="3 9 3 4 8 4"></polyline><path d="M3.5 13a6.5 6.5 0 1 0 1.6-6.8L3 9"></path></svg></button>'
       : '';
     tab.innerHTML =
@@ -935,7 +1176,7 @@
     var hadActive = tabsToRemove.some(function(t){ return t.classList.contains('active'); });
     tabsToRemove.forEach(function(t){
       var tabId = t.dataset.id;
-      disposeSshSession(tabId);
+      disposeSession(tabId);
       var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
       t.remove();
       if(pane) pane.remove();
@@ -1102,16 +1343,36 @@
     sel.innerHTML = '<option value="">없음</option>' + opts;
   }
 
+  var SQL_DEFAULT_PORTS = { mysql: 3306, postgres: 5432, mssql: 1433 };
+
+  function updatePortPlaceholder(){
+    var proto = document.getElementById('f-protocol').value;
+    var portEl = document.getElementById('f-port');
+    if(proto === 'sql'){
+      portEl.placeholder = String(SQL_DEFAULT_PORTS[document.getElementById('f-sql-engine').value] || 3306);
+    } else {
+      portEl.placeholder = proto === 'ssh' ? '22' : (proto === 'sftp' ? '22' : (proto === 'rdp' ? '3389' : (proto === 'vnc' ? '5900' : '')));
+    }
+  }
+
   function toggleSshOnlyFields(){
     var proto = document.getElementById('f-protocol').value;
     var isSsh = proto === 'ssh';
+    var isSql = proto === 'sql';
     document.getElementById('row-f-jump').style.display = isSsh ? '' : 'none';
+    document.getElementById('row-f-auth-method').style.display = isSsh ? '' : 'none';
+    document.getElementById('row-f-sql-engine').style.display = isSql ? '' : 'none';
+    document.getElementById('row-f-database').style.display = isSql ? '' : 'none';
     document.getElementById('row-f-username').style.display = (proto === 'web') ? 'none' : '';
+    toggleKeyPathField();
+    updatePortPlaceholder();
   }
   document.getElementById('f-protocol').addEventListener('change', toggleSshOnlyFields);
+  document.getElementById('f-sql-engine').addEventListener('change', updatePortPlaceholder);
 
   function toggleKeyPathField(){
-    var isKey = document.getElementById('f-auth-method').value === 'publickey';
+    var proto = document.getElementById('f-protocol').value;
+    var isKey = proto === 'ssh' && document.getElementById('f-auth-method').value === 'publickey';
     document.getElementById('row-f-keypath').style.display = isKey ? '' : 'none';
   }
   document.getElementById('f-auth-method').addEventListener('change', toggleKeyPathField);
@@ -1147,6 +1408,8 @@
     document.getElementById('f-username').value = s ? s.username : '';
     document.getElementById('f-auth-method').value = s ? s.authMethod : 'password';
     document.getElementById('f-key-path').value = s && s.keyFilePath ? s.keyFilePath : '';
+    document.getElementById('f-sql-engine').value = s && s.sqlEngine ? s.sqlEngine : 'mysql';
+    document.getElementById('f-database').value = s && s.database ? s.database : '';
     populateJumpSelect(id);
     document.getElementById('f-jump').value = s && s.jump ? s.jump : '';
     document.getElementById('editError').textContent = '';
@@ -1217,13 +1480,15 @@
     var portRaw = document.getElementById('f-port').value.trim();
     var port = portRaw ? parseInt(portRaw, 10) : null;
     var username = document.getElementById('f-username').value.trim();
-    var authMethod = document.getElementById('f-auth-method').value === 'publickey' ? 'publickey' : 'password';
+    var authMethod = (protocol === 'ssh' && document.getElementById('f-auth-method').value === 'publickey') ? 'publickey' : 'password';
     var keyFilePath = authMethod === 'publickey' ? document.getElementById('f-key-path').value.trim() || null : null;
-    var jump = document.getElementById('f-jump').value || null;
+    var jump = protocol === 'ssh' ? (document.getElementById('f-jump').value || null) : null;
+    var sqlEngine = protocol === 'sql' ? document.getElementById('f-sql-engine').value : null;
+    var database = protocol === 'sql' ? document.getElementById('f-database').value.trim() : '';
     var errEl = document.getElementById('editError');
 
     if(!name || !host){ errEl.textContent = '이름과 호스트는 필수입니다.'; return; }
-    // 사용자명은 선택 — 비워두면 접속할 때마다 터미널에서 직접 물어본다(다른 사용자로 로그인하는 경우 대비).
+    // 사용자명은 선택 — 비워두면 접속할 때마다 터미널(또는 접속 폼)에서 직접 물어본다(다른 사용자로 로그인하는 경우 대비).
     var dup = SERVERS.find(function(s){ return s.id === name && s.id !== editingId; });
     if(dup){ errEl.textContent = '이미 사용 중인 이름입니다.'; return; }
     if(authMethod === 'publickey' && !keyFilePath){ errEl.textContent = 'SSH Key 파일 경로를 지정해주세요.'; return; }
@@ -1235,13 +1500,13 @@
       var oldId = s.id;
       s.name = name; s.id = name; s.group = group; s.protocol = protocol; s.host = host; s.port = port;
       s.username = username; s.authMethod = authMethod; s.keyFilePath = keyFilePath; s.auth = authLabel(s);
-      s.jump = jump;
+      s.jump = jump; s.sqlEngine = sqlEngine; s.database = database;
       if(oldId !== name) propagateIdRename(oldId, name);
     } else {
       var newServer = {
         id: name, name: name, group: group, protocol: protocol, host: host, port: port,
         username: username, authMethod: authMethod, keyFilePath: keyFilePath,
-        jump: jump, status: 'off', since: '연결 안 됨'
+        jump: jump, sqlEngine: sqlEngine, database: database, status: 'off', since: '연결 안 됨'
       };
       newServer.auth = authLabel(newServer);
       SERVERS.push(newServer);
@@ -1265,6 +1530,12 @@
         rs.term.writeln('');
         promptAndConnect(rid, rs);
         activate(rid); // 탭으로 바로 전환해 인증 프롬프트가 보이게 한다
+        return;
+      }
+      var rd = dbSessions[rid];
+      if(rd && rd.state !== 'connected' && rd.state !== 'connecting'){
+        showDbConnectForm(rid);
+        activate(rid);
       }
       return;
     }
@@ -1274,7 +1545,7 @@
     if(close){
       var id = tab.dataset.id;
       var wasActive = tab.classList.contains('active');
-      disposeSshSession(id); // 탭을 닫으면 그 탭의 클라이언트↔서버 연결만 종료된다
+      disposeSession(id); // 탭을 닫으면 그 탭의 클라이언트↔서버 연결만 종료된다
       var pane = panes.querySelector('.pane[data-id="'+id+'"]');
       tab.remove();
       if(pane) pane.remove();

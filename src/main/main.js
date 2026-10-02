@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, safeStorage, dialog } = require('electron')
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const sshManager = require('./ssh-manager');
+const dbManager = require('./db-manager');
 
 let mainWindow = null;
 
@@ -30,9 +31,10 @@ function createWindow() {
   }
 }
 
-// Phase1 F-502: 프로그램 종료 시 SSH/RDP/VNC/SFTP/Web 연결을 예외 없이 강제 종료한다.
+// Phase1 F-502: 프로그램 종료 시 SSH/SQL/RDP/VNC/SFTP/Web 연결을 예외 없이 강제 종료한다.
 function terminateAllSessions() {
   sshManager.disconnectAll();
+  dbManager.disconnectAll();
   // TODO(Phase2+): RDP/VNC/SFTP 연결 관리자가 추가되면 여기서 함께 종료한다.
 }
 
@@ -60,6 +62,36 @@ ipcMain.handle('ssh:connect', async (_event, sessionId, params) => {
 ipcMain.on('ssh:input', (_event, sessionId, data) => { sshManager.write(sessionId, data); });
 ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { sshManager.resize(sessionId, cols, rows); });
 ipcMain.handle('ssh:disconnect', (_event, sessionId) => { sshManager.disconnect(sessionId); return { ok: true }; });
+
+// ---------------------------------------------------------------------------
+// SQL DB 클라이언트 연결 (디비버 느낌의 "SQL" 연결 종류)
+// 비밀번호는 이 IPC 호출의 인자로만 전달되고 어디에도 저장하지 않는다 (F-301/601과 동일 원칙).
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('db:connect', async (_event, sessionId, params) => {
+  try {
+    await dbManager.connect(sessionId, params, (status) => {
+      if (mainWindow) mainWindow.webContents.send('db:status', sessionId, status);
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message, kind: err.kind };
+  }
+});
+
+ipcMain.handle('db:query', async (_event, sessionId, sql) => {
+  try {
+    const result = await dbManager.query(sessionId, sql);
+    return Object.assign({ ok: true }, result);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('db:disconnect', async (_event, sessionId) => {
+  await dbManager.disconnect(sessionId);
+  return { ok: true };
+});
 
 ipcMain.handle('dialog:pick-key-file', async () => {
   if (!mainWindow) return { canceled: true };
