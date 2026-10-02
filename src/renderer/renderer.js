@@ -502,53 +502,63 @@
     };
   }
 
+  // 인증 실패(비밀번호/Key 거절) 시 실제 ssh 명령어처럼 "Permission denied, please try again."를
+  // 띄우고 같은 자리에서 바로 재입력받는다 — 최대 횟수 넘으면 그때 최종 에러로 멈춘다.
+  var MAX_AUTH_ATTEMPTS = 3;
+
   // 등록 시 사용자명을 비워뒀다면(다른 사용자로 로그인하는 경우 대비) 접속할 때마다
   // "login as:"를 먼저 물어본다 — 이 값은 저장하지 않으므로 매번 다른 사용자로 접속 가능하다.
-  function promptAndConnect(id, srv, term, session){
+  function promptAndConnect(id, session){
+    var srv = session.srv;
     session.state = 'prompting';
+    session.authAttempts = 0;
     setSshStatus(id, 'prompting', '');
     if(srv.username){
-      promptAuthStep(id, srv, term, session, srv.username);
+      session.activeUsername = srv.username;
+      promptAuthStep(id, session);
       return;
     }
-    term.write('login as: ');
+    session.term.write('login as: ');
     session.handleInput = createLinePrompter(
       function(value){
-        term.write('\r\n');
+        session.term.write('\r\n');
         var username = value.trim();
         if(!username){
-          term.writeln('사용자명이 필요합니다. 재연결 버튼으로 다시 시도해주세요.');
+          session.term.writeln('사용자명이 필요합니다. 재연결 버튼으로 다시 시도해주세요.');
           setSshStatus(id, 'canceled', '');
           session.handleInput = function(){};
           return;
         }
-        promptAuthStep(id, srv, term, session, username);
+        session.activeUsername = username;
+        promptAuthStep(id, session);
       },
-      function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+      function(){ session.term.write('^C\r\n'); session.term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
     );
   }
 
-  function promptAuthStep(id, srv, term, session, username){
+  function promptAuthStep(id, session){
+    var srv = session.srv, term = session.term;
     if(srv.authMethod === 'publickey'){
       term.write("Enter passphrase for key '" + (srv.keyFilePath || '') + "' (없으면 Enter): ");
       session.handleInput = createLinePrompter(
-        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, username, { passphrase: value || undefined }); },
+        function(value){ term.write('\r\n'); finishPrompt(id, session, { passphrase: value || undefined }); },
         function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
       );
     } else {
-      term.write(username + '@' + srv.host + "'s password: ");
+      term.write(session.activeUsername + '@' + srv.host + "'s password: ");
       session.handleInput = createLinePrompter(
-        function(value){ term.write('\r\n'); finishPrompt(id, srv, term, session, username, { password: value }); },
+        function(value){ term.write('\r\n'); finishPrompt(id, session, { password: value }); },
         function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
       );
     }
   }
 
-  function finishPrompt(id, srv, term, session, username, secretParams){
+  function finishPrompt(id, session, secretParams){
+    var srv = session.srv, term = session.term;
     session.handleInput = function(){}; // 연결 결과가 오기 전까지 추가 키 입력은 무시
     setSshStatus(id, 'connecting', '');
     var params = {
-      host: srv.host, port: srv.port || 22, username: username,
+      host: srv.host, port: srv.port || 22, username: session.activeUsername,
       authMethod: srv.authMethod, keyFilePath: srv.keyFilePath,
       tmuxSessionName: (srv.tmux && srv.tmux !== '—') ? srv.tmux : null,
       cols: term.cols, rows: term.rows,
@@ -558,13 +568,33 @@
 
     window.onegyeok.ssh.connect(id, params).then(function(res){
       if(!sshSessions[id]) return; // 그 사이 탭이 닫혔을 수 있음
-      var cur = sshSessions[id].state;
-      // 'ssh:status' 푸시 이벤트가 이미 처리했을 수 있으므로, 아직 반영 전일 때만 폴백으로 표시한다.
-      if(!res.ok && cur !== 'error' && cur !== 'connected'){
-        term.writeln('\x1b[31m' + (res.error || '연결 실패') + '\x1b[0m');
-        setSshStatus(id, 'error', res.error);
+      // 'ssh:status' 푸시 이벤트가 이미 처리했을 수 있으므로, 아직 'connecting' 상태일 때만(= 아직
+      // 아무도 처리 안 했을 때만) 이 응답을 기준으로 처리한다.
+      if(!res.ok && sshSessions[id].state === 'connecting'){
+        handleAuthFailureOrError(id, session, res.error, res.kind);
       }
     });
+  }
+
+  // 인증 관련 실패(auth/badkey)는 ssh 명령어처럼 그 자리에서 바로 재입력받고,
+  // 그 외(네트워크 오류 등)는 재입력해도 의미가 없으므로 바로 최종 에러로 표시한다.
+  function handleAuthFailureOrError(id, session, message, kind){
+    var term = session.term;
+    var retryable = (kind === 'auth' || kind === 'badkey');
+    if(retryable && session.authAttempts < MAX_AUTH_ATTEMPTS - 1){
+      session.authAttempts++;
+      term.writeln('\r\n\x1b[31mPermission denied, please try again.\x1b[0m');
+      setSshStatus(id, 'prompting', '');
+      promptAuthStep(id, session);
+    } else if(retryable){
+      term.writeln('\r\n\x1b[31mPermission denied (' + (kind === 'badkey' ? 'publickey' : 'password') + ').\x1b[0m');
+      setSshStatus(id, 'error', message);
+      session.handleInput = function(){};
+    } else {
+      term.writeln('\r\n\x1b[31m' + (message || '연결 실패') + '\x1b[0m');
+      setSshStatus(id, 'error', message);
+      session.handleInput = function(){};
+    }
   }
 
   function startSshSession(id, statusEl, hostEl){
@@ -582,7 +612,7 @@
     term.loadAddon(fitAddon);
     term.open(hostEl);
 
-    var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null };
+    var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null, srv: srv, authAttempts: 0, activeUsername: null };
     sshSessions[id] = session;
     statusEl.style.display = 'none';
 
@@ -604,7 +634,7 @@
     }
 
     term.writeln('Connecting to ' + srv.host + ':' + (srv.port || 22) + ' ...');
-    promptAndConnect(id, srv, term, session);
+    promptAndConnect(id, session);
   }
 
   function disposeSshSession(id){
@@ -630,9 +660,8 @@
         s.handleInput = function(data){ window.onegyeok.ssh.input(id, data); };
         fitSshSession(id);
       } else if(status.state === 'error'){
-        s.term.writeln('\r\n\x1b[31m' + (status.message || '연결 오류') + '\x1b[0m');
-        setSshStatus(id, 'error', status.message);
-        s.handleInput = function(){};
+        // finishPrompt의 invoke 응답이 이미 처리했을 수 있으므로, 아직 'connecting' 상태일 때만 처리한다.
+        if(s.state === 'connecting') handleAuthFailureOrError(id, s, status.message, status.kind);
       } else if(status.state === 'disconnected'){
         s.term.writeln('\r\n\x1b[33m연결이 종료되었습니다.\x1b[0m');
         setSshStatus(id, 'disconnected', '연결이 종료되었습니다.');
@@ -658,10 +687,8 @@
     if(s && s.state === 'connected'){
       if(hasSshBridge) window.onegyeok.ssh.disconnect(id);
     } else if(s){
-      var srv = SERVERS.find(function(x){ return x.id === id; });
-      if(!srv) return;
       s.term.writeln('');
-      promptAndConnect(id, srv, s.term, s);
+      promptAndConnect(id, s);
     }
   });
 

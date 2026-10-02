@@ -87,15 +87,35 @@ function connect(sessionId, params, onData, onStatus) {
       .on('error', (err) => {
         errorReported = true;
         sessions.delete(sessionId);
-        onStatus({ state: 'error', message: translateSshError(err) });
-        if (!settled) { settled = true; reject(err); }
+        const kind = classifySshError(err);
+        onStatus({ state: 'error', message: translateSshError(err), kind });
+        if (!settled) {
+          settled = true;
+          const wrapped = new Error(translateSshError(err));
+          wrapped.kind = kind;
+          reject(wrapped);
+        }
       })
       .on('close', () => {
         sessions.delete(sessionId);
         if (!errorReported) onStatus({ state: 'disconnected' });
       });
 
-    client.connect(connectOpts);
+    try {
+      client.connect(connectOpts);
+    } catch (err) {
+      // 키 파싱/복호화 실패 등은 ssh2가 'error' 이벤트 대신 동기 예외로 던지는 경우가 있다.
+      errorReported = true;
+      sessions.delete(sessionId);
+      const kind = classifySshError(err);
+      onStatus({ state: 'error', message: translateSshError(err), kind });
+      if (!settled) {
+        settled = true;
+        const wrapped = new Error(translateSshError(err));
+        wrapped.kind = kind;
+        reject(wrapped);
+      }
+    }
   });
 }
 
@@ -104,8 +124,22 @@ function shellQuote(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
+// 에러 종류를 분류한다 — 렌더러가 "실제 ssh 명령어처럼 그 자리에서 재입력받을지"를 결정하는 데 쓴다.
+// 'auth'(비밀번호/서버측 키 거절)와 'badkey'(로컬에서 Key 복호화 실패, 즉 틀린 Passphrase)만
+// 재시도 가치가 있다 — 나머지(네트워크 오류 등)는 같은 값을 다시 넣어도 의미가 없다.
+function classifySshError(err) {
+  const msg = String(err && err.message || err);
+  if (/bad passphrase|integrity check failed|Cannot parse privateKey|unsupported key format/i.test(msg)) return 'badkey';
+  if (/all configured authentication methods failed/i.test(msg)) return 'auth';
+  if (/ECONNREFUSED/.test(msg)) return 'network';
+  if (/ETIMEDOUT|Timed out/i.test(msg)) return 'network';
+  if (/ENOTFOUND|EAI_AGAIN/.test(msg)) return 'network';
+  return 'other';
+}
+
 function translateSshError(err) {
   const msg = String(err && err.message || err);
+  if (/bad passphrase|integrity check failed|Cannot parse privateKey|unsupported key format/i.test(msg)) return 'Key Passphrase가 올바르지 않습니다';
   if (/all configured authentication methods failed/i.test(msg)) return '인증 실패 — 비밀번호 또는 키를 확인해주세요';
   if (/ECONNREFUSED/.test(msg)) return '연결 거부됨 — 호스트/포트를 확인해주세요';
   if (/ETIMEDOUT|Timed out/i.test(msg)) return '연결 시간 초과';

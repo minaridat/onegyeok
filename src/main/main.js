@@ -53,7 +53,7 @@ ipcMain.handle('ssh:connect', async (_event, sessionId, params) => {
     );
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, kind: err.kind };
   }
 });
 
