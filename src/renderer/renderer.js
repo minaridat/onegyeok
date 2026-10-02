@@ -110,7 +110,7 @@
       var srv = {
         id: s.dataset.id, name: s.dataset.id, group: s.dataset.group, protocol: s.dataset.protocol,
         host: hp.host, port: hp.port, username: s.dataset.username || '',
-        authMethod: authMethod, keyFilePath: keyFilePath, tmux: s.dataset.tmux,
+        authMethod: authMethod, keyFilePath: keyFilePath,
         jump: (s.dataset.jump && s.dataset.jump !== '없음') ? s.dataset.jump : null,
         status: s.dataset.status, since: s.dataset.since
       };
@@ -127,7 +127,7 @@
     var jumpTag = isJumpHost(s.id) ? ' <span style="color:var(--text-faint);font-weight:400;">· Jump</span>' : '';
     return '<div class="server" draggable="true" data-id="'+escapeHtml(s.id)+'" data-protocol="'+s.protocol+'" data-group="'+escapeHtml(s.group)+'" ' +
       'data-host="'+escapeHtml(hostDisplay)+'" data-username="'+escapeHtml(s.username||'')+'" data-auth="'+escapeHtml(authLabel(s))+'" ' +
-      'data-auth-method="'+s.authMethod+'" data-key-path="'+escapeHtml(s.keyFilePath||'')+'" data-tmux="'+escapeHtml(s.tmux||'—')+'" ' +
+      'data-auth-method="'+s.authMethod+'" data-key-path="'+escapeHtml(s.keyFilePath||'')+'" ' +
       'data-status="'+s.status+'" data-since="'+escapeHtml(s.since)+'" data-jump="'+escapeHtml(s.jump||'없음')+'">' +
       '<span class="proto-chip proto-'+s.protocol+'">'+PROTO[s.protocol].icon+'<span class="stat'+(s.status==='on'?' on':'')+'"></span></span>' +
       '<span class="server-name">'+escapeHtml(s.name)+jumpTag+'</span>' +
@@ -295,7 +295,8 @@
     addNewGroup().then(function(name){ if(name) renderManageTable(); });
   });
 
-  var currentInspectedId = null;
+  var currentInspectedId = null; // 인스펙터에 표시 중인 탭(세션 인스턴스) id
+  var currentInspectedServerId = null; // 위 탭이 속한 서버 id (메모 등 서버 단위 데이터에 사용)
   var memoEl = document.getElementById('i-memo');
   var memoStatusEl = document.getElementById('i-memo-status');
   var memoSaveTimer = null;
@@ -324,61 +325,71 @@
 
   function flushMemoSave(){
     clearTimeout(memoSaveTimer);
-    if(!currentInspectedId) return;
-    var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
-    if(srv) persistMemo(currentInspectedId, srv.memo || '');
+    if(!currentInspectedServerId) return;
+    var srv = SERVERS.find(function(s){ return s.id === currentInspectedServerId; });
+    if(srv) persistMemo(currentInspectedServerId, srv.memo || '');
   }
 
-  function inspectorFor(id){
-    var row = tree.querySelector('.server[data-id="'+id+'"]');
+  // 탭(세션 인스턴스) id로부터 그 탭이 속한 서버 id를 찾는다. 같은 서버로 여러 탭을 열 수 있으므로
+  // (탭 id ≠ 서버 id)인 경우가 일반적이다 — 탭 엘리먼트의 data-server-id를 기준으로 판단한다.
+  function serverIdForTab(tabId){
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    return (tab && tab.dataset.serverId) || tabId;
+  }
+
+  function inspectorFor(tabId){
+    var serverId = serverIdForTab(tabId);
+    var row = tree.querySelector('.server[data-id="'+serverId+'"]');
     if(!row) return;
-    if(currentInspectedId && currentInspectedId !== id) flushMemoSave();
-    currentInspectedId = id;
+    if(currentInspectedServerId && currentInspectedServerId !== serverId) flushMemoSave();
+    currentInspectedId = tabId;
+    currentInspectedServerId = serverId;
     var proto = row.dataset.protocol;
-    document.getElementById('i-name').textContent = id;
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    var tabNameEl = tab && tab.querySelector('.tab-name');
+    document.getElementById('i-name').textContent = (tabNameEl && tabNameEl.textContent) || serverId;
     document.getElementById('i-group').textContent = row.dataset.group;
     document.getElementById('i-host').textContent = row.dataset.host;
     document.getElementById('i-username').textContent = row.dataset.username || '(접속 시 입력)';
     document.getElementById('i-auth').textContent = row.dataset.auth;
     document.getElementById('i-jump').textContent = row.dataset.jump;
-    document.getElementById('i-tmux').textContent = row.dataset.tmux;
     document.getElementById('i-since').textContent = row.dataset.since;
     document.getElementById('i-proto-label').textContent = PROTO[proto].label;
     var chip = document.getElementById('i-proto-chip');
     chip.className = 'proto-chip sm proto-' + proto;
     chip.innerHTML = PROTO[proto].icon;
     document.getElementById('row-jump').style.display = proto === 'ssh' ? '' : 'none';
-    document.getElementById('row-tmux').style.display = proto === 'ssh' ? '' : 'none';
     document.getElementById('row-username').style.display = proto === 'web' ? 'none' : '';
-    var srv = SERVERS.find(function(s){ return s.id === id; });
+    var srv = SERVERS.find(function(s){ return s.id === serverId; });
     memoEl.value = (srv && srv.memo) || '';
     memoStatusEl.classList.remove('show');
 
     var connBtn = document.getElementById('inspConnActionBtn');
     if(proto === 'ssh'){
       connBtn.style.display = '';
-      updateConnActionButton(id);
+      updateConnActionButton(tabId);
     } else {
       connBtn.style.display = 'none';
     }
   }
 
   memoEl.addEventListener('input', function(e){
-    if(!currentInspectedId) return;
-    var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
+    if(!currentInspectedServerId) return;
+    var srv = SERVERS.find(function(s){ return s.id === currentInspectedServerId; });
     if(srv) srv.memo = e.target.value;
-    scheduleMemoSave(currentInspectedId, e.target.value);
+    scheduleMemoSave(currentInspectedServerId, e.target.value);
   });
   memoEl.addEventListener('blur', flushMemoSave);
   window.addEventListener('beforeunload', flushMemoSave);
 
-  function ensurePane(id){
-    var pane = panes.querySelector('.pane[data-id="'+id+'"]');
+  function ensurePane(tabId, serverId){
+    var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
     if(pane) return pane;
-    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    var row = tree.querySelector('.server[data-id="'+serverId+'"]');
     var proto = row.dataset.protocol;
     var el = document.createElement('div');
-    el.dataset.id = id;
+    el.dataset.id = tabId;
+    el.dataset.serverId = serverId;
     if(proto === 'ssh'){
       el.className = 'pane ssh-pane';
       var statusEl = document.createElement('div');
@@ -389,12 +400,12 @@
       el.appendChild(statusEl);
       el.appendChild(hostEl);
       panes.appendChild(el);
-      startSshSession(id, statusEl, hostEl);
+      startSshSession(tabId, serverId, statusEl, hostEl);
       return el;
     } else if(proto === 'rdp'){
       el.className = 'pane screen';
       el.innerHTML =
-        '<div class="screen-toolbar"><span>'+id+' · RDP</span><span class="grow"></span>' +
+        '<div class="screen-toolbar"><span>'+serverId+' · RDP</span><span class="grow"></span>' +
         '<span class="icon-btn" title="전체화면"><svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 7V4a1 1 0 0 0-1-1h-3M3 13v3a1 1 0 0 0 1 1h3M17 13v3a1 1 0 0 1-1 1h-3"></path></svg></span></div>' +
         '<div class="screen-canvas"><div class="win" style="left:12%;top:14%;width:50%;height:56%;"></div>' +
         '<span class="screen-badge">원격 제어 중</span>' +
@@ -403,7 +414,7 @@
       el.className = 'pane placeholder-pane proto-' + proto;
       el.innerHTML =
         '<div class="ph-icon">'+PROTO[proto].icon+'</div>' +
-        '<div class="ph-title">'+id+'</div>' +
+        '<div class="ph-title">'+serverId+'</div>' +
         '<div class="ph-desc">'+PROTO[proto].label+' 세션이 여기에 표시됩니다.</div>';
     }
     panes.appendChild(el);
@@ -421,11 +432,25 @@
   // 같은 키 입력이 선택된 모든 세션의 handleInput으로 동시에 전달된다 — 그래서 비밀번호
   // 프롬프트 단계든 셸 접속 이후든 구분 없이 "한 번 타이핑하면 여러 서버에 동시 입력"이 된다.
   // ==================================================================
-  var sshSessions = {}; // id -> { term, fitAddon, statusEl, hostEl, state, handleInput }
+  var sshSessions = {}; // tabId -> { term, fitAddon, statusEl, hostEl, state, handleInput, srv }
   var hasSshBridge = !!(window.onegyeok && window.onegyeok.ssh);
 
-  function setSshStatus(id, state, message){
-    var s = sshSessions[id];
+  // 사이드바의 서버 상태 점은 "그 서버로 열린 탭 중 하나라도 연결돼 있는지"를 보여준다
+  // (같은 서버로 여러 탭을 동시에 열 수 있으므로 하나의 세션 상태만으로는 부족하다).
+  function updateServerRowStatus(serverId){
+    var row = tree.querySelector('.server[data-id="'+serverId+'"]');
+    if(!row) return;
+    var anyConnected = Object.keys(sshSessions).some(function(tid){
+      var s = sshSessions[tid];
+      return s && s.srv && s.srv.id === serverId && s.state === 'connected';
+    });
+    row.dataset.status = anyConnected ? 'on' : 'off';
+    var dot = row.querySelector('.proto-chip .stat');
+    if(dot) dot.classList.toggle('on', anyConnected);
+  }
+
+  function setSshStatus(tabId, state, message){
+    var s = sshSessions[tabId];
     if(!s) return;
     s.state = state;
     if(state === 'error' || state === 'disconnected' || state === 'canceled'){
@@ -435,13 +460,8 @@
     } else {
       s.statusEl.style.display = 'none';
     }
-    var row = tree.querySelector('.server[data-id="'+id+'"]');
-    if(row){
-      row.dataset.status = (state === 'connected') ? 'on' : 'off';
-      var dot = row.querySelector('.proto-chip .stat');
-      if(dot) dot.classList.toggle('on', state === 'connected');
-    }
-    var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+    if(s.srv) updateServerRowStatus(s.srv.id);
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
     if(tab){
       var tabDot = tab.querySelector('.proto-chip .stat');
       if(tabDot) tabDot.classList.toggle('on', state === 'connected');
@@ -452,7 +472,7 @@
         reconnectBtn.classList.toggle('show', idleFailed);
       }
     }
-    if(currentInspectedId === id) updateConnActionButton(id);
+    if(currentInspectedId === tabId) updateConnActionButton(tabId);
   }
 
   function updateConnActionButton(id){
@@ -627,7 +647,6 @@
     var params = {
       host: srv.host, port: srv.port || 22, username: session.activeUsername,
       authMethod: srv.authMethod, keyFilePath: srv.keyFilePath,
-      tmuxSessionName: (srv.tmux && srv.tmux !== '—') ? srv.tmux : null,
       cols: term.cols, rows: term.rows,
     };
     if(secretParams.password !== undefined) params.password = secretParams.password;
@@ -664,8 +683,8 @@
     }
   }
 
-  function startSshSession(id, statusEl, hostEl){
-    var srv = SERVERS.find(function(s){ return s.id === id; });
+  function startSshSession(tabId, serverId, statusEl, hostEl){
+    var srv = SERVERS.find(function(s){ return s.id === serverId; });
     if(!srv) return;
 
     var term = new window.Terminal({
@@ -680,38 +699,40 @@
     term.open(hostEl);
 
     var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null, srv: srv, authAttempts: 0, activeUsername: null };
-    sshSessions[id] = session;
+    sshSessions[tabId] = session;
     statusEl.style.display = 'none';
 
-    term.onData(function(data){ dispatchTerminalInput(id, data); });
+    term.onData(function(data){ dispatchTerminalInput(tabId, data); });
 
-    requestAnimationFrame(function(){ fitSshSession(id); });
+    requestAnimationFrame(function(){ fitSshSession(tabId); });
     // 브로드캐스트 모드가 이미 켜져 있는 상태에서 새 SSH 탭이 열리면, 기본으로 그룹에 합류시킨다
     // (체크박스로 바로 빼낼 수 있음).
     if(broadcastMode){
-      var newTab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+      var newTab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
       if(newTab) setTabBroadcastChecked(newTab, true);
       updateBroadcastCount();
     }
 
     if(!hasSshBridge){
       term.writeln('SSH 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)');
-      setSshStatus(id, 'error', '');
+      setSshStatus(tabId, 'error', '');
       return;
     }
 
     term.writeln('Connecting to ' + srv.host + ':' + (srv.port || 22) + ' ...');
-    promptAndConnect(id, session);
+    promptAndConnect(tabId, session);
   }
 
-  function disposeSshSession(id){
-    var s = sshSessions[id];
+  function disposeSshSession(tabId){
+    var s = sshSessions[tabId];
     if(!s) return;
-    if(hasSshBridge) window.onegyeok.ssh.disconnect(id);
+    if(hasSshBridge) window.onegyeok.ssh.disconnect(tabId);
     try { s.term.dispose(); } catch(_e){ /* noop */ }
-    delete sshSessions[id];
-    broadcastSet.delete(id);
+    var serverId = s.srv && s.srv.id;
+    delete sshSessions[tabId];
+    broadcastSet.delete(tabId);
     if(broadcastMode) updateBroadcastCount();
+    if(serverId) updateServerRowStatus(serverId);
   }
 
   if(hasSshBridge){
@@ -795,22 +816,31 @@
   tabScrollLeftBtn.addEventListener('click', function(){ tabbar.scrollBy({ left: -160, behavior: 'smooth' }); });
   tabScrollRightBtn.addEventListener('click', function(){ tabbar.scrollBy({ left: 160, behavior: 'smooth' }); });
 
-  function ensureTab(id){
-    var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
+  var tabSeq = 0;
+
+  // 같은 서버로 이미 열려 있는 탭이 몇 개인지 세어 "서버명 #2"처럼 구분용 이름을 만든다.
+  function tabLabelFor(serverId){
+    var n = tabbar.querySelectorAll('.tab[data-server-id="'+serverId+'"]').length;
+    return n === 0 ? serverId : serverId + ' #' + (n + 1);
+  }
+
+  function ensureTab(tabId, serverId){
+    var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
     if(tab) return tab;
-    var row = tree.querySelector('.server[data-id="'+id+'"]');
+    var row = tree.querySelector('.server[data-id="'+serverId+'"]');
     var proto = row.dataset.protocol;
+    var label = tabLabelFor(serverId);
     tab = document.createElement('div');
     tab.className = 'tab';
-    tab.dataset.id = id;
+    tab.dataset.id = tabId;
+    tab.dataset.serverId = serverId;
     tab.dataset.protocol = proto;
-    var statOn = row.dataset.status === 'on' ? ' on' : '';
     var reconnectBtn = proto === 'ssh'
       ? '<button type="button" class="tab-reconnect" title="빠른 재연결"><svg class="icon" viewBox="0 0 20 20"><polyline points="3 9 3 4 8 4"></polyline><path d="M3.5 13a6.5 6.5 0 1 0 1.6-6.8L3 9"></path></svg></button>'
       : '';
     tab.innerHTML =
-      '<span class="proto-chip sm proto-'+proto+'">'+PROTO[proto].icon+'<span class="stat'+statOn+'"></span></span>' +
-      '<span class="tab-name">'+id+'</span>' + reconnectBtn + '<span class="tab-num"></span>' +
+      '<span class="proto-chip sm proto-'+proto+'">'+PROTO[proto].icon+'<span class="stat"></span></span>' +
+      '<span class="tab-name">'+escapeHtml(label)+'</span>' + reconnectBtn + '<span class="tab-num"></span>' +
       '<svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>';
     tabbar.insertBefore(tab, tabbar.querySelector('.tab-add'));
     renumberTabs();
@@ -884,34 +914,41 @@
     }
   }
 
-  function selectServer(id){
-    ensureTab(id);
-    ensurePane(id);
-    var row = tree.querySelector('.server[data-id="'+id+'"]');
+  // 서버를 클릭할 때마다 매번 새 탭(새 세션)을 연다 — 같은 서버에 여러 개의 독립된 연결을
+  // 동시에 띄우고 싶은 경우(예: 여러 작업을 병행) 대응. 이미 열려 있어도 포커스만 이동하지 않는다.
+  function selectServer(serverId){
+    var row = tree.querySelector('.server[data-id="'+serverId+'"]');
     var proto = row.dataset.protocol;
+    var tabId = serverId + '::' + (++tabSeq);
+    ensureTab(tabId, serverId);
+    ensurePane(tabId, serverId);
     if(currentFilter !== 'all' && currentFilter !== proto){
       applyFilter(proto);
     }
-    activate(id);
+    activate(tabId);
   }
 
-  function removeServerById(id){
-    if(hasMemoBridge) window.onegyeok.saveMemo(id, '');
-    disposeSshSession(id);
-    SERVERS = SERVERS.filter(function(s){ return s.id !== id; });
-    var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
-    if(tab){
-      var wasActive = tab.classList.contains('active');
-      var pane = panes.querySelector('.pane[data-id="'+id+'"]');
-      tab.remove();
+  // 서버를 완전히 삭제할 때는 그 서버로 열려 있는 탭/세션을 전부 닫는다(여러 개 열려 있을 수 있음).
+  function removeServerById(serverId){
+    if(hasMemoBridge) window.onegyeok.saveMemo(serverId, '');
+    var tabsToRemove = Array.prototype.slice.call(tabbar.querySelectorAll('.tab[data-server-id="'+serverId+'"]'));
+    var hadActive = tabsToRemove.some(function(t){ return t.classList.contains('active'); });
+    tabsToRemove.forEach(function(t){
+      var tabId = t.dataset.id;
+      disposeSshSession(tabId);
+      var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
+      t.remove();
       if(pane) pane.remove();
+    });
+    SERVERS = SERVERS.filter(function(s){ return s.id !== serverId; });
+    if(tabsToRemove.length){
       renumberTabs();
-      if(wasActive){
+      if(hadActive){
         var remaining = visibleTabs()[0];
         if(remaining) activate(remaining.dataset.id); else activateEmpty(currentFilter);
       }
     }
-    selectedManageIds.delete(id);
+    selectedManageIds.delete(serverId);
   }
 
   // ==================================================================
@@ -1069,7 +1106,6 @@
     var proto = document.getElementById('f-protocol').value;
     var isSsh = proto === 'ssh';
     document.getElementById('row-f-jump').style.display = isSsh ? '' : 'none';
-    document.getElementById('row-f-tmux').style.display = isSsh ? '' : 'none';
     document.getElementById('row-f-username').style.display = (proto === 'web') ? 'none' : '';
   }
   document.getElementById('f-protocol').addEventListener('change', toggleSshOnlyFields);
@@ -1111,7 +1147,6 @@
     document.getElementById('f-username').value = s ? s.username : '';
     document.getElementById('f-auth-method').value = s ? s.authMethod : 'password';
     document.getElementById('f-key-path').value = s && s.keyFilePath ? s.keyFilePath : '';
-    document.getElementById('f-tmux').value = s && s.tmux !== '—' ? s.tmux : '';
     populateJumpSelect(id);
     document.getElementById('f-jump').value = s && s.jump ? s.jump : '';
     document.getElementById('editError').textContent = '';
@@ -1125,14 +1160,22 @@
   }
   function closeEdit(){ appEl.classList.remove('edit-open'); editingId = null; }
 
+  // 서버 이름(=id)이 바뀌면, 그 서버로 열려 있는 모든 탭(여러 개일 수 있음)의 표시 이름을 갱신한다.
+  // 탭 자체의 id(data-id)는 세션 인스턴스 식별자이므로 그대로 두고, data-server-id만 바꾼다.
+  function relabelForRename(label, oldId, newId){
+    if(label === oldId) return newId;
+    if(label.indexOf(oldId + ' #') === 0) return newId + label.slice(oldId.length);
+    return label;
+  }
   function propagateIdRename(oldId, newId){
-    var tab = tabbar.querySelector('.tab[data-id="'+oldId+'"]');
-    if(tab){ tab.dataset.id = newId; tab.querySelector('.tab-name').textContent = newId; }
-    var pane = panes.querySelector('.pane[data-id="'+oldId+'"]');
-    if(pane) pane.dataset.id = newId;
-    Object.keys(lastActiveByFilter).forEach(function(k){ if(lastActiveByFilter[k] === oldId) lastActiveByFilter[k] = newId; });
+    tabbar.querySelectorAll('.tab[data-server-id="'+oldId+'"]').forEach(function(tab){
+      tab.dataset.serverId = newId;
+      var nameEl = tab.querySelector('.tab-name');
+      if(nameEl) nameEl.textContent = relabelForRename(nameEl.textContent, oldId, newId);
+    });
+    panes.querySelectorAll('.pane[data-server-id="'+oldId+'"]').forEach(function(pane){ pane.dataset.serverId = newId; });
     SERVERS.forEach(function(s){ if(s.jump === oldId) s.jump = newId; });
-    if(currentInspectedId === oldId) currentInspectedId = newId;
+    if(currentInspectedServerId === oldId) currentInspectedServerId = newId;
     if(hasMemoBridge) window.onegyeok.renameMemo(oldId, newId);
   }
 
@@ -1177,7 +1220,6 @@
     var authMethod = document.getElementById('f-auth-method').value === 'publickey' ? 'publickey' : 'password';
     var keyFilePath = authMethod === 'publickey' ? document.getElementById('f-key-path').value.trim() || null : null;
     var jump = document.getElementById('f-jump').value || null;
-    var tmux = document.getElementById('f-tmux').value.trim();
     var errEl = document.getElementById('editError');
 
     if(!name || !host){ errEl.textContent = '이름과 호스트는 필수입니다.'; return; }
@@ -1193,13 +1235,13 @@
       var oldId = s.id;
       s.name = name; s.id = name; s.group = group; s.protocol = protocol; s.host = host; s.port = port;
       s.username = username; s.authMethod = authMethod; s.keyFilePath = keyFilePath; s.auth = authLabel(s);
-      s.jump = jump; s.tmux = protocol === 'ssh' ? (tmux || name) : '—';
+      s.jump = jump;
       if(oldId !== name) propagateIdRename(oldId, name);
     } else {
       var newServer = {
         id: name, name: name, group: group, protocol: protocol, host: host, port: port,
         username: username, authMethod: authMethod, keyFilePath: keyFilePath,
-        jump: jump, tmux: protocol === 'ssh' ? (tmux || name) : '—', status: 'off', since: '연결 안 됨'
+        jump: jump, status: 'off', since: '연결 안 됨'
       };
       newServer.auth = authLabel(newServer);
       SERVERS.push(newServer);
@@ -1232,7 +1274,7 @@
     if(close){
       var id = tab.dataset.id;
       var wasActive = tab.classList.contains('active');
-      disposeSshSession(id); // F-206: 탭을 닫으면 클라이언트↔서버 연결만 종료(서버 측 tmux는 별개)
+      disposeSshSession(id); // 탭을 닫으면 그 탭의 클라이언트↔서버 연결만 종료된다
       var pane = panes.querySelector('.pane[data-id="'+id+'"]');
       tab.remove();
       if(pane) pane.remove();
@@ -1339,8 +1381,8 @@
       SERVERS.forEach(function(s){
         if(Object.prototype.hasOwnProperty.call(memos, s.id)) s.memo = memos[s.id];
       });
-      if(currentInspectedId){
-        var srv = SERVERS.find(function(s){ return s.id === currentInspectedId; });
+      if(currentInspectedServerId){
+        var srv = SERVERS.find(function(s){ return s.id === currentInspectedServerId; });
         memoEl.value = (srv && srv.memo) || '';
       }
     }).catch(function(err){ console.error('[memo] 초기 로드 실패', err); });

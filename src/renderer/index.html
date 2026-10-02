@@ -125,8 +125,8 @@
             </div>
           </label>
           <label id="row-f-jump">점프 호스트<select id="f-jump"><option value="">없음</option></select></label>
-          <label id="row-f-tmux">tmux 세션 이름<input type="text" id="f-tmux" placeholder="비워두면 이름과 동일"></label>
           <p class="edit-note">비밀번호·Passphrase는 저장하지 않습니다 — 접속할 때마다 직접 입력합니다.</p>
+          <p class="edit-note">tmux 등 세션 유지 도구는 자동으로 실행하지 않습니다 — 필요하면 터미널 접속 후 직접 실행해주세요.</p>
           <p class="edit-error" id="editError"></p>
         </div>
         <div class="edit-footer">
@@ -218,27 +218,27 @@
             운영
           </div>
           <div class="group-body">
-            <div class="server selected" data-id="prod-web-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.23:22" data-username="root" data-auth-method="publickey" data-key-path="~/.ssh/id_rsa" data-tmux="prod-web-01" data-status="on" data-since="12분 전 연결됨" data-jump="없음">
+            <div class="server selected" data-id="prod-web-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.23:22" data-username="root" data-auth-method="publickey" data-key-path="~/.ssh/id_rsa" data-status="on" data-since="12분 전 연결됨" data-jump="없음">
               <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
               <span class="server-name">prod-web-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="prod-db-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.31:22" data-username="svc" data-auth-method="password" data-key-path="" data-tmux="prod-db-01" data-status="on" data-since="1시간 전 연결됨" data-jump="bastion-01">
+            <div class="server" data-id="prod-db-01" data-protocol="ssh" data-group="운영" data-host="10.0.1.31:22" data-username="svc" data-auth-method="password" data-key-path="" data-status="on" data-since="1시간 전 연결됨" data-jump="bastion-01">
               <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
               <span class="server-name">prod-db-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="prod-cache" data-protocol="ssh" data-group="운영" data-host="10.0.1.44:22" data-username="root" data-auth-method="publickey" data-key-path="~/.ssh/id_ed25519" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="prod-cache" data-protocol="ssh" data-group="운영" data-host="10.0.1.44:22" data-username="root" data-auth-method="publickey" data-key-path="~/.ssh/id_ed25519" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
               <span class="server-name">prod-cache</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="win-app-01" data-protocol="rdp" data-group="운영" data-host="10.0.1.55:3389" data-username="Administrator" data-auth-method="password" data-key-path="" data-tmux="—" data-status="on" data-since="6분 전 연결됨" data-jump="없음">
+            <div class="server" data-id="win-app-01" data-protocol="rdp" data-group="운영" data-host="10.0.1.55:3389" data-username="Administrator" data-auth-method="password" data-key-path="" data-status="on" data-since="6분 전 연결됨" data-jump="없음">
               <span class="proto-chip proto-rdp"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg><span class="stat on"></span></span>
               <span class="server-name">win-app-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="grafana-console" data-protocol="web" data-group="운영" data-host="grafana.internal" data-username="" data-auth-method="password" data-key-path="" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="grafana-console" data-protocol="web" data-group="운영" data-host="grafana.internal" data-username="" data-auth-method="password" data-key-path="" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-web"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg><span class="stat"></span></span>
               <span class="server-name">grafana-console</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
@@ -252,7 +252,7 @@
             스테이징
           </div>
           <div class="group-body">
-            <div class="server" data-id="stg-web-01" data-protocol="ssh" data-group="스테이징" data-host="10.0.2.10:22" data-username="deploy" data-auth-method="password" data-key-path="" data-tmux="stg-web-01" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="stg-web-01" data-protocol="ssh" data-group="스테이징" data-host="10.0.2.10:22" data-username="deploy" data-auth-method="password" data-key-path="" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
               <span class="server-name">stg-web-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
@@ -266,22 +266,22 @@
             개발
           </div>
           <div class="group-body">
-            <div class="server" data-id="dev-01" data-protocol="ssh" data-group="개발" data-host="192.168.0.15:22" data-username="ubuntu" data-auth-method="password" data-key-path="" data-tmux="dev-01" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="dev-01" data-protocol="ssh" data-group="개발" data-host="192.168.0.15:22" data-username="ubuntu" data-auth-method="password" data-key-path="" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
               <span class="server-name">dev-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="bastion-01" data-protocol="ssh" data-group="개발" data-host="203.0.113.9:22" data-username="ec2-user" data-auth-method="publickey" data-key-path="~/.ssh/id_rsa" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="bastion-01" data-protocol="ssh" data-group="개발" data-host="203.0.113.9:22" data-username="ec2-user" data-auth-method="publickey" data-key-path="~/.ssh/id_rsa" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat"></span></span>
               <span class="server-name">bastion-01 <span style="color:var(--text-faint);font-weight:400;">· Jump</span></span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="kiosk-01" data-protocol="vnc" data-group="개발" data-host="192.168.0.40:5900" data-username="" data-auth-method="password" data-key-path="" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="kiosk-01" data-protocol="vnc" data-group="개발" data-host="192.168.0.40:5900" data-username="" data-auth-method="password" data-key-path="" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-vnc"><svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg><span class="stat"></span></span>
               <span class="server-name">kiosk-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
             </div>
-            <div class="server" data-id="nas-01" data-protocol="sftp" data-group="개발" data-host="192.168.0.50:22" data-username="backup" data-auth-method="password" data-key-path="" data-tmux="—" data-status="off" data-since="연결 안 됨" data-jump="없음">
+            <div class="server" data-id="nas-01" data-protocol="sftp" data-group="개발" data-host="192.168.0.50:22" data-username="backup" data-auth-method="password" data-key-path="" data-status="off" data-since="연결 안 됨" data-jump="없음">
               <span class="proto-chip proto-sftp"><svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg><span class="stat"></span></span>
               <span class="server-name">nas-01</span>
               <svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>
@@ -301,17 +301,17 @@
           <svg class="icon" viewBox="0 0 20 20"><polyline points="12 4 6 10 12 16"></polyline></svg>
         </button>
       <div class="tabbar" id="tabbar">
-        <div class="tab active" data-id="prod-web-01" data-protocol="ssh">
+        <div class="tab active" data-id="prod-web-01" data-server-id="prod-web-01" data-protocol="ssh">
           <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
           <span class="tab-name">prod-web-01</span><span class="tab-num">1</span>
           <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
         </div>
-        <div class="tab" data-id="win-app-01" data-protocol="rdp">
+        <div class="tab" data-id="win-app-01" data-server-id="win-app-01" data-protocol="rdp">
           <span class="proto-chip sm proto-rdp"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg><span class="stat on"></span></span>
           <span class="tab-name">win-app-01</span><span class="tab-num">2</span>
           <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
         </div>
-        <div class="tab" data-id="prod-db-01" data-protocol="ssh">
+        <div class="tab" data-id="prod-db-01" data-server-id="prod-db-01" data-protocol="ssh">
           <span class="proto-chip sm proto-ssh"><svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg><span class="stat on"></span></span>
           <span class="tab-name">prod-db-01</span><span class="tab-num">3</span>
           <svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>
@@ -334,10 +334,9 @@
         <button class="insp-btn" id="broadcastOffBtn">끄기</button>
       </div>
       <div class="panes" id="panes">
-        <div class="pane active" data-id="prod-web-01">
+        <div class="pane active" data-id="prod-web-01" data-server-id="prod-web-01">
           <div class="ln muted">Connecting to 10.0.1.23:22 ...</div>
           <div class="ln muted">Last login: Tue Sep 30 09:12:41 2026 from 10.0.1.2</div>
-          <div class="ln muted">tmux: attaching to session 'prod-web-01' (created)</div>
           <div class="ln">&nbsp;</div>
           <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> ls -al /var/www</div>
           <div class="ln muted">total 24</div>
@@ -349,7 +348,7 @@
           <div class="ln muted">   Active: active (running) since Mon 2026-09-29 03:10:02 UTC</div>
           <div class="ln"><span class="prompt">root@prod-web-01</span><span class="muted">:~#</span> <span class="cursor"></span></div>
         </div>
-        <div class="pane screen" data-id="win-app-01">
+        <div class="pane screen" data-id="win-app-01" data-server-id="win-app-01">
           <div class="screen-toolbar">
             <span>win-app-01 · RDP · 1920×1080</span>
             <span class="grow"></span>
@@ -364,9 +363,8 @@
             <div class="screen-taskbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
           </div>
         </div>
-        <div class="pane" data-id="prod-db-01">
+        <div class="pane" data-id="prod-db-01" data-server-id="prod-db-01">
           <div class="ln muted">Connecting to 10.0.1.31:22 via bastion-01 ...</div>
-          <div class="ln muted">tmux: attaching to session 'prod-db-01' (created)</div>
           <div class="ln">&nbsp;</div>
           <div class="ln"><span class="prompt">svc@prod-db-01</span><span class="muted">:~$</span> sudo -i</div>
           <div class="ln"><span class="prompt">root@prod-db-01</span><span class="muted">:~#</span> mysql -e "show slave status\G" | head -4</div>
@@ -408,7 +406,6 @@
           <div class="insp-row" id="row-username"><span class="insp-label">사용자명</span><span class="insp-value" id="i-username">root</span></div>
           <div class="insp-row"><span class="insp-label">인증</span><span class="insp-value" id="i-auth">SSH Key (id_rsa)</span></div>
           <div class="insp-row" id="row-jump"><span class="insp-label">점프 호스트</span><span class="insp-value" id="i-jump">없음</span></div>
-          <div class="insp-row" id="row-tmux"><span class="insp-label">tmux 세션</span><span class="insp-value" id="i-tmux">prod-web-01</span></div>
           <div class="insp-row"><span class="insp-label">비밀번호 저장</span><span class="insp-value"><span class="pill off">저장 안 함 · 매번 직접 입력</span></span></div>
           <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
 
@@ -424,7 +421,7 @@
             </button>
           </div>
 
-          <p class="insp-note">tmux 세션은 탭을 닫아도 서버 측에 유지됩니다(재접속 시 자동으로 이어짐). 단, 비밀번호는 저장되지 않으며 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다.</p>
+          <p class="insp-note">비밀번호는 저장되지 않으며, 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다. tmux 등 세션 유지가 필요하면 터미널 안에서 직접 실행해주세요.</p>
         </div>
 
         <div class="insp-pane" data-pane="memo">

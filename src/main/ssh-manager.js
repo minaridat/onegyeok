@@ -17,7 +17,7 @@ function isConnected(sessionId) {
 }
 
 /**
- * @param {string} sessionId 탭/세션을 식별하는 고유 id (서버 id와 동일하게 사용)
+ * @param {string} sessionId 탭(세션 인스턴스)마다 고유한 id — 같은 서버라도 탭을 여러 개 열면 서로 다른 id를 가진다
  * @param {object} params host, port, username, authMethod, password?, keyFilePath?, passphrase?, cols, rows
  * @param {(chunk: string) => void} onData 셸 출력 수신 콜백
  * @param {(status: {state: string, message?: string}) => void} onStatus 연결 상태 변화 콜백
@@ -75,11 +75,6 @@ function connect(sessionId, params, onData, onStatus) {
               sessions.delete(sessionId);
               if (!errorReported) onStatus({ state: 'disconnected' });
             });
-            // Phase1 F-205/206: 지정된 이름으로 tmux 세션을 attach(없으면 생성)한다.
-            // 탭을 닫아도(클라이언트 연결만 종료) 서버 측 tmux 세션은 남아 재접속 시 이어진다.
-            if (params.tmuxSessionName) {
-              stream.write('tmux new -A -s ' + shellQuote(params.tmuxSessionName) + '\n');
-            }
             if (!settled) { settled = true; resolve(); }
           }
         );
@@ -117,11 +112,6 @@ function connect(sessionId, params, onData, onStatus) {
       }
     }
   });
-}
-
-// tmux 세션 이름을 원격 셸에 안전하게 전달하기 위한 최소 quoting (POSIX sh 기준).
-function shellQuote(value) {
-  return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
 // 에러 종류를 분류한다 — 렌더러가 "실제 ssh 명령어처럼 그 자리에서 재입력받을지"를 결정하는 데 쓴다.
