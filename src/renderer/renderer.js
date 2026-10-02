@@ -125,7 +125,7 @@
   function serverRowHtml(s){
     var hostDisplay = joinHostPort(s.host, s.port);
     var jumpTag = isJumpHost(s.id) ? ' <span style="color:var(--text-faint);font-weight:400;">· Jump</span>' : '';
-    return '<div class="server" data-id="'+escapeHtml(s.id)+'" data-protocol="'+s.protocol+'" data-group="'+escapeHtml(s.group)+'" ' +
+    return '<div class="server" draggable="true" data-id="'+escapeHtml(s.id)+'" data-protocol="'+s.protocol+'" data-group="'+escapeHtml(s.group)+'" ' +
       'data-host="'+escapeHtml(hostDisplay)+'" data-username="'+escapeHtml(s.username||'')+'" data-auth="'+escapeHtml(authLabel(s))+'" ' +
       'data-auth-method="'+s.authMethod+'" data-key-path="'+escapeHtml(s.keyFilePath||'')+'" data-tmux="'+escapeHtml(s.tmux||'—')+'" ' +
       'data-status="'+s.status+'" data-since="'+escapeHtml(s.since)+'" data-jump="'+escapeHtml(s.jump||'없음')+'">' +
@@ -174,6 +174,67 @@
     }
     var row = e.target.closest('.server');
     if(row){ selectServer(row.dataset.id); }
+  });
+
+  // ---- 사이드바 서버 드래그로 순서 변경 (같은 그룹 안에서만) ----
+  var dragServerId = null;
+
+  function clearDragIndicators(){
+    tree.querySelectorAll('.server.drag-over-top,.server.drag-over-bottom').forEach(function(el){
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+  }
+
+  function reorderServer(draggedId, targetId, before){
+    var fromIdx = SERVERS.findIndex(function(s){ return s.id === draggedId; });
+    if(fromIdx === -1) return;
+    var dragged = SERVERS.splice(fromIdx, 1)[0];
+    var toIdx = SERVERS.findIndex(function(s){ return s.id === targetId; });
+    if(toIdx === -1){ SERVERS.push(dragged); }
+    else { SERVERS.splice(before ? toIdx : toIdx + 1, 0, dragged); }
+    renderTree();
+  }
+
+  tree.addEventListener('dragstart', function(e){
+    var row = e.target.closest('.server');
+    if(!row) return;
+    dragServerId = row.dataset.id;
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', row.dataset.id); } catch(_err){ /* 일부 환경에서 미지원 */ }
+  });
+
+  tree.addEventListener('dragend', function(e){
+    var row = e.target.closest('.server');
+    if(row) row.classList.remove('dragging');
+    clearDragIndicators();
+    dragServerId = null;
+  });
+
+  tree.addEventListener('dragover', function(e){
+    if(!dragServerId) return;
+    var row = e.target.closest('.server');
+    if(!row || row.dataset.id === dragServerId) return;
+    var draggingEl = tree.querySelector('.server.dragging');
+    if(!draggingEl || row.dataset.group !== draggingEl.dataset.group) return; // 같은 그룹만 허용
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    var rect = row.getBoundingClientRect();
+    var before = (e.clientY - rect.top) < rect.height / 2;
+    clearDragIndicators();
+    row.classList.toggle('drag-over-top', before);
+    row.classList.toggle('drag-over-bottom', !before);
+  });
+
+  tree.addEventListener('drop', function(e){
+    if(!dragServerId) return;
+    var row = e.target.closest('.server');
+    if(!row || row.dataset.id === dragServerId) return;
+    e.preventDefault();
+    var before = row.classList.contains('drag-over-top');
+    clearDragIndicators();
+    reorderServer(dragServerId, row.dataset.id, before);
+    dragServerId = null;
   });
 
   // ---- 범용 텍스트 입력 모달 (Electron은 window.prompt()를 지원하지 않아 직접 구현) ----
@@ -384,6 +445,12 @@
     if(tab){
       var tabDot = tab.querySelector('.proto-chip .stat');
       if(tabDot) tabDot.classList.toggle('on', state === 'connected');
+      var reconnectBtn = tab.querySelector('.tab-reconnect');
+      // 연결되어 있거나 지금 막 연결 시도/인증 중일 때는 재연결 버튼을 숨긴다 — 끊긴 상태일 때만 의미가 있다.
+      if(reconnectBtn){
+        var idleFailed = (state === 'error' || state === 'disconnected' || state === 'canceled');
+        reconnectBtn.classList.toggle('show', idleFailed);
+      }
     }
     if(currentInspectedId === id) updateConnActionButton(id);
   }
@@ -738,9 +805,12 @@
     tab.dataset.id = id;
     tab.dataset.protocol = proto;
     var statOn = row.dataset.status === 'on' ? ' on' : '';
+    var reconnectBtn = proto === 'ssh'
+      ? '<button type="button" class="tab-reconnect" title="빠른 재연결"><svg class="icon" viewBox="0 0 20 20"><polyline points="3 9 3 4 8 4"></polyline><path d="M3.5 13a6.5 6.5 0 1 0 1.6-6.8L3 9"></path></svg></button>'
+      : '';
     tab.innerHTML =
       '<span class="proto-chip sm proto-'+proto+'">'+PROTO[proto].icon+'<span class="stat'+statOn+'"></span></span>' +
-      '<span class="tab-name">'+id+'</span><span class="tab-num"></span>' +
+      '<span class="tab-name">'+id+'</span>' + reconnectBtn + '<span class="tab-num"></span>' +
       '<svg class="icon close" viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>';
     tabbar.insertBefore(tab, tabbar.querySelector('.tab-add'));
     renumberTabs();
@@ -1144,6 +1214,18 @@
 
   tabbar.addEventListener('click', function(e){
     if(e.target.closest('.tab-add')){ openPalette(); return; }
+    var reconnectBtn = e.target.closest('.tab-reconnect');
+    if(reconnectBtn){
+      e.stopPropagation();
+      var rid = reconnectBtn.closest('.tab').dataset.id;
+      var rs = sshSessions[rid];
+      if(rs && rs.state !== 'connected' && rs.state !== 'connecting' && rs.state !== 'prompting'){
+        rs.term.writeln('');
+        promptAndConnect(rid, rs);
+        activate(rid); // 탭으로 바로 전환해 인증 프롬프트가 보이게 한다
+      }
+      return;
+    }
     var close = e.target.closest('.close');
     var tab = e.target.closest('.tab');
     if(!tab) return;

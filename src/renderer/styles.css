@@ -197,6 +197,9 @@
     font-size:var(--fs-sm);color:var(--text);position:relative;}
   .server:hover{background:rgba(0,0,0,.05);}
   .server.selected{background:var(--accent-soft);color:var(--accent);font-weight:600;}
+  .server.dragging{opacity:.4;}
+  .server.drag-over-top{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .server.drag-over-bottom{box-shadow:inset 0 -2px 0 0 var(--accent);}
   .server-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
   .server .go{opacity:0;width:14px;height:14px;color:var(--text-faint);}
   .server:hover .go{opacity:1;}
@@ -231,6 +234,11 @@
   .broadcast-banner .insp-btn{background:var(--bg-elevated);border-color:var(--warn);color:var(--warn);
     padding:4px 10px;font-size:var(--fs-2xs);}
   .tab-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tab-reconnect{display:none;align-items:center;justify-content:center;width:15px;height:15px;flex:none;
+    border:none;background:transparent;color:var(--warn);cursor:pointer;border-radius:3px;padding:0;margin-left:2px;}
+  .tab-reconnect.show{display:inline-flex;}
+  .tab-reconnect:hover{background:var(--warn-soft);}
+  .tab-reconnect svg{width:11px;height:11px;stroke-width:2;}
   .tab-num{font-family:var(--font-mono);font-size:9px;color:var(--text-faint);margin-left:2px;}
   .tab.active .tab-num{color:var(--term-muted);}
   .tab .close{opacity:.5;width:13px;height:13px;border-radius:3px;margin-left:2px;}
