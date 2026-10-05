@@ -1,6 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // 렌더러(웹 UI)에 노출하는 API는 여기서 화이트리스트 방식으로만 추가한다.
+//
+// NOTE: 이 파일은 의도적으로 분할하지 않은 단일 파일이다 — Electron의 sandbox:true 프리로드는
+// 전용 모듈 로더를 쓰며 'electron' 외에는 로컬 상대경로 require든 node: 내장 모듈(예: node:path)
+// 이든 전혀 지원하지 않는다(직접 확인: require('./core.js'), require(path.join(__dirname,...)),
+// require('node:path') 모두 "module not found"로 실패). 번들러 없이 여러 파일로 쪼개 로드할
+// 방법이 없으므로, sandbox를 끄지 않는 한(보안상 금지) preload는 한 파일로 유지해야 한다.
+// main 프로세스(src/main/protocols/*)와 renderer(src/renderer/protocols/*)는 이런 제약이
+// 없어 정상적으로 기능별 분할이 끝났다.
 contextBridge.exposeInMainWorld('onegyeok', {
   ping: () => ipcRenderer.invoke('ping'),
 

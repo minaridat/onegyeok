@@ -1,0 +1,46 @@
+/* rdp-style screen pane (초기 데모 목업용 — 실제 RDP는 .rdp-pane을 사용) */
+.pane.screen{padding:0;}
+.screen-toolbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(0,0,0,.28);
+  color:var(--term-text);font-family:var(--font-ui);font-size:var(--fs-xs);border-bottom:1px solid rgba(255,255,255,.08);
+  flex:none;}
+.screen-toolbar .grow{flex:1;}
+.screen-toolbar .icon-btn{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  color:var(--term-muted);cursor:pointer;}
+.screen-toolbar .icon-btn:hover{background:rgba(255,255,255,.08);color:var(--term-text);}
+.screen-canvas{position:relative;flex:1;overflow:hidden;
+  background:linear-gradient(160deg,#1c2733,#131a22 60%,#0f151b);}
+.screen-canvas .win{position:absolute;border-radius:8px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.09);box-shadow:0 14px 34px rgba(0,0,0,.35);}
+.screen-badge{position:absolute;left:14px;bottom:46px;font-family:var(--font-mono);font-size:10px;
+  color:rgba(255,255,255,.6);background:rgba(0,0,0,.35);padding:3px 7px;border-radius:5px;}
+.screen-taskbar{position:absolute;left:0;right:0;bottom:0;height:34px;background:rgba(10,14,18,.78);
+  display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid rgba(255,255,255,.08);}
+.screen-taskbar .dot{width:6px;height:6px;border-radius:50%;background:var(--proto-rdp);opacity:.85;}
+
+/* RDP 클라이언트 pane (Apache Guacamole 기반 — docs/기술스택/03_RDP_기술스택.md) */
+.pane.rdp-pane{padding:0;background:#161a20;color:var(--text);}
+.rdp-connect{flex:1;display:flex;align-items:center;justify-content:center;}
+.rdp-connect-box{width:280px;display:flex;flex-direction:column;gap:10px;}
+.rdp-connect-title{font-size:var(--fs-sm);color:var(--text-muted);text-align:center;margin-bottom:4px;word-break:break-all;}
+.rdp-connect-box label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-xs);color:var(--text-muted);}
+.rdp-connect-box input{font:inherit;font-size:var(--fs-sm);padding:7px 9px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);}
+.rdp-connect-box input:focus{outline:none;border-color:var(--accent);}
+.rdp-connect-error{color:var(--danger);font-size:var(--fs-xs);min-height:1em;}
+.rdp-connect-btn{margin-top:4px;padding:8px;border-radius:7px;border:none;background:var(--accent);
+  color:var(--accent-contrast);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+.rdp-connect-btn:hover{filter:brightness(1.06);}
+.rdp-connect-btn:disabled{opacity:.6;cursor:default;}
+
+.rdp-workspace{display:none;flex:1;min-height:0;flex-direction:column;}
+.rdp-pane.connected .rdp-workspace{display:flex;}
+.rdp-pane.connected .rdp-connect{display:none;}
+.rdp-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(0,0,0,.3);
+  border-bottom:1px solid rgba(255,255,255,.08);flex:none;}
+.rdp-meta{font-size:var(--fs-xs);color:rgba(255,255,255,.6);font-family:var(--font-mono);}
+.rdp-disconnect-btn{margin-left:auto;display:flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border:none;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;border-radius:5px;}
+.rdp-disconnect-btn:hover{background:rgba(255,255,255,.12);color:#fff;}
+.rdp-display-wrap{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;outline:none;}
+.rdp-display-wrap:focus-visible{box-shadow:inset 0 0 0 2px var(--term-accent);}
+.rdp-display-wrap .guac-display canvas{display:block;}
