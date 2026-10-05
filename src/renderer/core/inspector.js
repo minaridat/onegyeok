@@ -5,7 +5,9 @@ function inspectorFor(tabId){
   if(currentInspectedServerId && currentInspectedServerId !== serverId) flushMemoSave();
   currentInspectedId = tabId;
   currentInspectedServerId = serverId;
-  var proto = row.dataset.protocol;
+  var inspectedTab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+  var proto = (inspectedTab && inspectedTab.dataset.protocol) || row.dataset.protocol;
+  document.getElementById('openSftpBtn').style.display = row.dataset.protocol === 'ssh' ? '' : 'none';
   var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   var tabNameEl = tab && tab.querySelector('.tab-name');
   document.getElementById('i-name').textContent = (tabNameEl && tabNameEl.textContent) || serverId;

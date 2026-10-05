@@ -45,11 +45,11 @@ function updateConnActionButton(id){
   retryIcon.style.display = connected ? 'none' : '';
 }
 
-function ensurePane(tabId, serverId){
+function ensurePane(tabId, serverId, protocolOverride){
   var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
   if(pane) return pane;
   var row = tree.querySelector('.server[data-id="'+serverId+'"]');
-  var proto = row.dataset.protocol;
+  var proto = protocolOverride || row.dataset.protocol;
   var el = document.createElement('div');
   el.dataset.id = tabId;
   el.dataset.serverId = serverId;
@@ -123,11 +123,11 @@ function tabLabelFor(serverId){
   return n === 0 ? serverId : serverId + ' #' + (n + 1);
 }
 
-function ensureTab(tabId, serverId){
+function ensureTab(tabId, serverId, protocolOverride){
   var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   if(tab) return tab;
   var row = tree.querySelector('.server[data-id="'+serverId+'"]');
-  var proto = row.dataset.protocol;
+  var proto = protocolOverride || row.dataset.protocol;
   var label = tabLabelFor(serverId);
   tab = document.createElement('div');
   tab.className = 'tab';
@@ -210,12 +210,12 @@ function applyFilter(filter){
 
 // 서버를 클릭할 때마다 매번 새 탭(새 세션)을 연다 — 같은 서버에 여러 개의 독립된 연결을
 // 동시에 띄우고 싶은 경우(예: 여러 작업을 병행) 대응. 이미 열려 있어도 포커스만 이동하지 않는다.
-function selectServer(serverId){
+function selectServer(serverId, protocolOverride){
   var row = tree.querySelector('.server[data-id="'+serverId+'"]');
-  var proto = row.dataset.protocol;
+  var proto = protocolOverride || row.dataset.protocol;
   var tabId = serverId + '::' + (++tabSeq);
-  ensureTab(tabId, serverId);
-  ensurePane(tabId, serverId);
+  ensureTab(tabId, serverId, protocolOverride);
+  ensurePane(tabId, serverId, protocolOverride);
   if(currentFilter !== 'all' && currentFilter !== proto){
     applyFilter(proto);
   }

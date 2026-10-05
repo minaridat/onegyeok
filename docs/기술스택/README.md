@@ -10,6 +10,6 @@
 | [02_SQL_기술스택.md](./02_SQL_기술스택.md) | `mysql2` / `pg` / `mssql` | ✅ 적용됨 |
 | [03_RDP_기술스택.md](./03_RDP_기술스택.md) | FreeRDP 연동 방식 후보 비교 | 🔲 미확정(검토 중) |
 | [04_VNC_기술스택.md](./04_VNC_기술스택.md) | noVNC(RFB) 검토 | 🔲 검토 중 |
-| [05_SFTP_기술스택.md](./05_SFTP_기술스택.md) | `ssh2-sftp-client` / `basic-ftp` | 🔲 예정 |
+| [05_SFTP_기술스택.md](./05_SFTP_기술스택.md) | `ssh2-sftp-client` / `basic-ftp` | ✅ 파일 전송 구현 |
 
 기능 명세와 쌍을 이룬다 — 예: `02_SQL_기술스택.md`는 [../기능명세/02_SQL_기능명세.md](../기능명세/02_SQL_기능명세.md)의 구현 근거.
