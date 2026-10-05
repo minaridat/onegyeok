@@ -43,8 +43,8 @@ function buildSqlPaneDom(el){
     '<div class="sql-workspace">' +
       '<div class="sql-toolbar">' +
         '<button type="button" class="sql-run-btn">실행 ▶</button>' +
-        '<span class="sql-run-hint">⌘/Ctrl+Enter</span>' +
-        '<span class="sql-meta"></span>' +
+        '<span class="sql-run-hint">⌘/Ctrl+Enter · 선택 영역 또는 전체 실행</span>' +
+        '<select class="sql-result-select" aria-label="쿼리 결과 선택" hidden></select><span class="sql-meta" role="status"></span>' +
       '</div>' +
       '<textarea class="sql-editor" placeholder="SELECT * FROM ..." spellcheck="false"></textarea>' +
       '<div class="sql-error-box" style="display:none"></div>' +
@@ -59,6 +59,7 @@ function buildSqlPaneDom(el){
     connectBtn: el.querySelector('.sql-connect-btn'),
     runBtn: el.querySelector('.sql-run-btn'),
     meta: el.querySelector('.sql-meta'),
+    resultSelect: el.querySelector('.sql-result-select'),
     editor: el.querySelector('.sql-editor'),
     errorBox: el.querySelector('.sql-error-box'),
     resultsWrap: el.querySelector('.sql-results-wrap'),
@@ -72,8 +73,8 @@ function renderSqlResults(dom, result){
   } else {
     var thead = '<thead><tr>' + result.columns.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>';
     var tbody = '<tbody>' + result.rows.map(function(row){
-      return '<tr>' + result.columns.map(function(c){
-        var v = row[c];
+      return '<tr>' + result.columns.map(function(c, index){
+        var v = Array.isArray(row) ? row[index] : row[c];
         return '<td>'+escapeHtml(v === null || v === undefined ? 'NULL' : String(v))+'</td>';
       }).join('') + '</tr>';
     }).join('') + '</tbody>';
@@ -82,29 +83,63 @@ function renderSqlResults(dom, result){
   dom.meta.textContent = result.rowCount + '행 · ' + result.durationMs + 'ms';
 }
 
-function runSqlQuery(tabId){
-  var s = dbSessions[tabId];
-  if(!s || s.state !== 'connected') return;
-  var sql = s.dom.editor.value.trim();
-  if(!sql) return;
-  s.dom.runBtn.disabled = true;
-  s.dom.errorBox.style.display = 'none';
-  window.onegyeok.db.query(tabId, sql).then(function(res){
-    if(!dbSessions[tabId]) return;
-    s.dom.runBtn.disabled = false;
-    if(res.ok){
-      renderSqlResults(s.dom, res);
-    } else {
-      s.dom.errorBox.textContent = res.error || '쿼리 실행 실패';
-      s.dom.errorBox.style.display = '';
-    }
+function showSqlResultSets(dom, result){
+  var results = result.results && result.results.length ? result.results : [result];
+  dom.resultSelect.innerHTML = '';
+  results.forEach(function(item, index){
+    var option = document.createElement('option');
+    option.value = index;
+    option.textContent = '결과 ' + (index + 1) + ' · ' + item.rowCount + '행';
+    dom.resultSelect.appendChild(option);
   });
+  dom.resultSelect.hidden = results.length < 2;
+  function show(index){
+    renderSqlResults(dom, Object.assign({}, results[index], { durationMs:result.durationMs }));
+  }
+  dom.resultSelect.onchange = function(){ show(Number(dom.resultSelect.value)); };
+  show(0);
+}
+
+async function runSqlQuery(tabId){
+  var s = dbSessions[tabId];
+  if(!s || s.state !== 'connected' || s.querying) return;
+  var editor = s.dom.editor;
+  var selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+  var sql = (selected || editor.value).trim();
+  if(!sql) return;
+  var request = ++s.queryVersion;
+  s.querying = true;
+  s.dom.runBtn.disabled = true;
+  s.dom.runBtn.textContent = '실행 중…';
+  s.dom.meta.textContent = selected ? '선택 SQL 실행 중' : '전체 SQL 실행 중';
+  s.dom.errorBox.style.display = 'none';
+  try {
+    var res = await window.onegyeok.db.query(tabId, sql);
+    if(dbSessions[tabId] !== s || s.queryVersion !== request || s.state !== 'connected') return;
+    if(res.ok) showSqlResultSets(s.dom, res);
+    else throw new Error(res.error || '쿼리 실행 실패');
+  } catch(err){
+    if(dbSessions[tabId] !== s || s.queryVersion !== request || s.state !== 'connected') return;
+    s.dom.errorBox.textContent = err.message || '쿼리 실행 실패';
+    s.dom.errorBox.style.display = '';
+    s.dom.meta.textContent = '실행 실패';
+  } finally {
+    if(dbSessions[tabId] === s && s.queryVersion === request){
+      s.querying = false;
+      s.dom.runBtn.disabled = false;
+      s.dom.runBtn.textContent = '실행 ▶';
+    }
+  }
 }
 
 // 연결이 끊기거나 재연결 버튼을 누르면 접속 폼을 다시 보여준다(비밀번호는 매번 새로 입력).
 function showDbConnectForm(tabId){
   var s = dbSessions[tabId];
   if(!s) return;
+  s.queryVersion++;
+  s.querying = false;
+  s.dom.runBtn.disabled = false;
+  s.dom.runBtn.textContent = '실행 ▶';
   s.el.classList.remove('connected');
   s.dom.connectError.textContent = '';
   s.dom.passwordInput.value = '';
@@ -118,7 +153,7 @@ function showDbConnectForm(tabId){
 
 function attemptDbConnect(tabId){
   var s = dbSessions[tabId];
-  if(!s) return;
+  if(!s || s.state === 'connecting' || s.state === 'connected') return;
   var srv = s.srv;
   var username = srv.username || s.dom.usernameInput.value.trim();
   if(!username){
@@ -126,6 +161,7 @@ function attemptDbConnect(tabId){
     return;
   }
   var password = s.dom.passwordInput.value;
+  s.dom.passwordInput.value = '';
   s.dom.connectError.textContent = '';
   s.dom.connectBtn.disabled = true;
   s.dom.connectBtn.textContent = '접속 중...';
@@ -134,7 +170,7 @@ function attemptDbConnect(tabId){
     engine: srv.sqlEngine, host: srv.host, port: srv.port, username: username,
     password: password, database: srv.database || undefined,
   }).then(function(res){
-    if(!dbSessions[tabId]) return;
+    if(dbSessions[tabId] !== s) return;
     s.dom.connectBtn.disabled = false;
     s.dom.connectBtn.textContent = '접속';
     if(res.ok){
@@ -145,6 +181,12 @@ function attemptDbConnect(tabId){
       s.dom.connectError.textContent = res.error || '연결 실패';
       setDbStatus(tabId, 'error', res.error);
     }
+  }).catch(function(err){
+    if(dbSessions[tabId] !== s) return;
+    s.dom.connectBtn.disabled = false;
+    s.dom.connectBtn.textContent = '접속';
+    s.dom.connectError.textContent = err.message || '연결 실패';
+    setDbStatus(tabId, 'error', err.message);
   });
 }
 
@@ -166,7 +208,7 @@ function startDbSession(tabId, serverId, el){
   var showUsernameField = !srv.username;
   dom.usernameRow.style.display = showUsernameField ? '' : 'none';
 
-  var session = { state: 'disconnected', srv: srv, el: el, dom: dom };
+  var session = { state: 'disconnected', srv: srv, el: el, dom: dom, querying:false, queryVersion:0 };
   dbSessions[tabId] = session;
 
   dom.connectBtn.addEventListener('click', function(){ attemptDbConnect(tabId); });

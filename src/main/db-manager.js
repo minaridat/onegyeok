@@ -1,9 +1,8 @@
 // SQL DB 클라이언트 연결 관리자 (디비버 느낌의 "SQL" 연결 종류)
 //
 // 보안 원칙(F-301/601과 동일): 비밀번호는 어디에도 저장하지 않는다.
-// 이 모듈은 전달받은 자격증명을 연결에만 사용하고 보관하지 않으며,
-// connect()가 반환하는 Promise가 끝나면 호출부(main.js)의 변수 스코프를 벗어나
-// 더 이상 참조되지 않는다.
+// 자격증명은 드라이버 연결에만 전달하고 별도 파일/설정 저장소에 기록하지 않는다.
+// 드라이버 내부의 인증값은 연결 수명 동안 참조될 수 있다.
 'use strict';
 
 const mysql = require('mysql2/promise');
@@ -12,6 +11,7 @@ const mssql = require('mssql');
 
 /** @type {Map<string, {engine: string, conn: any}>} */
 const sessions = new Map();
+const pendingConnections = new Map();
 
 function isConnected(sessionId) {
   return sessions.has(sessionId);
@@ -27,6 +27,7 @@ const ADAPTERS = {
         password: params.password,
         database: params.database || undefined,
         connectTimeout: 10000,
+        rowsAsArray: true,
       });
       return conn;
     },
@@ -75,13 +76,19 @@ const ADAPTERS = {
         database: params.database || undefined,
         connectionTimeoutMillis: 10000,
       });
-      await conn.connect();
+      try { await conn.connect(); }
+      catch (err) { await conn.end().catch(() => {}); throw err; }
       return conn;
     },
     async query(conn, sql) {
-      const res = await conn.query(sql);
-      const columns = (res.fields || []).map((f) => f.name);
-      return { columns, rows: res.rows, rowCount: res.rowCount };
+      const response = await conn.query({ text: sql, rowMode: 'array' });
+      const results = (Array.isArray(response) ? response : [response]).map((res) => ({
+        columns: (res.fields || []).map((f) => f.name),
+        rows: res.rows || [],
+        rowCount: res.rowCount == null ? (res.rows || []).length : res.rowCount,
+        message: res.command || '',
+      }));
+      return Object.assign({}, results[0], { results });
     },
     async disconnect(conn) {
       await conn.end();
@@ -120,14 +127,25 @@ const ADAPTERS = {
         connectTimeout: 10000,
         options: { encrypt: false, trustServerCertificate: true },
       });
-      await pool.connect();
+      pool.on('error', () => {});
+      try { await pool.connect(); }
+      catch (err) { await pool.close().catch(() => {}); throw err; }
       return pool;
     },
     async query(conn, sql) {
-      const res = await conn.request().query(sql);
-      const recordset = res.recordset || [];
-      const columns = recordset.columns ? Object.keys(recordset.columns) : (recordset[0] ? Object.keys(recordset[0]) : []);
-      return { columns, rows: recordset, rowCount: typeof res.rowsAffected?.[0] === 'number' ? res.rowsAffected[0] : recordset.length };
+      const request = conn.request();
+      request.arrayRowMode = true;
+      const res = await request.query(sql);
+      const results = (res.recordsets || []).map((rows, index) => ({
+        columns: (res.columns?.[index] || []).map((column) => column.name),
+        rows,
+        rowCount: rows.length,
+      }));
+      if (!results.length) results.push({
+        columns: [], rows: [],
+        rowCount: (res.rowsAffected || []).reduce((total, count) => total + count, 0),
+      });
+      return Object.assign({}, results[0], { results });
     },
     async disconnect(conn) {
       await conn.close();
@@ -160,21 +178,29 @@ const ADAPTERS = {
  * @param {(status: {state: string}) => void} [onStatus] 서버 측에서 먼저 끊었을 때(idle timeout 등) 알려주는 콜백
  */
 async function connect(sessionId, params, onStatus) {
-  if (sessions.has(sessionId)) {
+  if (sessions.has(sessionId) || pendingConnections.has(sessionId)) {
     throw new Error('이미 연결된 세션입니다');
   }
   const adapter = ADAPTERS[params.engine];
   if (!adapter) throw new Error('지원하지 않는 DB 엔진입니다: ' + params.engine);
 
+  const attempt = {};
+  pendingConnections.set(sessionId, attempt);
   try {
     const conn = await adapter.connect(params);
-    sessions.set(sessionId, { engine: params.engine, conn });
+    if (pendingConnections.get(sessionId) !== attempt) {
+      await adapter.disconnect(conn).catch(() => {});
+      throw new Error('접속이 취소되었습니다');
+    }
+    const session = { engine: params.engine, conn, querying: false };
+    sessions.set(sessionId, session);
     if (adapter.onDisconnect) {
       let notified = false;
-      adapter.onDisconnect(conn, () => {
+      adapter.onDisconnect(conn, (err) => {
+        if (err && err.fatal === false) return;
         if (notified) return;
         notified = true;
-        if (sessions.has(sessionId)) {
+        if (sessions.get(sessionId) === session) {
           sessions.delete(sessionId);
           if (onStatus) onStatus({ state: 'disconnected' });
         }
@@ -186,12 +212,17 @@ async function connect(sessionId, params, onStatus) {
     const wrapped = new Error(adapter.translate(err));
     wrapped.kind = kind;
     throw wrapped;
+  } finally {
+    if (pendingConnections.get(sessionId) === attempt) pendingConnections.delete(sessionId);
   }
 }
 
 async function query(sessionId, sql) {
   const s = sessions.get(sessionId);
   if (!s) throw new Error('연결되어 있지 않습니다');
+  if (typeof sql !== 'string' || !sql.trim()) throw new Error('실행할 SQL을 입력해주세요');
+  if (s.querying) throw new Error('이 세션에서 쿼리를 실행 중입니다');
+  s.querying = true;
   const adapter = ADAPTERS[s.engine];
   const started = Date.now();
   try {
@@ -201,10 +232,13 @@ async function query(sessionId, sql) {
     const wrapped = new Error(String((err && err.message) || err));
     wrapped.kind = 'query';
     throw wrapped;
+  } finally {
+    s.querying = false;
   }
 }
 
 async function disconnect(sessionId) {
+  pendingConnections.delete(sessionId);
   const s = sessions.get(sessionId);
   if (!s) return;
   sessions.delete(sessionId);
@@ -215,6 +249,7 @@ async function disconnect(sessionId) {
 
 // Phase1 F-502와 동일한 정책: 앱 종료 시 모든 활성 DB 연결을 예외 없이 강제 종료한다.
 async function disconnectAll() {
+  pendingConnections.clear();
   const ids = Array.from(sessions.keys());
   await Promise.all(ids.map((id) => disconnect(id)));
 }
