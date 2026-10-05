@@ -1,0 +1,4 @@
+onegyeok-rdp-helper
+onegyeok-rdp-helper.dSYM/
+*.o
+build/
