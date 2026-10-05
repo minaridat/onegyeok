@@ -50,5 +50,18 @@ contextBridge.exposeInMainWorld('onegyeok', {
   rdp: {
     connect: (sessionId, params) => ipcRenderer.invoke('rdp:connect', sessionId, params),
     disconnect: (sessionId) => ipcRenderer.invoke('rdp:disconnect', sessionId),
+    mouse: (sessionId, x, y, flags) => ipcRenderer.send('rdp:mouse', sessionId, x, y, flags),
+    key: (sessionId, scancode, flags) => ipcRenderer.send('rdp:key', sessionId, scancode, flags),
+    resize: (sessionId, width, height) => ipcRenderer.send('rdp:resize', sessionId, width, height),
+    onFrame: (callback) => {
+      const listener = (_event, sessionId, rect, buffer) => callback(sessionId, rect, buffer);
+      ipcRenderer.on('rdp:frame', listener);
+      return () => ipcRenderer.removeListener('rdp:frame', listener);
+    },
+    onStatus: (callback) => {
+      const listener = (_event, sessionId, status) => callback(sessionId, status);
+      ipcRenderer.on('rdp:status', listener);
+      return () => ipcRenderer.removeListener('rdp:status', listener);
+    },
   },
 });
