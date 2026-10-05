@@ -47,6 +47,21 @@ contextBridge.exposeInMainWorld('onegyeok', {
     },
   },
 
+  files: {
+    connect: (id, params) => ipcRenderer.invoke('files:connect', id, params),
+    localList: (directory) => ipcRenderer.invoke('files:local-list', directory),
+    list: (id, directory) => ipcRenderer.invoke('files:list', id, directory),
+    operation: (id, action, target, value) => ipcRenderer.invoke('files:operation', id, action, target, value),
+    enqueue: (id, params) => ipcRenderer.invoke('files:enqueue', id, params),
+    control: (id, jobId, action) => ipcRenderer.invoke('files:control', id, jobId, action),
+    disconnect: (id) => ipcRenderer.invoke('files:disconnect', id),
+    onEvent: (callback) => {
+      const listener = (_event, id, type, data) => callback(id, type, data);
+      ipcRenderer.on('files:event', listener);
+      return () => ipcRenderer.removeListener('files:event', listener);
+    },
+  },
+
   rdp: {
     connect: (sessionId, params) => ipcRenderer.invoke('rdp:connect', sessionId, params),
     disconnect: (sessionId) => ipcRenderer.invoke('rdp:disconnect', sessionId),

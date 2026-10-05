@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="protocols/ssh/ssh.css">
 <link rel="stylesheet" href="protocols/sql/sql.css">
 <link rel="stylesheet" href="protocols/rdp/rdp.css">
+<link rel="stylesheet" href="protocols/sftp/sftp.css">
 </head>
 <body>
 <div class="app" id="app">
@@ -52,7 +53,7 @@
             <option value="ssh">SSH</option>
             <option value="rdp">RDP</option>
             <option value="vnc">VNC</option>
-            <option value="sftp">SFTP</option>
+            <option value="sftp">SFTP / FTP / FTPS</option>
             <option value="web">Web</option>
           </select>
           <select id="manageGroupFilter"><option value="all">그룹 전체</option></select>
@@ -107,7 +108,7 @@
               <option value="sql">SQL</option>
               <option value="rdp">RDP</option>
               <option value="vnc">VNC</option>
-              <option value="sftp">SFTP</option>
+              <option value="sftp">SFTP / FTP / FTPS</option>
               <option value="web">Web</option>
             </select>
           </label>
@@ -164,7 +165,7 @@
         <svg class="icon" viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>
         <span class="badge">P5</span>
       </button>
-      <button class="rail-btn future" data-filter="sftp" title="SFTP · Phase 2 예정">
+      <button class="rail-btn" data-filter="sftp" title="SFTP / FTP / FTPS">
         <svg class="icon" viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
         <span class="badge">P2</span>
       </button>
@@ -408,9 +409,9 @@
           <div class="insp-row"><span class="insp-label">상태</span><span class="insp-value" id="i-since">12분 전 연결됨</span></div>
 
           <div class="insp-actions">
-            <button class="insp-btn disabled">
+            <button class="insp-btn" id="openSftpBtn" type="button">
               <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
-              SFTP로 열기 <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">Phase 2</span>
+              SFTP로 열기
             </button>
             <button class="insp-btn danger" id="inspConnActionBtn">
               <svg class="icon conn-action-icon-end" viewBox="0 0 20 20" style="width:14px;height:14px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg>
