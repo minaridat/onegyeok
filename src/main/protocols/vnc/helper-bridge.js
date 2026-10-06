@@ -7,6 +7,7 @@
 // 뽑지 않고 독립 파일로 유지한다(폴더 분할 목적 — 병렬 작업 시 공용 파일 충돌 없음).
 const { spawn } = require('node:child_process');
 const path = require('node:path');
+const { app } = require('electron');
 
 const MSG = {
   CONNECT: 0x01,
@@ -22,11 +23,11 @@ const MSG = {
 
 function resolveHelperPath() {
   if (process.env.ONEGYEOK_VNC_HELPER_PATH) return process.env.ONEGYEOK_VNC_HELPER_PATH;
-  // 패키징 전 개발 단계의 기본 추정 경로 — native/vnc-helper/ 프로젝트 디렉터리에 바로 바이너리가
-  // 만들어진다고 가정한다(build/ 서브디렉터리 없음 — RDP 쪽 헬퍼의 실제 Makefile 레이아웃과 동일 패턴).
-  // 실제 배포 시 경로는 패키징 스크립트가 ONEGYEOK_VNC_HELPER_PATH로 덮어쓸 것이므로, 여기 값이
-  // 정확하지 않아도 그 환경변수가 항상 우선한다.
   const bin = process.platform === 'win32' ? 'onegyeok-vnc-helper.exe' : 'onegyeok-vnc-helper';
+  // electron-builder로 패키징된 앱은 extraResources로 복사된 바이너리를 resourcesPath 밑에서 찾는다
+  // (docs/기술스택/06_빌드배포_기술스택.md 참고) — 개발 중(app.isPackaged === false)에는 리포 루트의
+  // native/vnc-helper/ 프로젝트 디렉터리에 바로 만들어진 바이너리를 쓴다(build/ 서브디렉터리 없음).
+  if (app.isPackaged) return path.join(process.resourcesPath, 'native', 'vnc-helper', bin);
   return path.join(__dirname, '..', '..', '..', '..', 'native', 'vnc-helper', bin);
 }
 

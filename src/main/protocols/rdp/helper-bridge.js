@@ -5,6 +5,7 @@
 // 길이)으로 stdin에 명령을 쓰고 stdout에서 이벤트를 파싱해 돌려준다.
 const { spawn } = require('node:child_process');
 const path = require('node:path');
+const { app } = require('electron');
 
 const MSG = {
   CONNECT: 0x01,
@@ -21,11 +22,11 @@ const MSG = {
 
 function resolveHelperPath() {
   if (process.env.ONEGYEOK_RDP_HELPER_PATH) return process.env.ONEGYEOK_RDP_HELPER_PATH;
-  // 패키징 전 개발 단계의 기본 추정 경로 — src/main/protocols/rdp/ 기준 리포 루트의
-  // native/rdp-helper/ Makefile이 프로젝트 디렉터리에 바로 바이너리를 만든다(build/ 서브디렉터리 없음).
-  // 실제 배포 시 경로는 패키징 스크립트가 ONEGYEOK_RDP_HELPER_PATH로 덮어쓸 것이므로, 여기 값이
-  // 정확하지 않아도 그 환경변수가 항상 우선한다.
   const bin = process.platform === 'win32' ? 'onegyeok-rdp-helper.exe' : 'onegyeok-rdp-helper';
+  // electron-builder로 패키징된 앱은 extraResources로 복사된 바이너리를 resourcesPath 밑에서 찾는다
+  // (docs/기술스택/06_빌드배포_기술스택.md 참고) — 개발 중(app.isPackaged === false)에는 리포 루트의
+  // native/rdp-helper/ Makefile이 프로젝트 디렉터리에 바로 만든 바이너리를 쓴다(build/ 서브디렉터리 없음).
+  if (app.isPackaged) return path.join(process.resourcesPath, 'native', 'rdp-helper', bin);
   return path.join(__dirname, '..', '..', '..', '..', 'native', 'rdp-helper', bin);
 }
 
