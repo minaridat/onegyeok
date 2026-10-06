@@ -237,6 +237,30 @@ function disposeDbSession(tabId){
   if(serverId) updateServerRowStatus(serverId);
 }
 
+// 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
+// 세션 맵 엔트리만 정리한다. main 프로세스의 실제 DB 커넥션은 살아있고, 새 창이 이어받는다.
+function detachDbSessionLocal(tabId){
+  var s = dbSessions[tabId];
+  if(!s) return;
+  var serverId = s.srv && s.srv.id;
+  delete dbSessions[tabId];
+  if(serverId) updateServerRowStatus(serverId);
+}
+
+// 다른 창에서 넘어온(이미 연결돼 있을 수 있는) 탭을 이 창에서 받을 때 호출된다 — 접속 폼을
+// 건너뛰고 바로 쿼리 에디터를 연다(결과는 비어있는 채로 시작 — 이전 쿼리 결과는 넘어오지 않음,
+// 다시 실행하면 됨). 실제 상태는 메인 프로세스가 직후에 재전송하는 db:status 이벤트로도 한 번
+// 더 채워진다(src/main/protocols/sql/index.js의 onSessionWindowChanged).
+function attachDbSession(tabId, serverId, el){
+  startDbSession(tabId, serverId, el);
+  var s = dbSessions[tabId];
+  if(!s) return;
+  s.state = 'connected';
+  el.classList.add('connected');
+  setDbStatus(tabId, 'connected', '');
+  setTimeout(function(){ s.dom.editor.focus(); }, 0);
+}
+
 if(hasDbBridge && window.onegyeok.db.onStatus){
   window.onegyeok.db.onStatus(function(id, status){
     var s = dbSessions[id];
@@ -252,6 +276,8 @@ registerProtocol('sql', {
   meta: { label:'SQL', icon:'<svg viewBox="0 0 20 20"><ellipse cx="10" cy="5" rx="7" ry="2.6"></ellipse><path d="M3 5v10c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5"></path><path d="M3 10c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"></path></svg>' },
 
   startSession: startDbSession,
+  detachLocal: detachDbSessionLocal,
+  attachSession: attachDbSession,
   hasSession: function(tabId){ return !!dbSessions[tabId]; },
   getSession: function(tabId){ return dbSessions[tabId] || null; },
   disposeSession: function(tabId){ disposeDbSession(tabId); },

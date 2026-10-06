@@ -166,8 +166,28 @@
     if(type==='schedules'){renderSchedules(s,data);}
     if(type==='job'){s.jobs.set(data.id,data);renderJobs(s);if(data.status==='done'){refresh(s,'local',s.panels.local.path).catch(function(){});refresh(s,'remote',s.panels.remote.path).catch(function(){});}}
   });
+  // 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
+  // 세션 맵 엔트리만 지운다. main 프로세스의 실제 SFTP/FTP 커넥션(file-manager.js)은 세션 id에만
+  // 묶여 있고 특정 창에 종속되지 않으므로 살아남고, 새 창이 이어받는다.
+  function detachSftpLocal(id){ sessions.delete(id); }
+
+  // 다른 창에서 넘어온(이미 연결돼 있을 수 있는) 탭을 이 창에서 받을 때 호출된다 — 로그인 폼을
+  // 건너뛰고 바로 작업 화면을 연 뒤, 로컬/원격 패널을 기본 경로(로컬은 홈, 원격은 루트)로 다시
+  // 조회해 채운다. 이전 탐색 위치·선택·열려 있던 도구 패널은 넘어오지 않는다(알려진 한계) —
+  // 연결 자체는 끊기지 않으므로 진행 중이던 전송은 계속되고, 사용자가 다시 탐색하면 된다.
+  function attachSftpSession(id, serverId, el){
+    start(id, serverId, el);
+    var s = sessions.get(id);
+    if(!s) return;
+    state(s, 'connected');
+    el.classList.add('connected');
+    Promise.all([refresh(s,'local',undefined), refresh(s,'remote','/')]).catch(function(err){ message(s, err.message); });
+  }
+
   registerProtocol('sftp',{
-    meta:{label:'SFTP / FTP',icon:icon},startSession:start,hasSession:function(id){return sessions.has(id);},getSession:function(id){return sessions.get(id);},
+    meta:{label:'SFTP / FTP',icon:icon},startSession:start,
+    detachLocal:detachSftpLocal,attachSession:attachSftpSession,
+    hasSession:function(id){return sessions.has(id);},getSession:function(id){return sessions.get(id);},
     disposeSession:function(id){var s=sessions.get(id);if(!s)return;sessions.delete(id);if(api)api.disconnect(id).catch(function(){});updateServerRowStatus(s.srv.id);},
     isServerConnected:function(id){return Array.from(sessions.values()).some(function(s){return s.srv.id===id&&s.state==='connected';});},
     hasConnAction:true,onConnActionClick:function(id){var s=sessions.get(id);if(s){if(s.state==='connected'||s.state==='connecting')disconnect(s).catch(function(){});else connect(s);}},quickReconnect:function(id){var s=sessions.get(id);if(s){s.el.querySelector('.files-secret').focus();activate(id);}},
