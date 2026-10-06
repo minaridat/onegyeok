@@ -41,6 +41,18 @@
 //     — 인스펙터 "연결 정보" 탭에 프로토콜 전용 행(예: SSH 점프호스트, SQL DB엔진)을 주입.
 //       필요 없으면 생략 가능.
 //
+//   detachLocal(tabId)  [선택 — 탭 분리/병합 기능(core/tabs.js) 전용]
+//     — 탭을 다른 창으로 끌어내 뺄 때, 원래 창에서 호출된다. 이 프로토콜의 로컬 UI 상태(예:
+//       xterm Terminal 인스턴스, canvas 컨텍스트)를 정리하되, *IPC 연결 종료는 호출하지 않는다* —
+//       main 프로세스의 실제 연결은 살아 있어야 새 창이 이어받을 수 있다. 정의하지 않으면
+//       core가 대신 disposeSession(tabId)을 호출한다(=연결까지 완전히 끊고 새 창에서 새로 접속).
+//   attachSession(tabId, serverId, el)  [선택 — 위와 짝]
+//     — 다른 창에서 넘어온 탭을 받는 쪽(새 창 또는 병합 대상 창)에서 호출된다. startSession과
+//       달리 "이미 연결돼 있을 수 있다"고 가정하고 접속 폼을 건너뛴 UI를 바로 구성한다 — 실제
+//       상태는 메인 프로세스가 직후에 재전송(replay)하는 *:status(및 RDP/VNC는 전체 프레임)
+//       이벤트로 채워진다. 정의하지 않으면 core가 대신 startSession(tabId, serverId, el)을
+//       호출한다(=접속 폼부터 다시 시작).
+//
 var PROTO = {};
 var OnegyeokProtocols = {};
 

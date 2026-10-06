@@ -193,6 +193,14 @@ function setupRdpInput(tabId){
 function drawRdpFrame(tabId, rect, buffer){
   var s = rdpSessions[tabId];
   if(!s || !s.ctx) return;
+  var canvas = s.dom.canvas;
+  // attachSession으로 이어받은 세션은 접속 응답(res.width/height)이 없어 캔버스 치수를 미리
+  // 몰라서 기본값(300x150)인 채로 시작한다 — 메인 프로세스가 분리/병합 직후 보내는 전체 화면
+  // 재전송(x=0,y=0,w=전체,h=전체) FRAME을 받으면 그 치수에 맞춰 캔버스를 키운다.
+  if(rect.x + rect.w > canvas.width || rect.y + rect.h > canvas.height){
+    canvas.width = Math.max(canvas.width, rect.x + rect.w);
+    canvas.height = Math.max(canvas.height, rect.y + rect.h);
+  }
   var src = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   var n = rect.w * rect.h;
   var out = new Uint8ClampedArray(n * 4);
@@ -280,18 +288,9 @@ function disconnectRdpKeepTab(tabId){
   showRdpConnectForm(tabId);
 }
 
-function startRdpSession(tabId, serverId, el){
-  var srv = SERVERS.find(function(s){ return s.id === serverId; });
-  if(!srv) return;
-  el.className = 'pane rdp-pane';
-  var dom = buildRdpPaneDom(el);
-  dom.titleEl.textContent = srv.host + ':' + (srv.port || 3389);
-  var showUsernameField = !srv.username;
-  dom.usernameRow.style.display = showUsernameField ? '' : 'none';
-
-  var session = { state: 'disconnected', srv: srv, el: el, dom: dom, ctx: null };
-  rdpSessions[tabId] = session;
-
+// startRdpSession(접속 폼부터 시작)과 attachRdpSession(이미 연결된 세션을 이어받음)이 공유하는
+// 툴바 버튼 와이어링 — 중복 방지.
+function wireRdpToolbarButtons(tabId, dom, el){
   dom.connectBtn.addEventListener('click', function(){ attemptRdpConnect(tabId); });
   dom.passwordInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); attemptRdpConnect(tabId); } });
   dom.disconnectBtn.addEventListener('click', function(){ disconnectRdpKeepTab(tabId); });
@@ -306,6 +305,50 @@ function startRdpSession(tabId, serverId, el){
   el.addEventListener('fullscreenchange', function(){
     dom.fullscreenBtn.classList.toggle('active', document.fullscreenElement === el);
   });
+}
+
+// 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
+// canvas/세션 맵 엔트리 등 로컬 UI 상태만 정리한다. main 프로세스의 실제 연결(헬퍼 프로세스)은
+// 살아있고, 새 창이 이어받는다(docs/기술스택/03_RDP_기술스택.md 참고).
+function detachRdpSessionLocal(tabId){
+  var s = rdpSessions[tabId];
+  var serverId = s && s.srv && s.srv.id;
+  delete rdpSessions[tabId];
+  if(serverId) updateServerRowStatus(serverId);
+}
+
+// 다른 창에서 넘어온(이미 연결돼 있을 수 있는) 탭을 이 창에서 받을 때 호출된다 — 접속 폼을
+// 건너뛰고 바로 연결된 작업공간 UI를 구성한다. 실제 상태/화면은 메인 프로세스가 직후에
+// 재전송하는 rdp:status·rdp:frame(전체 화면 1장)으로 채워진다.
+function attachRdpSession(tabId, serverId, el){
+  var srv = SERVERS.find(function(s){ return s.id === serverId; });
+  if(!srv) return;
+  el.className = 'pane rdp-pane connected';
+  var dom = buildRdpPaneDom(el);
+  dom.titleEl.textContent = srv.host + ':' + (srv.port || 3389);
+  dom.meta.textContent = srv.host + ':' + (srv.port || 3389);
+
+  var session = { state: 'connecting', srv: srv, el: el, dom: dom, ctx: dom.canvas.getContext('2d') };
+  rdpSessions[tabId] = session;
+
+  wireRdpToolbarButtons(tabId, dom, el);
+  setupRdpInput(tabId);
+  setTimeout(function(){ dom.canvas.focus(); }, 0);
+}
+
+function startRdpSession(tabId, serverId, el){
+  var srv = SERVERS.find(function(s){ return s.id === serverId; });
+  if(!srv) return;
+  el.className = 'pane rdp-pane';
+  var dom = buildRdpPaneDom(el);
+  dom.titleEl.textContent = srv.host + ':' + (srv.port || 3389);
+  var showUsernameField = !srv.username;
+  dom.usernameRow.style.display = showUsernameField ? '' : 'none';
+
+  var session = { state: 'disconnected', srv: srv, el: el, dom: dom, ctx: null };
+  rdpSessions[tabId] = session;
+
+  wireRdpToolbarButtons(tabId, dom, el);
 
   if(!hasRdpBridge){
     dom.connectError.textContent = 'RDP 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)';
@@ -330,6 +373,8 @@ registerProtocol('rdp', {
   meta: { label:'RDP', icon:'<svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>' },
 
   startSession: startRdpSession,
+  detachLocal: detachRdpSessionLocal,
+  attachSession: attachRdpSession,
   hasSession: function(tabId){ return !!rdpSessions[tabId]; },
   getSession: function(tabId){ return rdpSessions[tabId] || null; },
   disposeSession: function(tabId){ disposeRdpSession(tabId); },

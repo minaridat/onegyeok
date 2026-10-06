@@ -186,6 +186,14 @@ function setupVncInput(tabId){
 function drawVncFrame(tabId, rect, buffer){
   var s = vncSessions[tabId];
   if(!s || !s.ctx) return;
+  var canvas = s.dom.canvas;
+  // attachSession으로 이어받은 세션은 접속 응답이 없어 캔버스 치수를 미리 몰라서 기본값
+  // (300x150)인 채로 시작한다 — 메인 프로세스가 분리/병합 직후 보내는 전체 화면 재전송
+  // (x=0,y=0,w=전체,h=전체) FRAME을 받으면 그 치수에 맞춰 캔버스를 키운다.
+  if(rect.x + rect.w > canvas.width || rect.y + rect.h > canvas.height){
+    canvas.width = Math.max(canvas.width, rect.x + rect.w);
+    canvas.height = Math.max(canvas.height, rect.y + rect.h);
+  }
   var src = buffer instanceof Uint8ClampedArray ? buffer : new Uint8ClampedArray(
     buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
   );
@@ -253,16 +261,9 @@ function disconnectVncKeepTab(tabId){
   showVncConnectForm(tabId);
 }
 
-function startVncSession(tabId, serverId, el){
-  var srv = SERVERS.find(function(s){ return s.id === serverId; });
-  if(!srv) return;
-  el.className = 'pane vnc-pane';
-  var dom = buildVncPaneDom(el);
-  dom.titleEl.textContent = srv.host + ':' + (srv.port || 5900);
-
-  var session = { state: 'disconnected', srv: srv, el: el, dom: dom, ctx: null };
-  vncSessions[tabId] = session;
-
+// startVncSession(접속 폼부터 시작)과 attachVncSession(이미 연결된 세션을 이어받음)이 공유하는
+// 툴바 버튼 와이어링 — 중복 방지.
+function wireVncToolbarButtons(tabId, dom, el){
   dom.connectBtn.addEventListener('click', function(){ attemptVncConnect(tabId); });
   dom.passwordInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); attemptVncConnect(tabId); } });
   dom.disconnectBtn.addEventListener('click', function(){ disconnectVncKeepTab(tabId); });
@@ -277,6 +278,48 @@ function startVncSession(tabId, serverId, el){
   el.addEventListener('fullscreenchange', function(){
     dom.fullscreenBtn.classList.toggle('active', document.fullscreenElement === el);
   });
+}
+
+// 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
+// canvas/세션 맵 엔트리 등 로컬 UI 상태만 정리한다. main 프로세스의 실제 연결(헬퍼 프로세스)은
+// 살아있고, 새 창이 이어받는다(docs/기술스택/04_VNC_기술스택.md 참고).
+function detachVncSessionLocal(tabId){
+  var s = vncSessions[tabId];
+  var serverId = s && s.srv && s.srv.id;
+  delete vncSessions[tabId];
+  if(serverId) updateServerRowStatus(serverId);
+}
+
+// 다른 창에서 넘어온(이미 연결돼 있을 수 있는) 탭을 이 창에서 받을 때 호출된다 — 접속 폼을
+// 건너뛰고 바로 연결된 작업공간 UI를 구성한다. 실제 상태/화면은 메인 프로세스가 직후에
+// 재전송하는 vnc:status·vnc:frame(전체 화면 1장)으로 채워진다.
+function attachVncSession(tabId, serverId, el){
+  var srv = SERVERS.find(function(s){ return s.id === serverId; });
+  if(!srv) return;
+  el.className = 'pane vnc-pane connected';
+  var dom = buildVncPaneDom(el);
+  dom.titleEl.textContent = srv.host + ':' + (srv.port || 5900);
+  dom.meta.textContent = srv.host + ':' + (srv.port || 5900);
+
+  var session = { state: 'connecting', srv: srv, el: el, dom: dom, ctx: dom.canvas.getContext('2d') };
+  vncSessions[tabId] = session;
+
+  wireVncToolbarButtons(tabId, dom, el);
+  setupVncInput(tabId);
+  setTimeout(function(){ dom.canvas.focus(); }, 0);
+}
+
+function startVncSession(tabId, serverId, el){
+  var srv = SERVERS.find(function(s){ return s.id === serverId; });
+  if(!srv) return;
+  el.className = 'pane vnc-pane';
+  var dom = buildVncPaneDom(el);
+  dom.titleEl.textContent = srv.host + ':' + (srv.port || 5900);
+
+  var session = { state: 'disconnected', srv: srv, el: el, dom: dom, ctx: null };
+  vncSessions[tabId] = session;
+
+  wireVncToolbarButtons(tabId, dom, el);
 
   if(!hasVncBridge){
     dom.connectError.textContent = 'VNC 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)';
@@ -299,6 +342,8 @@ registerProtocol('vnc', {
   meta: { label:'VNC', icon:'<svg viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>' },
 
   startSession: startVncSession,
+  detachLocal: detachVncSessionLocal,
+  attachSession: attachVncSession,
   hasSession: function(tabId){ return !!vncSessions[tabId]; },
   getSession: function(tabId){ return vncSessions[tabId] || null; },
   disposeSession: function(tabId){ disposeVncSession(tabId); },

@@ -228,6 +228,7 @@
     max-width:170px;flex:none;}
   .tab.active{background:var(--term-bg);color:var(--term-text);border-color:var(--border);}
   .tab.broadcast-active{box-shadow:inset 0 0 0 1px var(--warn);}
+  .tab.tearing-off{opacity:.45;} /* 탭을 끌어 탭바 밖으로 빼는 중 — 별도 창 분리/병합 */
   .tab-broadcast-check{display:none;width:13px;height:13px;margin:0 2px 0 0;cursor:pointer;flex:none;
     accent-color:var(--warn);}
   .tab-broadcast-check.show{display:inline-block;}

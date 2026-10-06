@@ -45,7 +45,10 @@ function updateConnActionButton(id){
   retryIcon.style.display = connected ? 'none' : '';
 }
 
-function ensurePane(tabId, serverId, protocolOverride){
+// mode: 'start'(기본, 서버를 새로 클릭해서 여는 탭) | 'attach'(다른 창에서 넘어온 탭 — 이미
+// 연결돼 있을 수 있으니 attachSession을 쓴다. 프로토콜이 attachSession을 정의하지 않으면
+// startSession으로 자동 폴백 — 탭 분리/병합 기능, core/registry.js의 계약 설명 참고).
+function ensurePane(tabId, serverId, protocolOverride, mode){
   var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
   if(pane) return pane;
   var row = tree.querySelector('.server[data-id="'+serverId+'"]');
@@ -57,7 +60,8 @@ function ensurePane(tabId, serverId, protocolOverride){
   if(protoDef){
     el.className = 'pane';
     panes.appendChild(el);
-    protoDef.startSession(tabId, serverId, el);
+    if(mode === 'attach' && protoDef.attachSession) protoDef.attachSession(tabId, serverId, el);
+    else protoDef.startSession(tabId, serverId, el);
     return el;
   }
   // 등록되지 않은 프로토콜(이론상 도달하지 않음 — 안전망)
@@ -222,19 +226,12 @@ function selectServer(serverId, protocolOverride){
   activate(tabId);
 }
 
-// 탭을 완전히 닫는다 — skipDispose가 true면 세션은 이미 다른 곳으로 옮겨진 상태이므로
-// 탭/레이아웃 UI만 정리하고 세션 자체는 건드리지 않는다(moveSessionIntoCell에서 사용).
-// tabLayouts(SSH 전용 pane-split 테이블)는 ssh.js가 정의하는 전역이다 — 분할돼 있지 않은
-// 탭(대부분의 프로토콜)은 거기에 엔트리가 없으므로 ids는 항상 [tabId] 하나로 떨어진다.
-function closeTabById(tabId, skipDispose){
+// closeTabById/detachTabLocal이 공유하는 꼬리 부분 — 탭·pane DOM과 레이아웃 테이블 엔트리를
+// 지우고 다음 탭으로 포커스를 옮긴다. 세션 자체(디스코넥트든 로컬 정리든)는 호출하는 쪽 책임이다.
+function removeTabDom(tabId){
   var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   if(!tab) return;
   var wasActive = tab.classList.contains('active');
-  if(!skipDispose){
-    var layout = tabLayouts[tabId];
-    var ids = layout ? layout.paneIds.slice() : [tabId];
-    ids.forEach(function(id){ disposeSession(id); });
-  }
   var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
   tab.remove();
   if(pane) pane.remove();
@@ -244,6 +241,59 @@ function closeTabById(tabId, skipDispose){
     var remaining = visibleTabs()[0];
     if(remaining) activate(remaining.dataset.id); else activateEmpty(currentFilter);
   }
+}
+
+// 탭을 완전히 닫는다 — skipDispose가 true면 세션은 이미 다른 곳으로 옮겨진 상태이므로
+// 탭/레이아웃 UI만 정리하고 세션 자체는 건드리지 않는다(moveSessionIntoCell에서 사용).
+// tabLayouts(SSH 전용 pane-split 테이블)는 ssh.js가 정의하는 전역이다 — 분할돼 있지 않은
+// 탭(대부분의 프로토콜)은 거기에 엔트리가 없으므로 ids는 항상 [tabId] 하나로 떨어진다.
+function closeTabById(tabId, skipDispose){
+  var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+  if(!tab) return;
+  if(!skipDispose){
+    var layout = tabLayouts[tabId];
+    var ids = layout ? layout.paneIds.slice() : [tabId];
+    ids.forEach(function(id){ disposeSession(id); });
+  }
+  removeTabDom(tabId);
+}
+
+// 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
+// 로컬 UI만 정리한다(detachLocal이 없는 프로토콜은 disposeSession으로 자동 폴백 — 연결까지
+// 완전히 끊김, core/registry.js의 계약 설명 참고). SSH는 탭이 분할돼 있으면(pane-split) 여러
+// 세션을 한 번에 옮기는 복잡도를 감수하지 않고 전부 끊는다 — 분할 해제 후 다시 시도하면 된다.
+function detachTabLocal(tabId){
+  var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+  if(!tab) return;
+  var proto = tab.dataset.protocol;
+  var p = getProtocol(proto);
+  var layout = tabLayouts[tabId];
+  var isSplit = layout && layout.paneIds.length > 1;
+  if(p && p.detachLocal && !isSplit) p.detachLocal(tabId);
+  else disposeSession(tabId);
+  removeTabDom(tabId);
+}
+
+// 각 창은 SERVERS/사이드바 트리를 독립적으로 갖는다(부팅 시 자기 자신의 정적 데모 마크업을
+// scrapeServers()로 읽은 결과) — 다른 창에서 동적으로 등록한 서버는 애초에 이 창의 SERVERS
+// 배열에 없다. 탭을 분리/병합으로 넘겨받을 때 그 서버 레코드도 같이 넘어오므로(payload.server),
+// 여기 없으면(또는 최신화하려면) 끼워 넣고 사이드바도 다시 그린다 — 안 그러면 attachSession이
+// SERVERS.find()에서 못 찾아 조용히 아무 것도 안 그린다.
+function upsertServerRecord(srv){
+  if(!srv) return;
+  var idx = SERVERS.findIndex(function(s){ return s.id === srv.id; });
+  if(idx === -1) SERVERS.push(srv); else SERVERS[idx] = srv;
+  if(GROUP_ORDER.indexOf(srv.group) === -1) GROUP_ORDER.push(srv.group);
+  renderTree();
+}
+
+// 다른 창에서 넘어온(또는 처음 부팅 시 이어받는) 탭을 이 창에 연다 — selectServer()와 달리
+// tabId를 새로 생성하지 않고 넘겨받은 그대로 쓴다(메인 프로세스 세션이 그 id로 등록돼 있음).
+function openHydratedTab(tabId, serverId, protocolOverride, serverRecord){
+  upsertServerRecord(serverRecord);
+  ensureTab(tabId, serverId, protocolOverride);
+  ensurePane(tabId, serverId, protocolOverride, 'attach');
+  activate(tabId);
 }
 
 closeActiveTabBtn.addEventListener('click', function(){
@@ -284,5 +334,93 @@ tabbar.addEventListener('click', function(e){
     closeTabById(tab.dataset.id);
     return;
   }
+  if(suppressNextTabClick){ suppressNextTabClick = false; return; } // 드래그-아웃/병합이 막 끝남 — 활성화 생략
   activate(tab.dataset.id);
 });
+
+// ==================================================================
+// 탭 드래그-아웃으로 별도 창 분리/병합 (크롬 탭 방식) — src/main/core/window-manager.js와 짝.
+// 수평으로만 움직이면(탭바 안에 머무르면) 그냥 클릭/드래그로 취급해 아무 일도 안 한다(현재
+// 탭바 안 순서 변경 기능은 없음). 탭바 bounding box 밖으로 수직 이동하면 분리 의도로 본다.
+// 다른 onegyeok 창 위에서 손을 떼면 그 창에 병합, 아니면 새 창으로 분리된다.
+// ==================================================================
+var dragState = null; // { tabId, serverId, protocol, startX, startY, dragging, pollTimer }
+var suppressNextTabClick = false;
+var TEAROFF_THRESHOLD = 8; // 이 이상 움직여야 드래그로 인정(클릭과 구분)
+var MERGE_POLL_MS = 150;
+
+function hasWindowBridge(){ return !!(window.onegyeok && window.onegyeok.window); }
+
+tabbar.addEventListener('mousedown', function(e){
+  if(!hasWindowBridge()) return;
+  if(e.button !== 0) return; // 좌클릭만
+  if(e.target.closest('.close, .tab-reconnect, .tab-add, .tab-broadcast-check')) return;
+  var tab = e.target.closest('.tab');
+  if(!tab) return;
+  dragState = {
+    tabId: tab.dataset.id, serverId: tab.dataset.serverId, protocol: tab.dataset.protocol,
+    startX: e.clientX, startY: e.clientY, dragging: false, pollTimer: null, mergeTargetId: null,
+  };
+  document.addEventListener('mousemove', onTabDragMove);
+  document.addEventListener('mouseup', onTabDragEnd);
+});
+
+function onTabDragMove(e){
+  if(!dragState) return;
+  var dx = e.clientX - dragState.startX, dy = e.clientY - dragState.startY;
+  if(!dragState.dragging && Math.sqrt(dx*dx + dy*dy) < TEAROFF_THRESHOLD) return;
+  dragState.dragging = true;
+
+  var rect = tabbar.getBoundingClientRect();
+  var outsideTabbar = e.clientY < rect.top - 10 || e.clientY > rect.bottom + 10;
+  var tabEl = tabbar.querySelector('.tab[data-id="'+dragState.tabId+'"]');
+  if(tabEl) tabEl.classList.toggle('tearing-off', outsideTabbar);
+
+  if(outsideTabbar && !dragState.pollTimer){
+    dragState.pollTimer = setInterval(function(){
+      if(!dragState) return;
+      var sx = window.screenX + e.clientX, sy = window.screenY + e.clientY;
+      window.onegyeok.window.isPointInAnotherWindow(sx, sy).then(function(winId){
+        if(dragState) dragState.mergeTargetId = winId;
+      });
+    }, MERGE_POLL_MS);
+  } else if(!outsideTabbar && dragState.pollTimer){
+    clearInterval(dragState.pollTimer);
+    dragState.pollTimer = null;
+    dragState.mergeTargetId = null;
+  }
+}
+
+function onTabDragEnd(e){
+  document.removeEventListener('mousemove', onTabDragMove);
+  document.removeEventListener('mouseup', onTabDragEnd);
+  if(!dragState) return;
+  var ds = dragState;
+  dragState = null;
+  if(ds.pollTimer) clearInterval(ds.pollTimer);
+  var tabEl = tabbar.querySelector('.tab[data-id="'+ds.tabId+'"]');
+  if(tabEl) tabEl.classList.remove('tearing-off');
+  if(!ds.dragging) return; // 그냥 클릭 — 평소대로 activate되게 둔다
+
+  var rect = tabbar.getBoundingClientRect();
+  var outsideTabbar = e.clientY < rect.top - 10 || e.clientY > rect.bottom + 10;
+  if(!outsideTabbar) return; // 탭바 안으로 돌아왔으면 드래그 취소 취급(순서 변경 기능 없음)
+
+  suppressNextTabClick = true;
+  var srv = SERVERS.find(function(s){ return s.id === ds.serverId; });
+  var payload = { tabId: ds.tabId, serverId: ds.serverId, protocol: ds.protocol, server: srv };
+  if(ds.mergeTargetId != null){
+    window.onegyeok.window.mergeTab(Object.assign({ targetWindowId: ds.mergeTargetId }, payload));
+  } else {
+    window.onegyeok.window.detachTab(payload);
+  }
+}
+
+if(hasWindowBridge()){
+  window.onegyeok.window.onTabDetached(function(tabId){
+    detachTabLocal(tabId);
+  });
+  window.onegyeok.window.onTabAttached(function(payload){
+    openHydratedTab(payload.tabId, payload.serverId, payload.protocol, payload.server);
+  });
+}

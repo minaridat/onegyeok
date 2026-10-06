@@ -10,13 +10,35 @@ const { MSG, spawnHelper, parseFramePayload } = require('./helper-bridge');
 const CONNECT_TIMEOUT_MS = 15000;
 
 const sessions = new Map(); // sessionId -> helper(spawnHelper 반환값)
+// RDP와 동일한 이유로 세션별 합성 전체 화면을 캐시해둔다(FRAME은 증분 사각형이라, 탭이 다른
+// 창으로 옮겨질 때 그 사각형만 재전송하면 대부분 빈 화면으로 보인다) — src/main/protocols/rdp/index.js 참고.
+const frameCaches = new Map(); // sessionId -> { width, height, buffer(RGBA32) }
+let savedCtx = null; // wire(ctx)가 저장해둔다 — onSessionWindowChanged는 wire() 밖이라 클로저로 못 받음
+
+function updateFrameCache(sessionId, frame) {
+  let cache = frameCaches.get(sessionId);
+  if (!cache || frame.x + frame.w > cache.width || frame.y + frame.h > cache.height) {
+    const width = Math.max(cache ? cache.width : 0, frame.x + frame.w);
+    const height = Math.max(cache ? cache.height : 0, frame.y + frame.h);
+    const buffer = Buffer.alloc(width * height * 4);
+    if (cache) cache.buffer.copy(buffer);
+    cache = { width, height, buffer };
+    frameCaches.set(sessionId, cache);
+  }
+  for (let row = 0; row < frame.h; row++) {
+    const srcStart = row * frame.w * 4;
+    const dstStart = ((frame.y + row) * cache.width + frame.x) * 4;
+    frame.pixels.copy(cache.buffer, dstStart, srcStart, srcStart + frame.w * 4);
+  }
+}
 
 registerMainProtocol('vnc', {
   wire(ctx) {
+    savedCtx = ctx;
     const { ipcMain, sendToSession, registerSessionWindow, unregisterSession, windowForEvent } = ctx;
 
     ipcMain.handle('vnc:connect', (event, sessionId, params) => {
-      registerSessionWindow(sessionId, windowForEvent(event));
+      registerSessionWindow(sessionId, windowForEvent(event), 'vnc');
       return new Promise((resolve) => {
         if (sessions.has(sessionId)) sessions.get(sessionId).kill();
 
@@ -42,6 +64,7 @@ registerMainProtocol('vnc', {
               sendToSession(sessionId, 'vnc:status', { state: 'connected' });
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);
+              updateFrameCache(sessionId, frame);
               sendToSession(sessionId, 'vnc:frame', { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
             } else if (type === MSG.STATUS) {
               let status;
@@ -53,7 +76,11 @@ registerMainProtocol('vnc', {
                 resolve({ ok: false, error: status.message || '연결 실패', kind: 'other' });
               }
               sendToSession(sessionId, 'vnc:status', status);
-              if (status.state === 'disconnected' || status.state === 'error') { sessions.delete(sessionId); unregisterSession(sessionId); }
+              if (status.state === 'disconnected' || status.state === 'error') {
+                sessions.delete(sessionId);
+                frameCaches.delete(sessionId);
+                unregisterSession(sessionId);
+              }
             }
           },
           (logLine) => { console.log('[vnc-helper][' + sessionId + ']', logLine.trimEnd()); }
@@ -66,6 +93,7 @@ registerMainProtocol('vnc', {
             resolve({ ok: false, error: 'VNC 헬퍼 프로세스가 비정상 종료되었습니다', kind: 'other' });
           }
           sessions.delete(sessionId);
+          frameCaches.delete(sessionId);
           unregisterSession(sessionId);
         });
         helper.child.on('error', (err) => {
@@ -78,6 +106,7 @@ registerMainProtocol('vnc', {
             resolve({ ok: false, error: 'VNC 헬퍼 프로세스를 시작할 수 없습니다: ' + err.message + hint, kind: 'other' });
           }
           sessions.delete(sessionId);
+          frameCaches.delete(sessionId);
           unregisterSession(sessionId);
         });
 
@@ -93,6 +122,7 @@ registerMainProtocol('vnc', {
     ipcMain.handle('vnc:disconnect', (_event, sessionId) => {
       const helper = sessions.get(sessionId);
       if (helper) { helper.disconnect(); helper.kill(); sessions.delete(sessionId); }
+      frameCaches.delete(sessionId);
       unregisterSession(sessionId);
       return { ok: true };
     });
@@ -106,8 +136,24 @@ registerMainProtocol('vnc', {
       if (helper) helper.key(keysym, down);
     });
   },
+
+  onSessionWindowChanged(sessionId, newWin) {
+    const cache = frameCaches.get(sessionId);
+    if (cache) {
+      newWin.webContents.send('vnc:frame', sessionId, { x: 0, y: 0, w: cache.width, h: cache.height }, cache.buffer);
+    }
+    if (savedCtx) savedCtx.replayLastSend(sessionId, 'vnc:status', newWin);
+  },
+
+  disconnectSession(sessionId) {
+    const helper = sessions.get(sessionId);
+    if (helper) { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); sessions.delete(sessionId); }
+    frameCaches.delete(sessionId);
+  },
+
   disconnectAll() {
     sessions.forEach((helper) => { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); });
     sessions.clear();
+    frameCaches.clear();
   },
 });

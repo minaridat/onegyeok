@@ -10,13 +10,38 @@ const { MSG, spawnHelper, parseFramePayload } = require('./helper-bridge');
 const CONNECT_TIMEOUT_MS = 15000;
 
 const sessions = new Map(); // sessionId -> helper(spawnHelper 반환값)
+let savedCtx = null; // wire(ctx)가 저장해둔다 — onSessionWindowChanged는 wire() 밖이라 클로저로 못 받음
+// 세션별 "지금까지 합성된 전체 화면" 캐시 — FRAME 이벤트는 변경된 사각형만 보내는 증분
+// 업데이트라, 탭이 다른 창으로 옮겨질 때(Stage B) 그 사각형 하나만 재전송하면 화면 대부분이
+// 비어 보인다. 매 FRAME마다 이 버퍼의 해당 영역을 덮어써두고, 창 이동 시 전체를 한 번에
+// 보내 새 창이 바로 완전한 화면을 보게 한다.
+const frameCaches = new Map(); // sessionId -> { width, height, buffer(BGRA32) }
+
+function updateFrameCache(sessionId, frame) {
+  let cache = frameCaches.get(sessionId);
+  if (!cache || frame.x + frame.w > cache.width || frame.y + frame.h > cache.height) {
+    // 처음 받거나(헬퍼가 보통 첫 프레임은 풀프레임) 캐시보다 큰 영역이 오면 캐시 자체를 새로 키운다.
+    const width = Math.max(cache ? cache.width : 0, frame.x + frame.w);
+    const height = Math.max(cache ? cache.height : 0, frame.y + frame.h);
+    const buffer = Buffer.alloc(width * height * 4);
+    if (cache) cache.buffer.copy(buffer); // 기존 내용 보존(새로 커진 영역만 비어 있음)
+    cache = { width, height, buffer };
+    frameCaches.set(sessionId, cache);
+  }
+  for (let row = 0; row < frame.h; row++) {
+    const srcStart = row * frame.w * 4;
+    const dstStart = ((frame.y + row) * cache.width + frame.x) * 4;
+    frame.pixels.copy(cache.buffer, dstStart, srcStart, srcStart + frame.w * 4);
+  }
+}
 
 registerMainProtocol('rdp', {
   wire(ctx) {
+    savedCtx = ctx;
     const { ipcMain, sendToSession, registerSessionWindow, unregisterSession, windowForEvent } = ctx;
 
     ipcMain.handle('rdp:connect', (event, sessionId, params) => {
-      registerSessionWindow(sessionId, windowForEvent(event));
+      registerSessionWindow(sessionId, windowForEvent(event), 'rdp');
       return new Promise((resolve) => {
         if (sessions.has(sessionId)) sessions.get(sessionId).kill();
 
@@ -42,6 +67,7 @@ registerMainProtocol('rdp', {
               sendToSession(sessionId, 'rdp:status', { state: 'connected' });
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);
+              updateFrameCache(sessionId, frame);
               sendToSession(sessionId, 'rdp:frame', { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
             } else if (type === MSG.STATUS) {
               let status;
@@ -53,7 +79,11 @@ registerMainProtocol('rdp', {
                 resolve({ ok: false, error: status.message || '연결 실패', kind: 'other' });
               }
               sendToSession(sessionId, 'rdp:status', status);
-              if (status.state === 'disconnected' || status.state === 'error') { sessions.delete(sessionId); unregisterSession(sessionId); }
+              if (status.state === 'disconnected' || status.state === 'error') {
+                sessions.delete(sessionId);
+                frameCaches.delete(sessionId);
+                unregisterSession(sessionId);
+              }
             }
           },
           (logLine) => { console.log('[rdp-helper][' + sessionId + ']', logLine.trimEnd()); }
@@ -66,6 +96,7 @@ registerMainProtocol('rdp', {
             resolve({ ok: false, error: 'RDP 헬퍼 프로세스가 비정상 종료되었습니다', kind: 'other' });
           }
           sessions.delete(sessionId);
+          frameCaches.delete(sessionId);
           unregisterSession(sessionId);
         });
         helper.child.on('error', (err) => {
@@ -78,6 +109,7 @@ registerMainProtocol('rdp', {
             resolve({ ok: false, error: 'RDP 헬퍼 프로세스를 시작할 수 없습니다: ' + err.message + hint, kind: 'other' });
           }
           sessions.delete(sessionId);
+          frameCaches.delete(sessionId);
           unregisterSession(sessionId);
         });
 
@@ -96,6 +128,7 @@ registerMainProtocol('rdp', {
     ipcMain.handle('rdp:disconnect', (_event, sessionId) => {
       const helper = sessions.get(sessionId);
       if (helper) { helper.disconnect(); helper.kill(); sessions.delete(sessionId); }
+      frameCaches.delete(sessionId);
       unregisterSession(sessionId);
       return { ok: true };
     });
@@ -113,8 +146,26 @@ registerMainProtocol('rdp', {
       if (helper) helper.resize(width, height);
     });
   },
+
+  // 탭이 다른 창으로 옮겨질 때(Stage B, window-manager.js) 호출된다 — 그 창이 받을 다음 자연스러운
+  // FRAME 이벤트까지 기다리게 하지 않고, 지금까지 합성된 화면 전체를 한 번에 재전송한다.
+  onSessionWindowChanged(sessionId, newWin) {
+    const cache = frameCaches.get(sessionId);
+    if (cache) {
+      newWin.webContents.send('rdp:frame', sessionId, { x: 0, y: 0, w: cache.width, h: cache.height }, cache.buffer);
+    }
+    if (savedCtx) savedCtx.replayLastSend(sessionId, 'rdp:status', newWin);
+  },
+
+  disconnectSession(sessionId) {
+    const helper = sessions.get(sessionId);
+    if (helper) { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); sessions.delete(sessionId); }
+    frameCaches.delete(sessionId);
+  },
+
   disconnectAll() {
     sessions.forEach((helper) => { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); });
     sessions.clear();
+    frameCaches.clear();
   },
 });

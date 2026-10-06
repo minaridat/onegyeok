@@ -274,6 +274,74 @@ function startSshSession(tabId, serverId, statusEl, hostEl){
   promptAndConnect(tabId, session);
 }
 
+// startSession/attachSession 레지스트리 메서드가 공유하는 pane 뼈대(분할 컨트롤 + 첫 셀) —
+// 중복 방지. 반환값은 createPaneCellDom()의 첫 셀 결과(statusEl/hostEl 포함).
+function buildSshPaneShell(tabId, el){
+  el.className = 'pane pane-layout ssh-pane';
+  el.innerHTML =
+    '<div class="pane-split-controls">' +
+      '<button type="button" class="split-btn" data-orientation="row" title="세로 분할 (⌘D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="7" height="16" rx="1"></rect><rect x="11" y="2" width="7" height="16" rx="1"></rect></svg></button>' +
+      '<button type="button" class="split-btn" data-orientation="column" title="가로 분할 (⌘⇧D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="16" height="7" rx="1"></rect><rect x="2" y="11" width="16" height="7" rx="1"></rect></svg></button>' +
+    '</div>' +
+    '<div class="pane-cells"></div>';
+  tabLayouts[tabId] = { orientation: null, paneIds: [tabId] };
+  var firstCell = createPaneCellDom(tabId);
+  el.querySelector('.pane-cells').appendChild(firstCell.cellEl);
+  return firstCell;
+}
+
+// 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
+// xterm Terminal·세션 맵 엔트리 등 로컬 UI 상태만 정리한다. main 프로세스의 실제 ssh2 연결은
+// 살아있고, 새 창이 이어받는다. 탭이 분할돼 있으면(여러 pane) 안전하게 전부 정리하지 못하므로
+// core/tabs.js의 detachTabLocal()이 애초에 분할된 탭에는 이 함수를 부르지 않는다(항상 단일
+// 세션 가정).
+function detachSshSessionLocal(tabId){
+  var s = sshSessions[tabId];
+  if(!s) return;
+  try { s.term.dispose(); } catch(_e){ /* noop */ }
+  var serverId = s.srv && s.srv.id;
+  delete sshSessions[tabId];
+  broadcastSet.delete(tabId);
+  if(broadcastMode) updateBroadcastCount();
+  if(serverId) updateServerRowStatus(serverId);
+}
+
+// 다른 창에서 넘어온(이미 연결돼 있을 수 있는) 탭을 이 창에서 받을 때 호출된다 — 로그인
+// 프롬프트를 건너뛰고 바로 터미널을 연다. 실제 상태(및 handleInput 활성화)는 메인 프로세스가
+// 직후에 재전송하는 ssh:status 이벤트로 채워진다(아래 onStatus 리스너가 'connected'를 받으면
+// handleInput을 실제 전송 함수로 바꾼다 — promptAndConnect를 거치지 않아도 동일하게 동작).
+function attachSshSession(tabId, serverId, statusEl, hostEl){
+  var srv = SERVERS.find(function(s){ return s.id === serverId; });
+  if(!srv) return;
+
+  var term = new window.Terminal({
+    fontFamily: 'ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", "D2Coding", Consolas, monospace',
+    fontSize: 13,
+    theme: { background: '#18150f', foreground: '#ece7d8', cursor: '#e2a765' },
+    cursorBlink: true,
+    scrollback: 5000,
+  });
+  var fitAddon = new window.FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(hostEl);
+
+  var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'connecting', handleInput: function(){}, srv: srv, authAttempts: 0, activeUsername: srv.username || null };
+  sshSessions[tabId] = session;
+  statusEl.style.display = 'none';
+
+  term.onData(function(data){ dispatchTerminalInput(tabId, data); });
+  requestAnimationFrame(function(){ fitSshSession(tabId); });
+  // 알려진 한계(known limitation): 이전 창의 스크롤백(터미널 출력 이력)은 옮겨오지 않는다 —
+  // xterm 버퍼 직렬화는 이번 버전 범위 밖이라, 새 터미널은 빈 화면에서 시작해 다음 출력부터 보인다.
+  term.writeln('\x1b[2m(다른 창에서 이어받음 — 이전 화면 내용은 표시되지 않습니다)\x1b[0m');
+
+  if(broadcastMode){
+    var newTab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
+    if(newTab) setTabBroadcastChecked(newTab, true);
+    updateBroadcastCount();
+  }
+}
+
 function disposeSshSession(tabId){
   var s = sshSessions[tabId];
   if(!s) return;
@@ -597,17 +665,17 @@ registerProtocol('ssh', {
   meta: { label:'SSH', icon:'<svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>' },
 
   startSession: function(tabId, serverId, el){
-    el.className = 'pane pane-layout ssh-pane';
-    el.innerHTML =
-      '<div class="pane-split-controls">' +
-        '<button type="button" class="split-btn" data-orientation="row" title="세로 분할 (⌘D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="7" height="16" rx="1"></rect><rect x="11" y="2" width="7" height="16" rx="1"></rect></svg></button>' +
-        '<button type="button" class="split-btn" data-orientation="column" title="가로 분할 (⌘⇧D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="16" height="7" rx="1"></rect><rect x="2" y="11" width="16" height="7" rx="1"></rect></svg></button>' +
-      '</div>' +
-      '<div class="pane-cells"></div>';
-    tabLayouts[tabId] = { orientation: null, paneIds: [tabId] };
-    var firstCell = createPaneCellDom(tabId);
-    el.querySelector('.pane-cells').appendChild(firstCell.cellEl);
+    var firstCell = buildSshPaneShell(tabId, el);
     startSshSession(tabId, serverId, firstCell.statusEl, firstCell.hostEl);
+    updateLayoutChrome(tabId);
+  },
+  // 분할된 탭은 core/tabs.js의 detachTabLocal()이 애초에 detachLocal을 부르지 않으므로(복수
+  // 세션을 옮기는 복잡도 회피 — ssh.js 상단 detachSshSessionLocal 주석 참고), attachSession은
+  // 항상 분할 전 단일 세션 pane으로 새로 열린다.
+  detachLocal: detachSshSessionLocal,
+  attachSession: function(tabId, serverId, el){
+    var firstCell = buildSshPaneShell(tabId, el);
+    attachSshSession(tabId, serverId, firstCell.statusEl, firstCell.hostEl);
     updateLayoutChrome(tabId);
   },
 

@@ -91,6 +91,24 @@ contextBridge.exposeInMainWorld('onegyeok', {
     },
   },
 
+  // 탭을 끌어서 별도 창으로 분리/병합하는 기능(Stage B) — src/main/core/window-manager.js.
+  window: {
+    getInitialState: () => ipcRenderer.invoke('window:getInitialState'),
+    detachTab: (payload) => ipcRenderer.invoke('window:detachTab', payload),
+    mergeTab: (payload) => ipcRenderer.invoke('window:mergeTab', payload),
+    isPointInAnotherWindow: (screenX, screenY) => ipcRenderer.invoke('window:isPointInAnotherWindow', screenX, screenY),
+    onTabDetached: (callback) => {
+      const listener = (_event, tabId) => callback(tabId);
+      ipcRenderer.on('window:tabDetached', listener);
+      return () => ipcRenderer.removeListener('window:tabDetached', listener);
+    },
+    onTabAttached: (callback) => {
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('window:tabAttached', listener);
+      return () => ipcRenderer.removeListener('window:tabAttached', listener);
+    },
+  },
+
   vnc: {
     connect: (sessionId, params) => ipcRenderer.invoke('vnc:connect', sessionId, params),
     disconnect: (sessionId) => ipcRenderer.invoke('vnc:disconnect', sessionId),

@@ -28,4 +28,10 @@ function disconnectAllProtocols() {
   });
 }
 
-module.exports = { registerMainProtocol, wireAll, disconnectAllProtocols };
+// 탭 분리/병합(Stage B, src/main/core/window-manager.js)이 특정 프로토콜의 def를 직접 찾아
+// disconnectOne(sessionId)/onSessionWindowChanged(sessionId, newWin) 같은 선택적 훅을 호출할 때 쓴다.
+function getProtocol(name) {
+  return protocols[name] || null;
+}
+
+module.exports = { registerMainProtocol, wireAll, disconnectAllProtocols, getProtocol };
