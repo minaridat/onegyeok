@@ -27,7 +27,7 @@
     });
     var body=el.querySelector('tbody');body.innerHTML='';
     rows.forEach(function(f){
-      var tr=document.createElement('tr');tr.draggable=!f.directory&&!f.symlink;tr.dataset.name=f.name;
+      var tr=document.createElement('tr');tr.className=f.directory?'files-directory':'files-file';tr.draggable=!f.directory&&!f.symlink;tr.dataset.name=f.name;
       tr.innerHTML='<td><input type="checkbox" aria-label="'+escapeHtml(f.name)+' 선택"'+(p.selected.has(f.name)?' checked':'')+'></td><td>'+escapeHtml((f.directory?'📁 ':f.symlink?'↗ ':'')+f.name)+'</td><td>'+f.size+'</td><td>'+escapeHtml(f.modified?new Date(f.modified).toLocaleString():'—')+'</td><td>'+escapeHtml(f.permissions||'—')+'</td>';
       tr.querySelector('input').onchange=function(e){if(e.target.checked)p.selected.add(f.name);else p.selected.delete(f.name);};
       tr.ondblclick=function(){if(f.directory)refresh(s,side,join(p.path,f.name)).catch(function(){});};
