@@ -1,0 +1,10 @@
+/* Web 콘솔 pane — 주소 표시줄 + 내장 <webview> */
+.pane.web-pane{padding:0;background:var(--bg);color:var(--text);}
+.web-toolbar{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--border);flex:none;}
+.web-toolbar .web-url{flex:1;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.web-toolbar button{font:inherit;font-size:var(--fs-xs);padding:4px 9px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text);cursor:pointer;}
+.web-toolbar button:hover{background:var(--hover, rgba(128,128,128,.12));}
+.web-pane webview{flex:1;border:none;background:#fff;}
+.web-error{padding:24px;color:var(--danger);font-size:var(--fs-sm);}
