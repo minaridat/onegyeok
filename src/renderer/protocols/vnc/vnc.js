@@ -81,6 +81,8 @@ function buildVncPaneDom(el){
     '<div class="vnc-workspace">' +
       '<div class="vnc-toolbar">' +
         '<span class="vnc-meta"></span>' +
+        '<button type="button" class="icon-btn vnc-actualsize-btn" title="실제 크기(1:1)로 보기 / 창에 맞추기"><svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><rect x="3" y="3" width="14" height="14" rx="1.4"></rect><path d="M7 10h6M10 7v6"></path></svg></button>' +
+        '<button type="button" class="icon-btn vnc-fullscreen-btn" title="전체화면"><svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><path d="M3 7V3h4M17 7V3h-4M3 13v4h4M17 13v4h-4"></path></svg></button>' +
         '<button type="button" class="vnc-disconnect-btn" title="연결 종료"><svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="10" cy="10" r="7.5"></circle><line x1="7" y1="7" x2="13" y2="13"></line><line x1="13" y1="7" x2="7" y2="13"></line></svg></button>' +
       '</div>' +
       '<div class="vnc-display-wrap"><canvas class="vnc-canvas" tabindex="0"></canvas></div>' +
@@ -91,6 +93,8 @@ function buildVncPaneDom(el){
     connectError: el.querySelector('.vnc-connect-error'),
     connectBtn: el.querySelector('.vnc-connect-btn'),
     meta: el.querySelector('.vnc-meta'),
+    actualSizeBtn: el.querySelector('.vnc-actualsize-btn'),
+    fullscreenBtn: el.querySelector('.vnc-fullscreen-btn'),
     disconnectBtn: el.querySelector('.vnc-disconnect-btn'),
     displayWrap: el.querySelector('.vnc-display-wrap'),
     canvas: el.querySelector('.vnc-canvas'),
@@ -125,8 +129,19 @@ function setupVncInput(tabId){
     return 0;
   }
   function canvasXY(e){
+    // object-fit:contain으로 canvas를 CSS에서 확대/축소하므로(화면 크기조정 기능), 화면 좌표를
+    // canvas의 내부 픽셀 좌표(=원격 해상도)로 환산해야 한다. pane 비율과 원격 해상도 비율이 다르면
+    // object-fit:contain이 레터박스(위아래 또는 좌우 여백)를 만드므로, rect 전체 크기가 아니라
+    // 실제 그려진 영역만 따로 계산해야 한다 — 그냥 rect 비율로 나누면 레터박스가 있을 때 클릭 위치가 어긋난다.
     var rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    var scale = Math.min(rect.width / canvas.width, rect.height / canvas.height);
+    var renderedW = canvas.width * scale, renderedH = canvas.height * scale;
+    var offsetX = (rect.width - renderedW) / 2, offsetY = (rect.height - renderedH) / 2;
+    // 레터박스 여백을 클릭하면 범위 밖 좌표가 나올 수 있다 — IPC 쪽 writeUInt16LE가 음수/범위초과
+    // 값에 예외를 던지므로 캔버스 범위 안으로 clamp한다.
+    var x = Math.min(canvas.width - 1, Math.max(0, (e.clientX - rect.left - offsetX) / scale));
+    var y = Math.min(canvas.height - 1, Math.max(0, (e.clientY - rect.top - offsetY) / scale));
+    return { x: x, y: y };
   }
 
   canvas.addEventListener('mousemove', function(e){
@@ -251,6 +266,17 @@ function startVncSession(tabId, serverId, el){
   dom.connectBtn.addEventListener('click', function(){ attemptVncConnect(tabId); });
   dom.passwordInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); attemptVncConnect(tabId); } });
   dom.disconnectBtn.addEventListener('click', function(){ disconnectVncKeepTab(tabId); });
+  dom.actualSizeBtn.addEventListener('click', function(){
+    var on = dom.displayWrap.classList.toggle('actual-size');
+    dom.actualSizeBtn.classList.toggle('active', on);
+  });
+  dom.fullscreenBtn.addEventListener('click', function(){
+    if(document.fullscreenElement === el) document.exitFullscreen();
+    else el.requestFullscreen();
+  });
+  el.addEventListener('fullscreenchange', function(){
+    dom.fullscreenBtn.classList.toggle('active', document.fullscreenElement === el);
+  });
 
   if(!hasVncBridge){
     dom.connectError.textContent = 'VNC 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)';

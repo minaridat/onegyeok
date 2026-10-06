@@ -19,9 +19,18 @@
 .vnc-toolbar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(0,0,0,.3);
   border-bottom:1px solid rgba(255,255,255,.08);flex:none;}
 .vnc-meta{font-size:var(--fs-xs);color:rgba(255,255,255,.6);font-family:var(--font-mono);}
+.vnc-toolbar .icon-btn{display:flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border:none;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;border-radius:5px;}
+.vnc-toolbar .icon-btn:hover{background:rgba(255,255,255,.12);color:#fff;}
+.vnc-toolbar .icon-btn.active{color:var(--accent);}
 .vnc-disconnect-btn{margin-left:auto;display:flex;align-items:center;justify-content:center;width:22px;height:22px;
   border:none;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;border-radius:5px;}
 .vnc-disconnect-btn:hover{background:rgba(255,255,255,.12);color:#fff;}
-.vnc-display-wrap{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;outline:none;}
+.vnc-display-wrap{flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;outline:none;}
 .vnc-display-wrap:focus-visible{box-shadow:inset 0 0 0 2px var(--term-accent);}
-.vnc-canvas{display:block;cursor:default;outline:none;}
+/* RDP와 동일한 스케일 방식 — docs/기술스택/04_VNC_기술스택.md도 참고 */
+.vnc-canvas{display:block;cursor:default;outline:none;width:100%;height:100%;object-fit:contain;}
+.vnc-display-wrap.actual-size{overflow:auto;}
+.vnc-display-wrap.actual-size .vnc-canvas{width:auto;height:auto;object-fit:none;}
+.vnc-pane.connected:fullscreen{background:#000;}
+.vnc-pane.connected:fullscreen .vnc-workspace{height:100vh;}

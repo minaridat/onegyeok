@@ -246,6 +246,11 @@ function closeTabById(tabId, skipDispose){
   }
 }
 
+closeActiveTabBtn.addEventListener('click', function(){
+  var activeTab = tabbar.querySelector('.tab.active');
+  if(activeTab) closeTabById(activeTab.dataset.id);
+});
+
 // 서버를 완전히 삭제할 때는 그 서버로 열려 있는 탭/세션을 전부 닫는다(여러 개 열려 있을 수 있음).
 function removeServerById(serverId){
   if(hasMemoBridge) window.onegyeok.saveMemo(serverId, '');
