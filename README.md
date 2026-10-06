@@ -33,8 +33,9 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
   (tmux 등 세션 유지 도구는 자동 실행하지 않습니다 — 필요하면 터미널에서 직접 실행하세요).
 - **SQL DB 클라이언트 ("SQL" 연결 종류)** — 디비버 느낌으로 MySQL/MariaDB, PostgreSQL, MS SQL Server에
   접속해 쿼리를 실행하고 결과를 테이블로 봅니다. 비밀번호는 SSH와 동일하게 저장하지 않습니다.
-- **RDP 원격 데스크톱** — Apache Guacamole(`guacd`) 기반으로 실제 원격 화면을 `<canvas>`에 렌더링하고
-  마우스/키보드를 그대로 전달합니다. ⚠️ SSH/SQL과 달리 `guacd`가 별도로 떠 있어야 접속됩니다(아래 참고).
+- **RDP/VNC 원격 데스크톱** — `libfreerdp`/`libvncclient`를 직접 링크한 네이티브 헬퍼(외부 서버·Docker
+  불필요)가 실제 원격 화면을 `<canvas>`에 렌더링하고 마우스/키보드를 그대로 전달합니다. 최초 1회
+  `npm run build:native` 빌드가 필요합니다(아래 참고).
 - **탭 안에서 터미널 분할** — 하나의 SSH 탭을 가로/세로로 나눠 같은 서버의 새 세션을 띄우거나,
   이미 열려 있는 다른 세션을 그 자리로 그대로 가져올 수 있습니다(서버 측 tmux에 의존하지 않음).
 - **앱 종료 시 모든 연결 강제 종료** — 보안 요구사항(F-502). 프로토콜 필터·탭 전환 중에는 연결이
@@ -65,8 +66,9 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
 
 - [Node.js](https://nodejs.org/) 18 이상 (LTS 권장)
 - [Git](https://git-scm.com/)
-- **RDP를 쓰려면**: [`guacd`](https://hub.docker.com/r/guacamole/guacd)가 별도로 떠 있어야 합니다(SSH/SQL은 필요 없음) —
-  `docker run -d -p 4822:4822 guacamole/guacd`. 자세한 이유는 [03_RDP_기술스택.md](./docs/기술스택/03_RDP_기술스택.md) 참고.
+- **RDP/VNC를 쓰려면**: 네이티브 헬퍼(`libfreerdp`/`libvncclient` 직접 링크, 외부 서버·Docker 불필요)를
+  한 번 빌드해야 합니다 — `npm install` 뒤 `npm run build:native` 실행(아래 참고). SSH/SQL/SFTP/Web은
+  필요 없습니다. macOS는 `brew install freerdp libvncserver pkg-config`로 빌드 의존성을 먼저 설치하세요.
 
 설치 여부 확인:
 
@@ -86,7 +88,10 @@ git clone https://github.com/minaridat/onegyeok.git
 cd onegyeok
 npm install
 
-# 3. 실행
+# 3. RDP/VNC 네이티브 헬퍼 빌드(최초 1회 — 워크트리/클론마다 필요, 빌드 산출물은 git에 안 들어있음)
+npm run build:native
+
+# 4. 실행
 npm start
 ```
 
@@ -194,8 +199,9 @@ npm start
 - [x] 같은 서버로 여러 세션 동시 접속, 동시 입력(브로드캐스트) 모드
 - [x] 탭 안에서 터미널 분할(세션 복제/세션 선택, tmux 비의존)
 - [x] SQL DB 클라이언트("SQL" 연결 종류) — MySQL/MariaDB, PostgreSQL, MS SQL Server
-- [x] RDP 원격 데스크톱("RDP" 연결 종류) — Apache Guacamole(`guacd`) 기반, 실제 화면 렌더링 + 마우스/키보드
-- [x] 앱 종료 시 전체 연결(SSH/SQL/RDP) 강제 종료
+- [x] RDP 원격 데스크톱("RDP" 연결 종류) — `libfreerdp` 네이티브 헬퍼, 실제 화면 렌더링 + 마우스/키보드
+- [x] VNC 원격 화면 공유("VNC" 연결 종류) — `libvncclient` 네이티브 헬퍼
+- [x] 앱 종료 시 전체 연결(SSH/SQL/RDP/VNC) 강제 종료
 - [ ] 마스터 패스워드 앱 잠금
 - [ ] 서버 목록 자체 암호화 저장, 접속 로그 기록
 - [ ] VNC/SFTP/Web — 기능 명세는 작성됨([docs/기능명세/](./docs/기능명세/)), 구현은 아직

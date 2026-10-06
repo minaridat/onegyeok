@@ -5,7 +5,8 @@
   "main": "src/main/main.js",
   "private": true,
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:native": "make -C native/rdp-helper && make -C native/vnc-helper"
   },
   "license": "UNLICENSED",
   "devDependencies": {
