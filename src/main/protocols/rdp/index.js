@@ -74,7 +74,10 @@ registerMainProtocol('rdp', {
           if (!settled) {
             settled = true;
             clearTimeout(timeoutTimer);
-            resolve({ ok: false, error: 'RDP 헬퍼 프로세스를 시작할 수 없습니다: ' + err.message, kind: 'other' });
+            // ENOENT는 거의 항상 "네이티브 헬퍼 바이너리를 이 워크트리/체크아웃에서 아직 빌드 안 함"이다
+            // (onegyeok-rdp-helper는 .gitignore 대상이라 git에 안 들어있다 — 워크트리마다 한 번 빌드해야 함).
+            const hint = err.code === 'ENOENT' ? ' (native/rdp-helper 바이너리가 없음 — `npm run build:native` 실행 필요)' : '';
+            resolve({ ok: false, error: 'RDP 헬퍼 프로세스를 시작할 수 없습니다: ' + err.message + hint, kind: 'other' });
           }
           sessions.delete(sessionId);
         });
