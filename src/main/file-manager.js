@@ -21,7 +21,7 @@ function publish(s, job) {
   const speed = job.status === 'running' ? Math.round((job.bytesTransferred - (job.startBytes || 0)) / seconds) : 0;
   event(s, 'job', { id:job.id, direction:job.direction, localPath:job.localPath, remotePath:job.remotePath,
     status:job.status, bytesTotal:job.bytesTotal, bytesTransferred:job.bytesTransferred, speed,
-    etaSeconds:speed ? Math.ceil((job.bytesTotal - job.bytesTransferred) / speed) : null, error:job.error || null, verified:!!job.verified });
+    etaSeconds:speed ? Math.ceil((job.bytesTotal - job.bytesTransferred) / speed) : null, error:job.error || null, verified:!!job.verified,warning:job.warning||null });
 }
 function serial(s, task) {
   const next = s.tail.then(() => { if(s.disposed) throw Error('연결이 종료되었습니다'); return task(); });
@@ -155,6 +155,14 @@ async function transfer(s, job, generation) {
     job.verified=true;
   }
   if(job.status !== 'running' || s.disposed || job.generation !== generation) throw Error('전송이 중단되었습니다');
+  if(Number.isFinite(job.modified)) {
+    try {
+      if(!upload)await fsp.utimes(job.partial,new Date(),new Date(job.modified));
+      else if(s.mode==='sftp')await new Promise((resolve,reject)=>s.client.sftp.utimes(job.partial,new Date(),new Date(job.modified),(err)=>err?reject(err):resolve()));
+      else {const stamp=new Date(job.modified).toISOString().replace(/[-:T]/g,'').slice(0,14);await s.client.send('MFMT '+stamp+' '+job.partial);}
+    }catch{job.warning='수정일 보존을 지원하지 않는 서버입니다. 다음 비교에서 크기 기준을 선택할 수 있습니다';}
+  }
+  if(job.status !== 'running' || job.generation !== generation)throw Error('전송이 중단되었습니다');
   job.status='committing';publish(s,job);
   if(upload) {
     if(!job.overwrite && await exists(s,job.remotePath))throw Error('대상 파일이 이미 존재합니다');
@@ -194,7 +202,7 @@ function enqueue(id, params) {
   if(!['upload','download'].includes(params.direction)) throw Error('잘못된 전송 방향입니다');
   if(typeof params.localPath !== 'string' || !path.isAbsolute(params.localPath)) throw Error('로컬 절대 경로가 필요합니다');
   const job={id:crypto.randomUUID(),direction:params.direction,localPath:params.localPath,remotePath:remotePath(params.remotePath),
-    status:'queued',generation:0,bytesTotal:null,bytesTransferred:0,startedAt:Date.now(),verify:!!params.verify,overwrite:!!params.overwrite};
+    status:'queued',generation:0,bytesTotal:null,bytesTransferred:0,startedAt:Date.now(),verify:!!params.verify,overwrite:!!params.overwrite,modified:params.modified};
   job.partial=job.direction === 'upload' ? job.remotePath+'.onegyeok-'+job.id+'.part' : job.localPath+'.onegyeok-'+job.id+'.part';
   s.jobs.set(job.id,job);publish(s,job);schedule(s,job);return job.id;
 }
@@ -212,9 +220,11 @@ function control(id, jobId, action) {
 }
 async function disconnect(id) {
   const s=sessions.get(id);if(!s) return;
-  sessions.delete(id);s.disposed=true;
+  workflows.clear(id);sessions.delete(id);s.disposed=true;
   for(const job of s.jobs.values()) { if(!['done','error','canceled'].includes(job.status)) job.status='canceled';job.generation++;if(job.interrupt)job.interrupt(Error('연결 종료'));for(const stream of job.streams || []) stream.destroy(Error('연결 종료')); }
   closeClient(s,true);s.params={};
 }
 function disconnectAll() {for(const id of sessions.keys()) disconnect(id);}
-module.exports={connect,disconnect,disconnectAll,localList,list,operation,enqueue,control,remotePath};
+const manager={connect,disconnect,disconnectAll,localList,list,operation,enqueue,control,remotePath,assertConnected:getSession,emit:(id,type,data)=>event(getSession(id),type,data)};
+const workflows=require('./file-workflows')(manager);
+module.exports={...manager,preview:workflows.preview,execute:workflows.execute,recursive:workflows.recursive,renamePreview:workflows.renamePreview,reserve:workflows.reserve,cancelReservation:workflows.cancelReservation};

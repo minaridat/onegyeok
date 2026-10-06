@@ -29,3 +29,14 @@
 .files-pane .files-list th button{border:0;background:transparent;color:#333;padding:3px 0;font-weight:600;cursor:pointer;}
 .files-pane .files-job,.files-pane .files-job span{color:#000;}
 .files-pane .files-message{color:#333;background:#fff;}
+
+.files-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;background:#f1f5f9;color:#202020;border-bottom:1px solid #cbd5e1;}
+.files-tools[hidden],.files-plans[hidden]{display:none;}
+.files-tools label{display:flex;align-items:center;gap:4px;font-size:12px;}
+.files-tools span{font-size:12px;color:#444;}
+.files-tools input:not([type="checkbox"]){width:125px;}
+.files-plans{padding:8px;background:#fff;color:#202020;border-bottom:1px solid #cbd5e1;}
+.files-plan-list{max-height:180px;overflow:auto;}
+.files-plan-list table{width:100%;font-size:12px;border-collapse:collapse;}
+.files-plan-list td,.files-plan-list th{text-align:left;padding:4px;border-bottom:1px solid #ddd;overflow-wrap:anywhere;}
+.files-schedules{max-height:80px;overflow:auto;padding:0 10px;background:#fff;color:#202020;font-size:12px;}
