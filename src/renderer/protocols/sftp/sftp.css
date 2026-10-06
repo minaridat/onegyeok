@@ -1,7 +1,7 @@
-.files-pane{padding:0;background:var(--bg-elevated);color:var(--text);}
+.files-pane{padding:0;background:#fff;color:#202020;}
 .files-login{margin:auto;display:flex;flex-direction:column;gap:12px;width:300px;}
 .files-login label{display:flex;flex-direction:column;gap:5px;}
-.files-pane input,.files-pane select,.files-pane button{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:6px;}
+.files-pane input,.files-pane select,.files-pane button{font:inherit;color:#202020;background:#fff;border:1px solid #cbd5e1;border-radius:5px;padding:6px;}
 .files-pane button{cursor:pointer;}.files-pane button:disabled{opacity:.5;cursor:default;}
 .files-workspace{display:none;flex:1;min-height:0;flex-direction:column;}
 .files-pane.connected .files-login{display:none;}.files-pane.connected .files-workspace{display:flex;}
@@ -22,3 +22,10 @@
 .files-crumbs{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px;}.files-crumbs button{padding:2px 5px;font-size:11px;}
 .files-list{overflow:auto;flex:1;}.files-list table{border-collapse:collapse;width:100%;font-size:12px;}.files-list th{position:sticky;top:0;background:var(--bg-sunken);}.files-list td,.files-list th{text-align:left;padding:5px;border-bottom:1px solid var(--border);white-space:nowrap;}.files-list tr:hover{background:var(--accent-soft);}
 .files-queue-title{font-size:12px;margin:5px 10px;}.files-jobs{height:145px;overflow:auto;flex:none;padding:5px 10px;}.files-job{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding:5px;font-size:11px;}.files-job>span:first-child{width:100%;overflow-wrap:anywhere;}.files-message{color:var(--danger);padding:5px 10px;white-space:pre-wrap;font-size:12px;}
+
+.files-pane .files-toolbar,.files-pane .files-login,.files-pane .files-queue-title,.files-pane .files-jobs{background:#fff;color:#202020;}
+.files-pane input::placeholder{color:#555;opacity:1;}
+.files-pane .files-panel .files-list th{color:#333;}
+.files-pane .files-list th button{border:0;background:transparent;color:#333;padding:3px 0;font-weight:600;cursor:pointer;}
+.files-pane .files-job,.files-pane .files-job span{color:#000;}
+.files-pane .files-message{color:#333;background:#fff;}
