@@ -14,6 +14,7 @@ registerMainProtocol('sftp', {
     handle('operation',manager.operation);
     handle('enqueue',manager.enqueue);
     handle('control',manager.control);
+    for(const name of ['preview','execute','recursive','renamePreview','reserve','cancelReservation'])handle(name,manager[name]);
     handle('disconnect',manager.disconnect);
   },
   disconnectAll:manager.disconnectAll,

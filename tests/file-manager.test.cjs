@@ -17,7 +17,7 @@ function fixture(){
   async remove(name){files.delete(name);}
  }
  const exported={exports:{}};
- const context=vm.createContext({require(name){if(name==='basic-ftp')return {Client};if(name==='ssh2-sftp-client')return class{};return require(name);},module:exported,Buffer,Promise,Map,Date,setTimeout});
+ const context=vm.createContext({require(name){if(name==='./file-workflows')return require('../src/main/file-workflows');if(name==='basic-ftp')return {Client};if(name==='ssh2-sftp-client')return class{};return require(name);},module:exported,Buffer,Promise,Map,Date,setTimeout});
  vm.runInContext(fs.readFileSync('src/main/file-manager.js','utf8'),context);
  return {manager:exported.exports,files,states,uploads:()=>uploads,failRename(){failRename=true;},stallClose(){stalledClose=true;},block(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});blocked={promise,resolve,reject};return blocked;}};
 }
