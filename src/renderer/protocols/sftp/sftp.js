@@ -17,13 +17,15 @@
   function panelMarkup(side,label){return '<section class="files-panel" data-side="'+side+'"><h3>'+label+'</h3>'+
     '<div class="files-nav"><button type="button" data-parent="'+side+'">상위</button><input class="files-path" aria-label="'+label+' 경로"><button type="button" data-refresh="'+side+'">이동</button></div>'+
     '<div class="files-crumbs"></div><div class="files-filter"><input class="files-search" placeholder="파일 검색" aria-label="'+label+' 파일 검색"><select class="files-sort" aria-label="'+label+' 정렬"><option value="name">이름순</option><option value="size">크기순</option><option value="modified">수정일순</option></select></div>'+
-    '<div class="files-list"><table><thead><tr><th>선택</th><th>이름</th><th>크기</th><th>수정일</th><th>권한</th></tr></thead><tbody></tbody></table></div></section>';}
+    '<div class="files-list"><table><thead><tr><th>선택</th><th aria-sort="ascending"><button type="button" data-sort="name">이름 ▲</button></th><th aria-sort="none"><button type="button" data-sort="size">크기</button></th><th aria-sort="none"><button type="button" data-sort="modified">수정일</button></th><th>권한</th></tr></thead><tbody></tbody></table></div></section>';}
   function renderPanel(s,side){
     var p=s.panels[side],el=s.el.querySelector('[data-side="'+side+'"]');
-    var query=el.querySelector('.files-search').value.toLowerCase(),sort=el.querySelector('.files-sort').value;
+    var query=el.querySelector('.files-search').value.toLowerCase(),sort=p.sort||'name',direction=p.direction||1;
+    el.querySelectorAll('[data-sort]').forEach(function(btn){var active=btn.dataset.sort===sort;btn.textContent={name:'이름',size:'크기',modified:'수정일'}[btn.dataset.sort]+(active?(direction===1?' ▲':' ▼'):'');btn.parentElement.setAttribute('aria-sort',active?(direction===1?'ascending':'descending'):'none');});
     var rows=p.entries.filter(function(f){return f.name.toLowerCase().indexOf(query)>-1;}).sort(function(a,b){
       if(a.directory!==b.directory) return a.directory?-1:1;
-      return sort==='name'?a.name.localeCompare(b.name):(b[sort]||0)-(a[sort]||0);
+      var compared=sort==='name'?a.name.localeCompare(b.name,undefined,{numeric:true}):(Number(a[sort])||0)-(Number(b[sort])||0);
+      return direction*(compared||a.name.localeCompare(b.name,undefined,{numeric:true}));
     });
     var body=el.querySelector('tbody');body.innerHTML='';
     rows.forEach(function(f){
@@ -114,7 +116,7 @@
     el.className='pane files-pane';
     el.innerHTML='<div class="files-login"><h3>'+escapeHtml((srv.fileProtocol||'sftp').toUpperCase()+' · '+srv.host)+'</h3><label>사용자명<input class="files-user" autocomplete="off"></label><label>'+(srv.authMethod==='publickey'?'키 Passphrase (없으면 비움)':'비밀번호')+'<input class="files-secret" type="password" autocomplete="off"></label><button type="button" class="files-connect-btn">접속</button></div>'+
       '<div class="files-workspace"><div class="files-toolbar"><button type="button" data-transfer="local">선택 업로드 →</button><button type="button" data-transfer="remote">← 선택 다운로드</button><label><input class="files-verify" type="checkbox"> SHA-256 검증</label><button type="button" data-op="mkdir">폴더 생성</button><button type="button" data-op="create">파일 생성</button><button type="button" data-op="rename">이름변경</button><button type="button" data-op="delete">삭제</button><button type="button" data-op="chmod">권한</button><button type="button" class="files-disconnect">연결 종료</button></div><div class="files-panels">'+panelMarkup('local','로컬')+panelMarkup('remote','원격')+'</div><h3 class="files-queue-title">전송 큐</h3><div class="files-jobs"></div></div><div class="files-message" role="status"></div>';
-    var s={id:id,srv:srv,el:el,state:'disconnected',jobs:new Map(),panels:{local:{entries:[],selected:new Set(),version:0},remote:{entries:[],selected:new Set(),version:0}}};sessions.set(id,s);
+    var s={id:id,srv:srv,el:el,state:'disconnected',jobs:new Map(),panels:{local:{entries:[],selected:new Set(),version:0,sort:"name",direction:1},remote:{entries:[],selected:new Set(),version:0,sort:"name",direction:1}}};sessions.set(id,s);
     var user=el.querySelector('.files-user');user.value=srv.username||'';if(srv.username)user.closest('label').style.display='none';
     el.querySelector('[data-op="chmod"]').disabled=!!srv.fileProtocol&&srv.fileProtocol!=='sftp';
     el.querySelector('.files-connect-btn').onclick=function(){connect(s);};el.querySelector('.files-secret').onkeydown=function(e){if(e.key==='Enter')connect(s);};
@@ -126,7 +128,8 @@
       panel.querySelector('[data-parent]').onclick=function(){refresh(s,side,s.panels[side].parent).catch(function(){});};
       var go=function(){refresh(s,side,panel.querySelector('.files-path').value).catch(function(){});};
       panel.querySelector('[data-refresh]').onclick=go;panel.querySelector('.files-path').onkeydown=function(e){if(e.key==='Enter')go();};
-      panel.querySelector('.files-search').oninput=function(){renderPanel(s,side);};panel.querySelector('.files-sort').onchange=function(){renderPanel(s,side);};
+      panel.querySelector('.files-search').oninput=function(){renderPanel(s,side);};panel.querySelector('.files-sort').onchange=function(){s.panels[side].sort=this.value;s.panels[side].direction=1;renderPanel(s,side);};
+      panel.querySelectorAll('[data-sort]').forEach(function(btn){btn.onclick=function(){var p=s.panels[side],key=btn.dataset.sort;p.direction=p.sort===key?-(p.direction||1):1;p.sort=key;panel.querySelector('.files-sort').value=key;renderPanel(s,side);};});
       panel.ondragover=function(e){if(Array.from(e.dataTransfer.types).includes('application/x-onegyeok-files'))e.preventDefault();};
       panel.ondrop=function(e){var raw=e.dataTransfer.getData('application/x-onegyeok-files');if(!raw)return;e.preventDefault();try{var data=JSON.parse(raw);if(data.id===id&&data.side!==side)sendFiles(s,data.side,data.names).catch(function(err){message(s,err.message);});}catch(err){message(s,err.message);}};
     });
