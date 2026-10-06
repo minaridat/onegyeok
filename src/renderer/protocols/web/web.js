@@ -6,14 +6,14 @@
 // ==================================================================
 var webSessions = {}; // tabId -> { state, srv, el, view }
 
-// 호스트 입력에서 열 URL을 만든다. 스킴이 있으면 그대로, 없으면 포트가 없거나 443이면 https, 그 외 http.
+// 호스트 입력에서 열 URL을 만든다. 스킴이 있으면 그대로, 없으면 포트가 없거나 443/8443/9443이면 https, 그 외 http.
 function buildWebUrl(srv){
   var host = srv.host;
   var url;
   if(/^[a-z][a-z0-9+.-]*:\/\//i.test(host)){
     url = host;
   } else {
-    var scheme = (!srv.port || srv.port === 443) ? 'https' : 'http';
+    var scheme = (!srv.port || srv.port === 443 || srv.port === 8443 || srv.port === 9443) ? 'https' : 'http';
     var portPart = (srv.port && srv.port !== 80 && srv.port !== 443) ? ':' + srv.port : '';
     url = scheme + '://' + host + portPart;
   }
@@ -47,9 +47,39 @@ registerProtocol('web', {
     view.setAttribute('src', url);
     view.setAttribute('partition', 'web-' + tabId); // persist: 없음 → 메모리 전용(F-1104)
     el.appendChild(view);
+    var errBox = document.createElement('div');
+    errBox.className = 'web-load-error';
+    errBox.hidden = true;
+    el.appendChild(errBox);
     var s = webSessions[tabId] = { state:'connected', srv:srv, el:el, view:view };
     updateServerRowStatus(srv.id);
 
+    view.addEventListener('did-start-loading', function(){ errBox.hidden = true; });
+    view.addEventListener('did-fail-load', function(e){
+      if(!e.isMainFrame || e.errorCode === -3) return; // -3: 사용자가 로드를 중단함(ERR_ABORTED)
+      var isCert = e.errorCode <= -200 && e.errorCode > -300; // ERR_CERT_* 계열
+      errBox.innerHTML = '';
+      var title = document.createElement('div');
+      title.className = 'web-load-error-title';
+      title.textContent = isCert ? '인증서를 신뢰할 수 없어 연결을 차단했습니다' : '페이지를 불러오지 못했습니다';
+      var desc = document.createElement('div');
+      desc.className = 'web-load-error-desc';
+      desc.textContent = e.validatedURL + ' · ' + e.errorDescription + ' (' + e.errorCode + ')';
+      errBox.appendChild(title); errBox.appendChild(desc);
+      if(isCert && window.onegyeok && window.onegyeok.web){
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = '위험을 감수하고 이 탭에서만 계속';
+        btn.addEventListener('click', function(){
+          window.onegyeok.web.trustCert(view.getWebContentsId(), e.validatedURL).then(function(){
+            errBox.hidden = true;
+            view.loadURL(e.validatedURL);
+          });
+        });
+        errBox.appendChild(btn);
+      }
+      errBox.hidden = false;
+    });
     view.addEventListener('did-navigate', function(e){ urlEl.textContent = e.url; });
     view.addEventListener('did-navigate-in-page', function(e){ if(e.isMainFrame) urlEl.textContent = e.url; });
     el.querySelector('.web-back').addEventListener('click', function(){ if(view.canGoBack()) view.goBack(); });

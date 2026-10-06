@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('onegyeok', {
 
   web: {
     openExternal: (url) => ipcRenderer.invoke('web:open-external', url),
+    trustCert: (webContentsId, url) => ipcRenderer.invoke('web:trust-cert', webContentsId, url),
   },
 
   rdp: {

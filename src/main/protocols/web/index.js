@@ -14,9 +14,34 @@ function isHttpUrl(value) {
   }
 }
 
+// 사용자가 "이 탭에서만 계속"을 명시적으로 허용한 인증서 오류 호스트 — webContents.id별, 메모리에만 둔다.
+const trustedCertHosts = new Map(); // webContentsId -> Set(host)
+
 registerMainProtocol('web', {
   wire(ctx) {
     const { ipcMain, app } = ctx;
+    const { webContents: webContentsApi } = require('electron');
+
+    ipcMain.handle('web:trust-cert', (_event, webContentsId, url) => {
+      const wc = webContentsApi.fromId(webContentsId);
+      if (!wc || wc.getType() !== 'webview' || !isHttpUrl(url)) return { ok: false };
+      const host = new URL(url).host;
+      if (!trustedCertHosts.has(webContentsId)) {
+        trustedCertHosts.set(webContentsId, new Set());
+        wc.once('destroyed', () => trustedCertHosts.delete(webContentsId));
+      }
+      trustedCertHosts.get(webContentsId).add(host);
+      return { ok: true };
+    });
+
+    // 기본은 거부(Chromium 기본 동작). 사용자가 허용한 호스트에 한해 이 탭에서만 통과시킨다.
+    app.on('certificate-error', (event, wc, url, _error, _cert, callback) => {
+      let host = '';
+      try { host = new URL(url).host; } catch (e) { /* 무시 */ }
+      const trusted = wc.getType() === 'webview' && host && trustedCertHosts.get(wc.id)?.has(host);
+      if (trusted) event.preventDefault();
+      callback(!!trusted);
+    });
 
     ipcMain.handle('web:open-external', async (_event, url) => {
       if (!isHttpUrl(url)) return { ok: false, error: 'http/https URL만 열 수 있습니다.' };
