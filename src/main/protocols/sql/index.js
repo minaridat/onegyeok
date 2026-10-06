@@ -5,13 +5,14 @@ const { registerMainProtocol } = require('../../core/protocol-registry');
 // 비밀번호는 이 IPC 호출의 인자로만 전달되고 어디에도 저장하지 않는다 (F-301/601과 동일 원칙).
 registerMainProtocol('sql', {
   wire(ctx) {
-    const { ipcMain, getMainWindow } = ctx;
+    const { ipcMain, sendToSession, registerSessionWindow, unregisterSession, windowForEvent } = ctx;
 
-    ipcMain.handle('db:connect', async (_event, sessionId, params) => {
+    ipcMain.handle('db:connect', async (event, sessionId, params) => {
+      registerSessionWindow(sessionId, windowForEvent(event));
       try {
         await dbManager.connect(sessionId, params, (status) => {
-          const win = getMainWindow();
-          if (win) win.webContents.send('db:status', sessionId, status);
+          sendToSession(sessionId, 'db:status', status);
+          if (status.state === 'disconnected' || status.state === 'error') unregisterSession(sessionId);
         });
         return { ok: true };
       } catch (err) {
@@ -30,6 +31,7 @@ registerMainProtocol('sql', {
 
     ipcMain.handle('db:disconnect', async (_event, sessionId) => {
       await dbManager.disconnect(sessionId);
+      unregisterSession(sessionId);
       return { ok: true };
     });
   },

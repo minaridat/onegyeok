@@ -13,9 +13,10 @@ const sessions = new Map(); // sessionId -> helper(spawnHelper 반환값)
 
 registerMainProtocol('vnc', {
   wire(ctx) {
-    const { ipcMain, getMainWindow } = ctx;
+    const { ipcMain, sendToSession, registerSessionWindow, unregisterSession, windowForEvent } = ctx;
 
-    ipcMain.handle('vnc:connect', (_event, sessionId, params) => {
+    ipcMain.handle('vnc:connect', (event, sessionId, params) => {
+      registerSessionWindow(sessionId, windowForEvent(event));
       return new Promise((resolve) => {
         if (sessions.has(sessionId)) sessions.get(sessionId).kill();
 
@@ -30,7 +31,6 @@ registerMainProtocol('vnc', {
 
         const helper = spawnHelper(
           (type, payload) => {
-            const win = getMainWindow();
             if (type === MSG.CONNECTED) {
               let info = {};
               try { info = JSON.parse(payload.toString('utf8')); } catch (_e) { /* 치수 없이도 진행 가능 */ }
@@ -39,13 +39,10 @@ registerMainProtocol('vnc', {
                 clearTimeout(timeoutTimer);
                 resolve({ ok: true, width: info.width, height: info.height });
               }
-              if (win) win.webContents.send('vnc:status', sessionId, { state: 'connected' });
+              sendToSession(sessionId, 'vnc:status', { state: 'connected' });
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);
-              if (win) {
-                win.webContents.send('vnc:frame', sessionId,
-                  { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
-              }
+              sendToSession(sessionId, 'vnc:frame', { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
             } else if (type === MSG.STATUS) {
               let status;
               try { status = JSON.parse(payload.toString('utf8')); } catch (_e) { status = { state: 'error', message: '상태 메시지 파싱 실패' }; }
@@ -55,8 +52,8 @@ registerMainProtocol('vnc', {
                 sessions.delete(sessionId);
                 resolve({ ok: false, error: status.message || '연결 실패', kind: 'other' });
               }
-              if (win) win.webContents.send('vnc:status', sessionId, status);
-              if (status.state === 'disconnected' || status.state === 'error') sessions.delete(sessionId);
+              sendToSession(sessionId, 'vnc:status', status);
+              if (status.state === 'disconnected' || status.state === 'error') { sessions.delete(sessionId); unregisterSession(sessionId); }
             }
           },
           (logLine) => { console.log('[vnc-helper][' + sessionId + ']', logLine.trimEnd()); }
@@ -69,6 +66,7 @@ registerMainProtocol('vnc', {
             resolve({ ok: false, error: 'VNC 헬퍼 프로세스가 비정상 종료되었습니다', kind: 'other' });
           }
           sessions.delete(sessionId);
+          unregisterSession(sessionId);
         });
         helper.child.on('error', (err) => {
           if (!settled) {
@@ -80,6 +78,7 @@ registerMainProtocol('vnc', {
             resolve({ ok: false, error: 'VNC 헬퍼 프로세스를 시작할 수 없습니다: ' + err.message + hint, kind: 'other' });
           }
           sessions.delete(sessionId);
+          unregisterSession(sessionId);
         });
 
         sessions.set(sessionId, helper);
@@ -94,6 +93,7 @@ registerMainProtocol('vnc', {
     ipcMain.handle('vnc:disconnect', (_event, sessionId) => {
       const helper = sessions.get(sessionId);
       if (helper) { helper.disconnect(); helper.kill(); sessions.delete(sessionId); }
+      unregisterSession(sessionId);
       return { ok: true };
     });
 

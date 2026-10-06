@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
 const path = require('node:path');
 const { wireAll, disconnectAllProtocols } = require('./core/protocol-registry');
+const windowRegistry = require('./core/window-registry');
 const dialogCore = require('./core/dialog');
 const memoStore = require('./core/memo-store');
 
@@ -46,6 +47,17 @@ const ctx = {
   app,
   safeStorage,
   getMainWindow: () => mainWindow,
+  // 아래 세 개는 세션(탭)을 지금 표시하고 있는 창으로 이벤트를 라우팅하기 위한 것 —
+  // src/main/core/window-registry.js 참고. 지금은 창이 하나뿐이라 getMainWindow()로 매번
+  // 폴백해도 결과가 같지만, 나중에 탭을 별도 창으로 분리하는 기능이 들어오면 sendToSession이
+  // 유일하게 맞는 전송 경로가 된다 — 프로토콜 쪽 코드는 지금부터 이걸로 통일해둔다.
+  registerSessionWindow: windowRegistry.registerSessionWindow,
+  unregisterSession: windowRegistry.unregisterSession,
+  windowForEvent: (event) => BrowserWindow.fromWebContents(event.sender),
+  sendToSession: (sessionId, channel, ...args) => {
+    const win = windowRegistry.getSessionWindow(sessionId) || mainWindow;
+    if (win && !win.isDestroyed()) win.webContents.send(channel, sessionId, ...args);
+  },
 };
 
 ipcMain.handle('ping', () => 'pong');
