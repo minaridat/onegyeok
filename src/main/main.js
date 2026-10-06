@@ -27,6 +27,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webviewTag: true, // Web 콘솔 내장 웹뷰 — 부착 검증은 protocols/web/index.js의 will-attach-webview
     },
   });
 

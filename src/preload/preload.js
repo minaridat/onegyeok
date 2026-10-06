@@ -62,6 +62,10 @@ contextBridge.exposeInMainWorld('onegyeok', {
     },
   },
 
+  web: {
+    openExternal: (url) => ipcRenderer.invoke('web:open-external', url),
+  },
+
   rdp: {
     connect: (sessionId, params) => ipcRenderer.invoke('rdp:connect', sessionId, params),
     disconnect: (sessionId) => ipcRenderer.invoke('rdp:disconnect', sessionId),

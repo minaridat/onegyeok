@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src http: https:; connect-src 'self' ws://127.0.0.1:*;">
 <title>onegyeok</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="vendor/xterm.css">
@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="protocols/sql/sql.css">
 <link rel="stylesheet" href="protocols/rdp/rdp.css">
 <link rel="stylesheet" href="protocols/sftp/sftp.css">
+<link rel="stylesheet" href="protocols/web/web.css">
 </head>
 <body>
 <div class="app" id="app">
@@ -169,7 +170,7 @@
         <svg class="icon" viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
         <span class="badge">P2</span>
       </button>
-      <button class="rail-btn future" data-filter="web" title="Web 콘솔 · Phase 5 예정">
+      <button class="rail-btn" data-filter="web" title="Web 콘솔">
         <svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg>
         <span class="badge">P5</span>
       </button>
