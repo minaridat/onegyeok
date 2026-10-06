@@ -1,7 +1,7 @@
 # RDP 기술 스택 — FreeRDP 직접 연동 네이티브 헬퍼
 
 > 메인 기술 스택: [00_메인_기술스택.md](./00_메인_기술스택.md) · 기능 명세: [../기능명세/05_RDP_기능명세.md](../기능명세/05_RDP_기능명세.md)
-> 상태: 🚧 설계/구현 중 — 이전 Apache Guacamole(`guacd`) 기반 구현은 폐기 결정됨(아래 "폐기한 이전 접근" 참고)
+> 상태: ✅ 적용됨 — `native/rdp-helper/` + `src/main/protocols/rdp/` + `src/renderer/protocols/rdp/`, 실제 xrdp 컨테이너 대상 end-to-end 검증 완료. 이전 Apache Guacamole(`guacd`) 기반 구현은 폐기(아래 "폐기한 이전 접근" 참고)
 
 ## 왜 바꿨나
 

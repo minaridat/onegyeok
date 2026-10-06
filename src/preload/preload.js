@@ -64,4 +64,21 @@ contextBridge.exposeInMainWorld('onegyeok', {
       return () => ipcRenderer.removeListener('rdp:status', listener);
     },
   },
+
+  vnc: {
+    connect: (sessionId, params) => ipcRenderer.invoke('vnc:connect', sessionId, params),
+    disconnect: (sessionId) => ipcRenderer.invoke('vnc:disconnect', sessionId),
+    mouse: (sessionId, x, y, buttonMask) => ipcRenderer.send('vnc:mouse', sessionId, x, y, buttonMask),
+    key: (sessionId, keysym, down) => ipcRenderer.send('vnc:key', sessionId, keysym, down),
+    onFrame: (callback) => {
+      const listener = (_event, sessionId, rect, buffer) => callback(sessionId, rect, buffer);
+      ipcRenderer.on('vnc:frame', listener);
+      return () => ipcRenderer.removeListener('vnc:frame', listener);
+    },
+    onStatus: (callback) => {
+      const listener = (_event, sessionId, status) => callback(sessionId, status);
+      ipcRenderer.on('vnc:status', listener);
+      return () => ipcRenderer.removeListener('vnc:status', listener);
+    },
+  },
 });
