@@ -48,7 +48,7 @@ function updateConnActionButton(id){
 // mode: 'start'(기본, 서버를 새로 클릭해서 여는 탭) | 'attach'(다른 창에서 넘어온 탭 — 이미
 // 연결돼 있을 수 있으니 attachSession을 쓴다. 프로토콜이 attachSession을 정의하지 않으면
 // startSession으로 자동 폴백 — 탭 분리/병합 기능, core/registry.js의 계약 설명 참고).
-function ensurePane(tabId, serverId, protocolOverride, mode){
+function ensurePane(tabId, serverId, protocolOverride, mode, handoff){
   var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
   if(pane) return pane;
   var row = tree.querySelector('.server[data-id="'+serverId+'"]');
@@ -60,7 +60,7 @@ function ensurePane(tabId, serverId, protocolOverride, mode){
   if(protoDef){
     el.className = 'pane';
     panes.appendChild(el);
-    if(mode === 'attach' && protoDef.attachSession) protoDef.attachSession(tabId, serverId, el);
+    if(mode === 'attach' && protoDef.attachSession) protoDef.attachSession(tabId, serverId, el, handoff);
     else protoDef.startSession(tabId, serverId, el);
     return el;
   }
@@ -274,6 +274,13 @@ function detachTabLocal(tabId){
   removeTabDom(tabId);
 }
 
+// detachLocal 직전에 호출해 프로토콜별 인계 데이터(예: Web의 현재 URL)를 꺼낸다 — main
+// 프로세스는 내용을 몰라도 되고 그대로 옮겨 실어 나르기만 한다(core/registry.js 계약 참고).
+function captureHandoff(tabId, proto){
+  var p = getProtocol(proto);
+  return (p && p.captureHandoff && p.captureHandoff(tabId)) || null;
+}
+
 // 각 창은 SERVERS/사이드바 트리를 독립적으로 갖는다(부팅 시 자기 자신의 정적 데모 마크업을
 // scrapeServers()로 읽은 결과) — 다른 창에서 동적으로 등록한 서버는 애초에 이 창의 SERVERS
 // 배열에 없다. 탭을 분리/병합으로 넘겨받을 때 그 서버 레코드도 같이 넘어오므로(payload.server),
@@ -289,10 +296,10 @@ function upsertServerRecord(srv){
 
 // 다른 창에서 넘어온(또는 처음 부팅 시 이어받는) 탭을 이 창에 연다 — selectServer()와 달리
 // tabId를 새로 생성하지 않고 넘겨받은 그대로 쓴다(메인 프로세스 세션이 그 id로 등록돼 있음).
-function openHydratedTab(tabId, serverId, protocolOverride, serverRecord){
+function openHydratedTab(tabId, serverId, protocolOverride, serverRecord, handoff){
   upsertServerRecord(serverRecord);
   ensureTab(tabId, serverId, protocolOverride);
-  ensurePane(tabId, serverId, protocolOverride, 'attach');
+  ensurePane(tabId, serverId, protocolOverride, 'attach', handoff);
   activate(tabId);
 }
 
@@ -408,7 +415,8 @@ function onTabDragEnd(e){
 
   suppressNextTabClick = true;
   var srv = SERVERS.find(function(s){ return s.id === ds.serverId; });
-  var payload = { tabId: ds.tabId, serverId: ds.serverId, protocol: ds.protocol, server: srv };
+  var payload = { tabId: ds.tabId, serverId: ds.serverId, protocol: ds.protocol, server: srv,
+    handoff: captureHandoff(ds.tabId, ds.protocol) };
   if(ds.mergeTargetId != null){
     window.onegyeok.window.mergeTab(Object.assign({ targetWindowId: ds.mergeTargetId }, payload));
   } else {
@@ -421,6 +429,6 @@ if(hasWindowBridge()){
     detachTabLocal(tabId);
   });
   window.onegyeok.window.onTabAttached(function(payload){
-    openHydratedTab(payload.tabId, payload.serverId, payload.protocol, payload.server);
+    openHydratedTab(payload.tabId, payload.serverId, payload.protocol, payload.server, payload.handoff);
   });
 }

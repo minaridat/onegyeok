@@ -46,12 +46,18 @@
 //       xterm Terminal 인스턴스, canvas 컨텍스트)를 정리하되, *IPC 연결 종료는 호출하지 않는다* —
 //       main 프로세스의 실제 연결은 살아 있어야 새 창이 이어받을 수 있다. 정의하지 않으면
 //       core가 대신 disposeSession(tabId)을 호출한다(=연결까지 완전히 끊고 새 창에서 새로 접속).
-//   attachSession(tabId, serverId, el)  [선택 — 위와 짝]
+//   attachSession(tabId, serverId, el, handoff)  [선택 — 위와 짝]
 //     — 다른 창에서 넘어온 탭을 받는 쪽(새 창 또는 병합 대상 창)에서 호출된다. startSession과
 //       달리 "이미 연결돼 있을 수 있다"고 가정하고 접속 폼을 건너뛴 UI를 바로 구성한다 — 실제
 //       상태는 메인 프로세스가 직후에 재전송(replay)하는 *:status(및 RDP/VNC는 전체 프레임)
 //       이벤트로 채워진다. 정의하지 않으면 core가 대신 startSession(tabId, serverId, el)을
-//       호출한다(=접속 폼부터 다시 시작).
+//       호출한다(=접속 폼부터 다시 시작). handoff는 아래 captureHandoff가 돌려준 값(없으면 null).
+//
+//   captureHandoff(tabId) -> object | undefined  [선택 — detachLocal/attachSession과 짝]
+//     — 탭을 다른 창으로 끌어내기 직전(detachLocal보다 먼저), 원래 창에서 호출된다. main
+//       프로세스는 이 값을 그대로 통째로 옮겨 실어 나를 뿐 내용을 전혀 들여다보지 않으므로,
+//       JSON 직렬화 가능한 값이면 뭐든 담아도 된다(예: Web은 현재 URL). 대부분의 프로토콜은
+//       정의할 필요 없다 — main 프로세스가 세션 상태(*:status)는 이미 자동으로 재전송해준다.
 //
 var PROTO = {};
 var OnegyeokProtocols = {};

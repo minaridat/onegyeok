@@ -41,7 +41,7 @@ function bootTabs(){
     tabbar.querySelectorAll('.tab').forEach(function(t){ t.remove(); });
     panes.querySelectorAll('.pane:not(#emptyPane)').forEach(function(p){ p.remove(); });
     initialTabs.forEach(function(tab){
-      openHydratedTab(tab.tabId, tab.serverId, tab.protocol, tab.server);
+      openHydratedTab(tab.tabId, tab.serverId, tab.protocol, tab.server, tab.handoff);
     });
   }).catch(function(err){
     console.error('[window] 초기 상태 조회 실패 — 평소대로 부팅', err);
