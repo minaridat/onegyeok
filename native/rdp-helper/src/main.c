@@ -2,11 +2,10 @@
  * stdio protocol documented in docs/기술스택/03_RDP_기술스택.md to the Electron main
  * process. One process = one RDP session; it exits when the session ends. */
 
-#include <pthread.h>
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <winpr/wtypes.h>
 #include <winpr/synch.h>
@@ -281,6 +280,7 @@ static void* run_connection(void* arg) {
 }
 
 int main(void) {
+	compat_set_binary_stdio();
 	pthread_t conn_thread;
 	int conn_started = 0;
 

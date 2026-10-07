@@ -1,17 +1,16 @@
 #include "framing.h"
 
 #include <errno.h>
-#include <pthread.h>
+#include "compat.h"
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 static pthread_mutex_t g_write_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int read_exact(int fd, uint8_t* buf, size_t n) {
 	size_t got = 0;
 	while (got < n) {
-		ssize_t r = read(fd, buf + got, n - got);
+		ssize_t r = compat_read(fd, buf + got, n - got);
 		if (r == 0) return 0; /* EOF */
 		if (r < 0) {
 			if (errno == EINTR) continue;
@@ -25,7 +24,7 @@ static int read_exact(int fd, uint8_t* buf, size_t n) {
 static int write_exact(int fd, const uint8_t* buf, size_t n) {
 	size_t sent = 0;
 	while (sent < n) {
-		ssize_t w = write(fd, buf + sent, n - sent);
+		ssize_t w = compat_write(fd, buf + sent, n - sent);
 		if (w < 0) {
 			if (errno == EINTR) continue;
 			return -1;
