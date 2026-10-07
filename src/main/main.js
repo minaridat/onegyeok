@@ -80,14 +80,72 @@ ipcMain.handle('window:mergeTab', (event, payload) => {
   return { ok: true };
 });
 
-ipcMain.handle('window:isPointInAnotherWindow', (event, screenX, screenY) => {
-  const self = ctx.windowForEvent(event);
+// excludeWindowId: 실시간 드래그 중인 창 자기 자신(커서가 바로 그 창 위에 있으니 항상 "병합
+// 대상"으로 잡혀버린다) — 예전에는 "호출한 창(event.sender)"을 자동으로 제외했는데, 실시간
+// 드래그에서는 원래 창(소스)도 다시 유효한 병합 대상이어야 해서(탭을 뺐다가 제자리로 돌아오면
+// 다시 합쳐지는 크롬 동작) 호출자 기준 제외를 버리고 명시적 제외 id로 바꿨다.
+ipcMain.handle('window:isPointInAnotherWindow', (_event, screenX, screenY, excludeWindowId) => {
   const hit = BrowserWindow.getAllWindows().find((win) => {
-    if (win === self || win.isDestroyed()) return false;
+    if (win.isDestroyed()) return false;
+    if (excludeWindowId != null && win.id === excludeWindowId) return false;
     const b = win.getBounds();
     return screenX >= b.x && screenX <= b.x + b.width && screenY >= b.y && screenY <= b.y + b.height;
   });
   return hit ? hit.id : null;
+});
+
+// ---------------------------------------------------------------------------
+// 실시간 탭 드래그(크롬처럼 커서를 따라다니는 창) — 탭바 밖으로 나가는 순간 바로 진짜 창을
+// 만들고, 드래그하는 동안 그 창을 커서 위치로 계속 옮긴다. 손을 뗄 때 다른 창 위였으면 그
+// 창에 세션을 합치고(병합) 방금 만든 드래그용 창은 닫는다 — 아니면 그 자리에 그대로 둔다.
+// dragWindows: 드래그로 막 만든 창(아직 "병합될 수도, 그대로 남을 수도" 결정 전)의 원본
+// payload(tabId/serverId/protocol/server/handoff) — 병합 시 대상 창에 그대로 재사용한다.
+// ---------------------------------------------------------------------------
+const dragWindows = new Map(); // BrowserWindow.id -> payload
+
+ipcMain.handle('window:beginTearOffDrag', (event, payload) => {
+  const sourceWin = ctx.windowForEvent(event);
+  const win = windowManager.createAppWindow(ctx, [payload], { x: payload.initialX, y: payload.initialY });
+  dragWindows.set(win.id, payload);
+  win.once('closed', () => { dragWindows.delete(win.id); });
+  if (sourceWin && !sourceWin.isDestroyed()) {
+    sourceWin.webContents.send('window:tabDetached', payload.tabId);
+  }
+  return { ok: true, windowId: win.id };
+});
+
+// 고빈도 호출(마우스무브마다) — 응답이 필요 없으므로 handle이 아니라 on(fire-and-forget).
+// 실제 이동은 window-manager.js의 updatePositionTarget()이 한다 — 거기 달린 'move' 자가
+// 치유 리스너 주석 참고(멀티 모니터 환경에서 loadFile 로딩 중 창이 제멋대로 다른 모니터로
+// 옮겨가는 걸 실측으로 확인해서 생긴 방어 로직).
+ipcMain.on('window:dragMoveWindow', (_event, windowId, x, y) => {
+  const win = BrowserWindow.fromId(windowId);
+  if (!win || win.isDestroyed()) return;
+  windowManager.updatePositionTarget(win, x, y);
+});
+
+ipcMain.handle('window:completeTearOffDrag', (_event, windowId, mergeTargetId) => {
+  const win = BrowserWindow.fromId(windowId);
+  const payload = dragWindows.get(windowId);
+  dragWindows.delete(windowId);
+  if (!win || win.isDestroyed() || !payload) return { ok: true };
+  // 드래그가 끝났으니 'move' 자가 치유 추적은 반드시 뗀다 — 안 그러면 병합 안 되고 남는
+  // 경우(else 분기) 사용자가 타이틀바로 직접 창을 옮기려 할 때마다 제자리로 되돌려버린다.
+  windowManager.stopPositionTracking(win);
+  if (mergeTargetId != null) {
+    const targetWin = BrowserWindow.fromId(mergeTargetId);
+    if (targetWin && !targetWin.isDestroyed() && targetWin !== win) {
+      windowManager.moveSessionToWindow(payload.tabId, payload.protocol, targetWin);
+      targetWin.webContents.send('window:tabAttached', payload);
+      win.close(); // 세션을 옮겼으니 드래그용으로 떠 있던 이 창은 빈 채로 남는다 — 닫는다
+    }
+  }
+  else {
+    // 병합 안 되고 그대로 남는 경우 — 드래그 중엔 포커스를 안 뺏도록 showInactive()로
+    // 띄워뒀으니(window-manager.js 참고), 드래그가 끝난 지금은 정상적인 새 창으로 포커스를 준다.
+    win.focus();
+  }
+  return { ok: true };
 });
 
 app.whenReady().then(() => {

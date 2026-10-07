@@ -96,7 +96,10 @@ contextBridge.exposeInMainWorld('onegyeok', {
     getInitialState: () => ipcRenderer.invoke('window:getInitialState'),
     detachTab: (payload) => ipcRenderer.invoke('window:detachTab', payload),
     mergeTab: (payload) => ipcRenderer.invoke('window:mergeTab', payload),
-    isPointInAnotherWindow: (screenX, screenY) => ipcRenderer.invoke('window:isPointInAnotherWindow', screenX, screenY),
+    isPointInAnotherWindow: (screenX, screenY, excludeWindowId) => ipcRenderer.invoke('window:isPointInAnotherWindow', screenX, screenY, excludeWindowId),
+    beginTearOffDrag: (payload) => ipcRenderer.invoke('window:beginTearOffDrag', payload),
+    dragMoveWindow: (windowId, x, y) => ipcRenderer.send('window:dragMoveWindow', windowId, x, y),
+    completeTearOffDrag: (windowId, mergeTargetId) => ipcRenderer.invoke('window:completeTearOffDrag', windowId, mergeTargetId),
     onTabDetached: (callback) => {
       const listener = (_event, tabId) => callback(tabId);
       ipcRenderer.on('window:tabDetached', listener);

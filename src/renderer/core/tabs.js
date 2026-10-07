@@ -349,9 +349,20 @@ tabbar.addEventListener('click', function(e){
 // 탭 드래그-아웃으로 별도 창 분리/병합 (크롬 탭 방식) — src/main/core/window-manager.js와 짝.
 // 수평으로만 움직이면(탭바 안에 머무르면) 그냥 클릭/드래그로 취급해 아무 일도 안 한다(현재
 // 탭바 안 순서 변경 기능은 없음). 탭바 bounding box 밖으로 수직 이동하면 분리 의도로 본다.
-// 다른 onegyeok 창 위에서 손을 떼면 그 창에 병합, 아니면 새 창으로 분리된다.
+//
+// 크롬처럼 "쥐고 있는 동안 실제 창이 커서를 따라다니는" 모션 — Electron은 OS 네이티브 창
+// 드래그를 노출하지 않으므로, 탭바 밖으로 나가는 그 순간 바로 진짜 BrowserWindow를 만들고
+// (mouseup까지 기다리지 않음) 매 mousemove마다 그 창을 setPosition으로 옮긴다. 이게 가능한
+// 건 Chromium이 마우스 캡처를 암묵적으로 유지해서, 커서가 이 창의 뷰포트 밖으로(심지어 OS
+// 창 경계 밖으로) 나가도 mousedown을 받은 document에 mousemove/mouseup이 계속 들어오기
+// 때문이다(Playwright로 clientY를 음수까지 보내며 실측 확인함 — 실제 OS 드래그에서도 같은
+// Chromium 내부 캡처 메커니즘이라 똑같이 동작할 것으로 보지만, 100% 동일한 물리 드래그는
+// 수동으로도 확인해볼 가치가 있다). 손을 뗄 때 다른 onegyeok 창(원래 창 포함) 위였으면 그
+// 창에 병합하고 드래그용 창은 닫는다 — 아니면 그 자리에 그대로 둔다.
 // ==================================================================
-var dragState = null; // { tabId, serverId, protocol, startX, startY, dragging, pollTimer }
+var dragState = null; // { tabId, serverId, protocol, startX, startY, dragging, grabOffsetX/Y,
+                       //   lastScreenX/Y, liveWindowId, creatingWindow, pendingComplete,
+                       //   pollTimer, mergeTargetId }
 var suppressNextTabClick = false;
 var TEAROFF_THRESHOLD = 8; // 이 이상 움직여야 드래그로 인정(클릭과 구분)
 var MERGE_POLL_MS = 150;
@@ -364,37 +375,73 @@ tabbar.addEventListener('mousedown', function(e){
   if(e.target.closest('.close, .tab-reconnect, .tab-add, .tab-broadcast-check')) return;
   var tab = e.target.closest('.tab');
   if(!tab) return;
+  var tabRect = tab.getBoundingClientRect();
   dragState = {
     tabId: tab.dataset.id, serverId: tab.dataset.serverId, protocol: tab.dataset.protocol,
-    startX: e.clientX, startY: e.clientY, dragging: false, pollTimer: null, mergeTargetId: null,
+    startX: e.clientX, startY: e.clientY, dragging: false,
+    // 커서가 탭 안 어디를 쥐었는지 — 드래그 창도 같은 지점이 커서 밑에 오도록 옮긴다.
+    grabOffsetX: e.clientX - tabRect.left, grabOffsetY: e.clientY - tabRect.top,
+    lastScreenX: window.screenX + e.clientX, lastScreenY: window.screenY + e.clientY,
+    liveWindowId: null, creatingWindow: false, pendingComplete: false,
+    pollTimer: null, mergeTargetId: null,
   };
   document.addEventListener('mousemove', onTabDragMove);
   document.addEventListener('mouseup', onTabDragEnd);
 });
+
+// 탭바 밖으로 나가는 첫 순간 호출 — 실제 창을 만들고(비동기), 응답이 오면 그 시점의 최신
+// 커서 위치로 한 번 더 맞춘다. 아주 빠르게 드래그&드롭하면 이 응답이 mouseup 이후에 올 수도
+// 있어서(ds.pendingComplete), 그 경우 onTabDragEnd가 이미 정해둔 결과를 바로 반영한다.
+function beginLiveTearOff(ds){
+  ds.creatingWindow = true;
+  var srv = SERVERS.find(function(s){ return s.id === ds.serverId; });
+  var payload = {
+    tabId: ds.tabId, serverId: ds.serverId, protocol: ds.protocol, server: srv,
+    handoff: captureHandoff(ds.tabId, ds.protocol),
+    initialX: Math.round(ds.lastScreenX - ds.grabOffsetX), initialY: Math.round(ds.lastScreenY - ds.grabOffsetY),
+  };
+  window.onegyeok.window.beginTearOffDrag(payload).then(function(res){
+    ds.creatingWindow = false;
+    if(!res || res.windowId == null) return;
+    ds.liveWindowId = res.windowId;
+    if(ds.pendingComplete){
+      window.onegyeok.window.completeTearOffDrag(ds.liveWindowId, ds.mergeTargetId);
+      return;
+    }
+    if(dragState === ds){ // 아직 드래그 중이면 응답 오는 사이 움직인 만큼 위치를 최신화
+      window.onegyeok.window.dragMoveWindow(ds.liveWindowId, ds.lastScreenX - ds.grabOffsetX, ds.lastScreenY - ds.grabOffsetY);
+    }
+  });
+}
 
 function onTabDragMove(e){
   if(!dragState) return;
   var dx = e.clientX - dragState.startX, dy = e.clientY - dragState.startY;
   if(!dragState.dragging && Math.sqrt(dx*dx + dy*dy) < TEAROFF_THRESHOLD) return;
   dragState.dragging = true;
+  dragState.lastScreenX = window.screenX + e.clientX;
+  dragState.lastScreenY = window.screenY + e.clientY;
 
   var rect = tabbar.getBoundingClientRect();
   var outsideTabbar = e.clientY < rect.top - 10 || e.clientY > rect.bottom + 10;
-  var tabEl = tabbar.querySelector('.tab[data-id="'+dragState.tabId+'"]');
-  if(tabEl) tabEl.classList.toggle('tearing-off', outsideTabbar);
 
-  if(outsideTabbar && !dragState.pollTimer){
-    dragState.pollTimer = setInterval(function(){
-      if(!dragState) return;
-      var sx = window.screenX + e.clientX, sy = window.screenY + e.clientY;
-      window.onegyeok.window.isPointInAnotherWindow(sx, sy).then(function(winId){
-        if(dragState) dragState.mergeTargetId = winId;
-      });
-    }, MERGE_POLL_MS);
-  } else if(!outsideTabbar && dragState.pollTimer){
-    clearInterval(dragState.pollTimer);
-    dragState.pollTimer = null;
-    dragState.mergeTargetId = null;
+  if(outsideTabbar && !dragState.liveWindowId && !dragState.creatingWindow){
+    beginLiveTearOff(dragState);
+  }
+
+  if(dragState.liveWindowId != null){
+    window.onegyeok.window.dragMoveWindow(dragState.liveWindowId,
+      dragState.lastScreenX - dragState.grabOffsetX, dragState.lastScreenY - dragState.grabOffsetY);
+    if(!dragState.pollTimer){
+      // 창이 생긴 뒤로는 계속 켜둔다(탭바 안쪽으로 돌아와도) — 원래 창 위로 되돌아오면 그
+      // 창도 다시 유효한 병합 대상이어야(크롬처럼 제자리로 돌아가면 다시 합쳐짐) 하기 때문.
+      dragState.pollTimer = setInterval(function(){
+        if(!dragState || dragState.liveWindowId == null) return;
+        window.onegyeok.window.isPointInAnotherWindow(dragState.lastScreenX, dragState.lastScreenY, dragState.liveWindowId).then(function(winId){
+          if(dragState) dragState.mergeTargetId = winId;
+        });
+      }, MERGE_POLL_MS);
+    }
   }
 }
 
@@ -405,23 +452,19 @@ function onTabDragEnd(e){
   var ds = dragState;
   dragState = null;
   if(ds.pollTimer) clearInterval(ds.pollTimer);
-  var tabEl = tabbar.querySelector('.tab[data-id="'+ds.tabId+'"]');
-  if(tabEl) tabEl.classList.remove('tearing-off');
   if(!ds.dragging) return; // 그냥 클릭 — 평소대로 activate되게 둔다
 
-  var rect = tabbar.getBoundingClientRect();
-  var outsideTabbar = e.clientY < rect.top - 10 || e.clientY > rect.bottom + 10;
-  if(!outsideTabbar) return; // 탭바 안으로 돌아왔으면 드래그 취소 취급(순서 변경 기능 없음)
-
-  suppressNextTabClick = true;
-  var srv = SERVERS.find(function(s){ return s.id === ds.serverId; });
-  var payload = { tabId: ds.tabId, serverId: ds.serverId, protocol: ds.protocol, server: srv,
-    handoff: captureHandoff(ds.tabId, ds.protocol) };
-  if(ds.mergeTargetId != null){
-    window.onegyeok.window.mergeTab(Object.assign({ targetWindowId: ds.mergeTargetId }, payload));
-  } else {
-    window.onegyeok.window.detachTab(payload);
+  if(ds.liveWindowId != null){
+    suppressNextTabClick = true;
+    window.onegyeok.window.completeTearOffDrag(ds.liveWindowId, ds.mergeTargetId);
+  } else if(ds.creatingWindow){
+    // beginTearOffDrag 응답이 아직 안 왔는데 손을 뗀 경우(아주 짧은 드래그) — 응답 오면
+    // beginLiveTearOff가 바로 완료 처리하도록 표시만 해둔다.
+    suppressNextTabClick = true;
+    ds.pendingComplete = true;
   }
+  // liveWindowId도 creatingWindow도 아니면 — outsideTabbar가 한 번도 안 된 것(탭바 안에서만
+  // 움직임) — 아무 것도 만들어진 게 없으니 할 일이 없다.
 }
 
 if(hasWindowBridge()){
