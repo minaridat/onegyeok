@@ -10,7 +10,9 @@ import subprocess
 import sys
 import time
 
-HELPER = os.path.join(os.path.dirname(__file__), "..", "onegyeok-rdp-helper")
+HELPER = os.environ.get("ONEGYEOK_RDP_HELPER_PATH") or os.path.join(
+    os.path.dirname(__file__), "..", "onegyeok-rdp-helper" + (".exe" if os.name == "nt" else "")
+)
 
 MSG_CONNECT = 0x01
 MSG_DISCONNECT = 0x02

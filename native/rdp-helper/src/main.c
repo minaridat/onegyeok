@@ -2,13 +2,12 @@
  * stdio protocol documented in docs/기술스택/03_RDP_기술스택.md to the Electron main
  * process. One process = one RDP session; it exits when the session ends. */
 
-#include <pthread.h>
+#include "compat.h"
 #include <time.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <winpr/wtypes.h>
 #include <winpr/synch.h>
@@ -167,9 +166,13 @@ static uint64_t g_refresh_at[2] = {0, 0};
 static void log_msg(const char* fmt, ...);
 
 static uint64_t now_ms(void) {
+#ifdef _WIN32
+	return (uint64_t)GetTickCount64();
+#else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (uint64_t)ts.tv_sec * 1000u + (uint64_t)(ts.tv_nsec / 1000000);
+#endif
 }
 
 static void send_due_refresh(rdpContext* context) {
@@ -428,6 +431,7 @@ static void* run_connection(void* arg) {
 }
 
 int main(void) {
+	compat_set_binary_stdio();
 	pthread_t conn_thread;
 	int conn_started = 0;
 

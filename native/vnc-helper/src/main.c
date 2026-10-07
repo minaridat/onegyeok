@@ -2,12 +2,11 @@
  * documented in docs/기술스택/04_VNC_기술스택.md to the Electron main process. One
  * process = one VNC session; it exits when the session ends. */
 
-#include <pthread.h>
+#include "compat.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <rfb/rfbclient.h>
 
@@ -243,6 +242,7 @@ static void* run_connection(void* arg) {
 }
 
 int main(void) {
+	compat_set_binary_stdio();
 	rfbClientLog = log_to_stderr;
 	rfbClientErr = log_to_stderr;
 
