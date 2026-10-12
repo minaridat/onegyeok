@@ -61,7 +61,7 @@
         }
       ],
       "category": "public.app-category.developer-tools",
-      "minimumSystemVersion": "13.0",
+      "minimumSystemVersion": "15.0",
       "identity": null,
       "hardenedRuntime": false
     },

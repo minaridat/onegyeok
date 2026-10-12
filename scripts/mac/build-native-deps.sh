@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$ROOT/build/mac-deps"
 PREFIX="$WORK/prefix"
 SRC="$WORK/src"
-export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"
 ARCH="${ARCH:-arm64}"
 JOBS="$(sysctl -n hw.ncpu)"
 

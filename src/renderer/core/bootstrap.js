@@ -26,14 +26,12 @@ if(hasMemoBridge){
 function bootTabs(){
   if(!(window.onegyeok && window.onegyeok.window)){
     renumberTabs();
-    recordActive('prod-web-01');
     return;
   }
   window.onegyeok.window.getInitialState().then(function(initialTabs){
     if(!initialTabs){
       renumberTabs();
-      recordActive('prod-web-01');
-      return;
+        return;
     }
     // 분리된 창 — 정적 데모 탭/pane을 전부 치우고 넘겨받은 탭만 연다. 사이드바(서버 목록)는
     // 이미 위에서 scrapeServers()/renderTree()로 채워졌으니 그대로 둔다 — 크롬 창처럼 분리된
@@ -46,7 +44,6 @@ function bootTabs(){
   }).catch(function(err){
     console.error('[window] 초기 상태 조회 실패 — 평소대로 부팅', err);
     renumberTabs();
-    recordActive('prod-web-01');
   });
 }
 bootTabs();
