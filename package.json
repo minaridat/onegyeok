@@ -6,11 +6,14 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build:native": "make -C native/rdp-helper && make -C native/vnc-helper"
+    "build:native": "make -C native/rdp-helper && make -C native/vnc-helper",
+    "build:native:mac": "bash scripts/mac/build-native-deps.sh && make -C native/rdp-helper clean && make -C native/vnc-helper clean && make -C native/rdp-helper DEPS_PREFIX=$PWD/build/mac-deps/prefix && make -C native/vnc-helper DEPS_PREFIX=$PWD/build/mac-deps/prefix",
+    "dist:mac": "npm run build:native:mac && electron-builder --mac dmg --arm64"
   },
   "license": "UNLICENSED",
   "devDependencies": {
-    "electron": "^44.5.1"
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -21,5 +24,47 @@
     "pg": "^8.23.1",
     "ssh2": "^1.17.0",
     "ssh2-sftp-client": "^12.1.1"
+  },
+  "build": {
+    "appId": "com.onegyeok.app",
+    "productName": "onegyeok",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native/rdp-helper",
+        "to": "native/rdp-helper",
+        "filter": [
+          "onegyeok-rdp-helper"
+        ]
+      },
+      {
+        "from": "native/vnc-helper",
+        "to": "native/vnc-helper",
+        "filter": [
+          "onegyeok-vnc-helper"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "minimumSystemVersion": "13.0",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "npmRebuild": false
   }
 }
