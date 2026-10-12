@@ -8,6 +8,14 @@ collapsedGroups = scraped.collapsed;
 renderTree();
 populateGroupSelectors();
 
+// 저장된 서버 목록(F-602)을 먼저 복원한 뒤에 메모 병합과 탭 부팅을 진행한다 — 둘 다 SERVERS가 채워져 있어야 한다.
+var serversLoaded = loadPersistedServers().then(function(){
+  renderTree();
+  populateGroupSelectors();
+  if(typeof renderManageTable === 'function') renderManageTable();
+});
+
+serversLoaded.then(function(){
 if(hasMemoBridge){
   window.onegyeok.loadMemos().then(function(memos){
     SERVERS.forEach(function(s){
@@ -19,6 +27,8 @@ if(hasMemoBridge){
     }
   }).catch(function(err){ console.error('[memo] 초기 로드 실패', err); });
 }
+bootTabs();
+});
 
 // 탭을 다른 창으로 분리할 때(Stage B) 새 창은 데모 시드 탭 대신 넘겨받은 탭만 연다 —
 // src/main/core/window-manager.js 참고. 평소 부팅(앱의 첫 창)은 getInitialState()가 null을
@@ -46,7 +56,6 @@ function bootTabs(){
     renumberTabs();
   });
 }
-bootTabs();
 
 // ---- preload/main process smoke test (scaffold verification) ----
 if (window.onegyeok && typeof window.onegyeok.ping === 'function') {

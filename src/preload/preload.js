@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('onegyeok', {
   loadMemos: () => ipcRenderer.invoke('memo:load-all'),
   renameMemo: (oldServerId, newServerId) => ipcRenderer.invoke('memo:rename', oldServerId, newServerId),
 
+  servers: {
+    load: () => ipcRenderer.invoke('servers:load'),
+    save: (data) => ipcRenderer.invoke('servers:save', data),
+  },
+
   pickKeyFile: () => ipcRenderer.invoke('dialog:pick-key-file'),
 
   ssh: {
