@@ -4,6 +4,7 @@ const windowRegistry = require('./core/window-registry');
 const windowManager = require('./core/window-manager');
 const dialogCore = require('./core/dialog');
 const memoStore = require('./core/memo-store');
+const serverStore = require('./core/server-store');
 
 // require()하는 것만으로 각 프로토콜 모듈의 registerMainProtocol(...) 등록이 실행된다
 // (이 require 목록이 곧 "현재 지원하는 연결 종류" 목록이다 — 새 프로토콜은 이 한 줄만 추가).
@@ -42,6 +43,7 @@ ipcMain.handle('ping', () => 'pong');
 wireAll(ctx);
 dialogCore.wire(ctx);
 memoStore.wire(ctx);
+serverStore.wire(ctx);
 
 // ---------------------------------------------------------------------------
 // 탭 분리/병합(Stage B) — src/main/core/window-manager.js가 실제 로직을 들고 있고,

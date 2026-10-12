@@ -8,6 +8,14 @@ collapsedGroups = scraped.collapsed;
 renderTree();
 populateGroupSelectors();
 
+// 저장된 서버 목록(F-602)을 먼저 복원한 뒤에 메모 병합과 탭 부팅을 진행한다 — 둘 다 SERVERS가 채워져 있어야 한다.
+var serversLoaded = loadPersistedServers().then(function(){
+  renderTree();
+  populateGroupSelectors();
+  if(typeof renderManageTable === 'function') renderManageTable();
+});
+
+serversLoaded.then(function(){
 if(hasMemoBridge){
   window.onegyeok.loadMemos().then(function(memos){
     SERVERS.forEach(function(s){
@@ -19,6 +27,8 @@ if(hasMemoBridge){
     }
   }).catch(function(err){ console.error('[memo] 초기 로드 실패', err); });
 }
+bootTabs();
+});
 
 // 탭을 다른 창으로 분리할 때(Stage B) 새 창은 데모 시드 탭 대신 넘겨받은 탭만 연다 —
 // src/main/core/window-manager.js 참고. 평소 부팅(앱의 첫 창)은 getInitialState()가 null을
@@ -26,14 +36,12 @@ if(hasMemoBridge){
 function bootTabs(){
   if(!(window.onegyeok && window.onegyeok.window)){
     renumberTabs();
-    recordActive('prod-web-01');
     return;
   }
   window.onegyeok.window.getInitialState().then(function(initialTabs){
     if(!initialTabs){
       renumberTabs();
-      recordActive('prod-web-01');
-      return;
+        return;
     }
     // 분리된 창 — 정적 데모 탭/pane을 전부 치우고 넘겨받은 탭만 연다. 사이드바(서버 목록)는
     // 이미 위에서 scrapeServers()/renderTree()로 채워졌으니 그대로 둔다 — 크롬 창처럼 분리된
@@ -46,10 +54,8 @@ function bootTabs(){
   }).catch(function(err){
     console.error('[window] 초기 상태 조회 실패 — 평소대로 부팅', err);
     renumberTabs();
-    recordActive('prod-web-01');
   });
 }
-bootTabs();
 
 // ---- preload/main process smoke test (scaffold verification) ----
 if (window.onegyeok && typeof window.onegyeok.ping === 'function') {

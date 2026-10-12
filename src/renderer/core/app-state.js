@@ -61,6 +61,7 @@ function renderTree(){
     if(row) row.classList.add('selected');
   }
   applyTreeFilterVisual();
+  schedulePersistServers();
 }
 
 function applyTreeFilterVisual(){
@@ -81,6 +82,7 @@ tree.addEventListener('click', function(e){
     var gname = head.textContent.trim();
     groupEl.classList.toggle('collapsed');
     if(groupEl.classList.contains('collapsed')) collapsedGroups.add(gname); else collapsedGroups.delete(gname);
+    schedulePersistServers();
     return;
   }
   var row = e.target.closest('.server');
