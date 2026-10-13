@@ -77,7 +77,7 @@
 | `0x03` | `MOUSE` | `[u16 x][u16 y][u16 flags]` (FreeRDP `PTR_FLAGS_*` 비트마스크) |
 | `0x04` | `KEY` | `[u16 scancode][u16 flags]` (`KBD_FLAGS_RELEASE`/`KBD_FLAGS_EXTENDED`) |
 | `0x05` | `UNICODE_KEY` | `[u16 unicode][u8 flags]` (press=0/release=1) |
-| `0x06` | `RESIZE` | `[u16 width][u16 height]` |
+| `0x06` | `RESIZE` | `[u16 width][u16 height]` — 서버에 해상도 변경 요청(동적 해상도, 아래 "화면 크기 조절") |
 
 **헬퍼 → Node (이벤트)**
 
@@ -112,3 +112,26 @@
 등 라이브러리 함정도 다 우회해서 end-to-end로 붙는 것까지 확인했었다. 다만 위에서 설명한 배포 구조상의
 근본적 한계 때문에 v2로 교체하기로 결정했다 — 코드는 git 히스토리에 남아 있다(`src/main/rdp-manager.js`,
 이전 커밋의 `src/renderer/protocols/rdp/rdp.js`).
+
+
+## 화면 크기 조절 (동적 해상도)
+
+창/패널 크기가 바뀌면(드래그, 전체화면 등) 원격 해상도가 그 크기로 따라간다 — 화면이 레터박스로 비지 않는다.
+
+- **흐름**: 렌더러 `ResizeObserver`(250ms 디바운스) → `rdp:resize` → 헬퍼 `MSG_RESIZE`(0x06) → RDP `disp`(DisplayControl)
+  채널로 모니터 레이아웃 전송 → 서버가 해상도를 바꾸고 → 헬퍼가 `DesktopResize`에서 gdi/코덱을 새 크기로 맞춘 뒤
+  `MSG_DESKTOP_RESIZED`(0x85, `{width,height}`)를 보내 → 메인이 `rdp:resized`로 전달 → 렌더러가 캔버스를 새 크기로 다시 잡는다.
+  1:1 보기(actual-size) 모드에서는 요청하지 않는다. 접속 시 초기 해상도도 pane 크기(툴바 제외)로 요청한다.
+- **FreeRDP 빌드**: 정적 빌드에서 `drdynvc` + `disp` 채널만 켠다(`scripts/mac/build-native-deps.sh`). 나머지 채널(클립보드·드라이브·오디오 등)은 없다.
+- **구현상 함정(모두 해결)**:
+  1. 채널은 `PreConnect`가 아니라 **`instance->LoadChannels` 콜백**에서 로드해야 한다 — FreeRDP가 PreConnect 직후 채널 객체를 새로 만들어
+     바꿔치기하므로 PreConnect에서 로드한 채널은 버려지고, 서버에 `drdynvc`가 제안되지 않아 동적 채널이 안 열린다.
+  2. `freerdp_new()`를 직접 쓰는 헬퍼는 `freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0)`로 정적 채널 제공자를 등록해야 한다.
+  3. NetworkAutoDetect/Heartbeat/Multitransport가 켜져 있으면 FreeRDP가 `rdpdr` 채널을 강제 요구해 로드가 실패한다 — 헬퍼에서 끈다.
+  4. 해상도 변경 요청은 첫 화면 프레임을 받은 뒤(연결이 완전히 활성화된 뒤)에만 보낸다.
+  5. `gdi_resize`는 비트맵 디코더 크기를 갱신하지 않아 해상도가 커지면 `planar->maxWidth < nSrcWidth`로 연결이 끊긴다 —
+     `DesktopResize`에서 `freerdp_client_codecs_reset`을 호출한다.
+  6. xrdp는 재활성화 중 finalization 완료 전에 화면 업데이트를 먼저 보내는데 FreeRDP 3.32.1의 `update_recv()`가 이를 거부한다 —
+     빌드 스크립트가 소스를 한 줄 패치한다(상태 하한을 `FINALIZATION_CLIENT_SYNC`로 완화).
+- **검증**: xrdp 0.9.24(`scottyhardy/docker-remote-desktop`, Xorg 세션) 대상으로 접속 후 패널 폭을 여러 번 바꿔 650/1122/782px 등으로
+  해상도가 따라가는 것을 확인. **실제 Windows Server 대상은 미검증**(Windows는 `disp` 채널을 표준으로 지원하므로 동작할 것으로 예상).
