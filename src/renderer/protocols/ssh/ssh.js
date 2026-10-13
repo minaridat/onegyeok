@@ -674,6 +674,7 @@ panes.addEventListener('click', function(e){
 // ⌘D/⌘⇧D로 세로/가로 분할(F-801~802), ⌘[/⌘]로 pane 간 포커스 이동(F-804)
 document.addEventListener('keydown', function(e){
   if(!(e.metaKey || e.ctrlKey)) return;
+  if(isTerminalCtrlKey(e)) return; // 터미널의 Ctrl+D(EOF)·Ctrl+[(ESC)는 셸에 맡긴다
   if(e.key.toLowerCase() === 'd'){
     var activeTab = tabbar.querySelector('.tab.active');
     if(!activeTab || activeTab.dataset.protocol !== 'ssh') return;

@@ -189,16 +189,20 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | W5 | 설치 후 서버 0개·탭 0개 시작 | 🔲 | 수동 확인 필요 |
 | W6 | QA 1~8번(서버 저장, SSH 입력/높이/분할, 그룹, 빠른 연결, SQL 색, FTP 버튼) | 🔲 | 수동 확인 필요 |
 | W7 | VNC 앱 화면(접속·표시·입력) | 🔲 | 헬퍼는 W1로 확인. 앱 UI에서의 표시·입력은 수동 확인 필요 |
-| W8 | Windows 단축키 충돌 | 🔲 | 아래 참고 |
+| W8 | Windows 단축키 충돌 | 🟡 | 수정함(터미널 포커스 시 Ctrl 단축키 미처리). 앱에서 수동 확인 필요 |
 
-### W8. Windows에서 앱 단축키가 터미널 Ctrl 키와 충돌 — 🔲 결정 필요
+### W8. Windows에서 앱 단축키가 터미널 Ctrl 키와 충돌 — 🟡 수정, 수동 확인 필요
 
-- **증상(코드 확인)**: macOS의 ⌘ 단축키가 Windows에서는 `ctrlKey`로 잡히는데, 전역 `document` keydown이라 xterm이 키를 터미널에 보낸 뒤에도 앱 동작이 같이 실행된다.
+- **증상(코드 확인)**: macOS의 ⌘ 단축키가 Windows에서는 `ctrlKey`로 잡히는데, 전역 `document` keydown이라 xterm이 키를 터미널에 보낸 뒤에도 앱 동작이 같이 실행됐다.
   - `Ctrl+D`(셸 EOF/로그아웃) → SSH 분할, `Ctrl+Shift+D` → 가로 분할
   - `Ctrl+[`(= ESC, vim) / `Ctrl+]` → pane 포커스 이동
   - `Ctrl+K`(줄 끝까지 삭제) → 명령 팔레트, `Ctrl+I`(= Tab) → 인스펙터, `Ctrl+1~9` → 탭 전환
-- 탭 이동 `Ctrl+Tab`/`Ctrl+Shift+Tab`, `Ctrl+Shift+,`/`Ctrl+Shift+.`(e.code 기반)는 코드상 Windows에서도 동작.
-- **제안**: Windows에서는 포커스가 터미널(`.xterm`) 안에 있을 때 위 조합을 앱이 가로채지 않거나, Windows Terminal처럼 `Ctrl+Shift`/`Alt+Shift` 조합으로 옮긴다. 단축키 체계 결정이 필요해 이번 빌드에서는 수정하지 않았다.
+- **결정**: 포커스가 터미널(`.xterm`) 안에 있으면 Ctrl 단독 조합(⌘ 없이)은 앱이 가로채지 않는다 — `keyboard-shortcuts.js`의 `isTerminalCtrlKey()`, `ssh.js` 분할/pane 리스너에 적용.
+  - 예외: `Ctrl+Tab`/`Ctrl+Shift+Tab`(탭 전환)은 터미널에서도 동작 — 터미널을 떠나지 않고 탭을 바꿀 수단.
+  - 터미널 밖(사이드바·탭바 등을 클릭한 상태)에서는 Ctrl 단축키가 그대로 동작한다.
+  - macOS의 ⌘ 단축키는 변화 없음. macOS에서도 터미널의 `Ctrl+D`가 분할을 일으키던 동작이 함께 사라진다.
+- **확인할 것**: SSH 터미널에서 `Ctrl+D`가 로그아웃만 하는지, vim에서 `Ctrl+[`가 ESC로만 동작하는지, `Ctrl+Tab` 탭 전환, 터미널 밖에서 `Ctrl+K` 팔레트.
+- RDP/VNC 원격 화면(canvas)에 포커스가 있을 때의 Ctrl 단축키 충돌은 이번 범위 밖(그대로).
 
 ### 참고
 
