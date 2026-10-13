@@ -179,8 +179,6 @@ npm start
 - 비밀번호 인증: `user@host's password:` → 타이핑 후 Enter
 - Key 인증: `Enter passphrase for key '...':` → 패스프레이즈 없으면 그냥 Enter
 
-접속에 성공하면 등록 시 지정한 tmux 세션 이름으로 자동 attach됩니다.
-
 ### 3. 여러 서버에 동시 입력하기
 
 탭바의 브로드캐스트 아이콘(⊙)을 누르면, **현재 열려 있는 모든 SSH 탭**이 자동으로 그룹이 되고 상단에
