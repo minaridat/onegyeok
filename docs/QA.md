@@ -194,6 +194,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | 설치 파일 | ✅ | `npx electron-builder --win nsis --x64` → `dist/onegyeok-0.1.0-x64.exe`(116MB), 헬퍼 2개가 `resources/native/*-helper/`에 포함 |
 | 코드 서명 | 🟡 | 미서명(인증서 없음) → SmartScreen 경고. README에 "추가 정보 → 실행" 안내. 인증서는 사내 정책 결정 사항 |
 | 패키지 실행 | 🟡 | `dist/win-unpacked/onegyeok.exe` 실행 시 프로세스가 정상 기동(8초 유지)하는 것만 확인. 화면은 직접 보지 못함 |
+| 재빌드(main 0b032e3 반영) | ✅ | QA 18~21번(Web 높이·주소창·북마크, 빠른 연결 한 폼 접속)과 W8 단축키 수정을 합쳐 `npm run dist:win`으로 다시 빌드 → `dist/onegyeok-0.1.0-x64.exe`. `native/`는 바뀌지 않아 헬퍼 동작은 이전과 같음(재컴파일만). 설치본의 app.asar에 Web 높이 수정·`Web 등록`·`다시 연결`·`isTerminalCtrlKey`가 들어 있는 것만 확인했고, 앱 화면 확인은 수동 |
 
 ### 빌드 중 발견·수정한 문제
 
