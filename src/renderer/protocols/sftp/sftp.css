@@ -1,0 +1,42 @@
+.files-pane{padding:0;background:#fff;color:#202020;}
+.files-login{margin:auto;display:flex;flex-direction:column;gap:12px;width:300px;}
+.files-login label{display:flex;flex-direction:column;gap:5px;}
+.files-pane input,.files-pane select,.files-pane button{font:inherit;color:#202020;background:#fff;border:1px solid #cbd5e1;border-radius:5px;padding:6px;}
+.files-pane button{cursor:pointer;}.files-pane button:disabled{opacity:.5;cursor:default;}
+.files-workspace{display:none;flex:1;min-height:0;flex-direction:column;}
+.files-pane.connected .files-login{display:none;}.files-pane.connected .files-workspace{display:flex;}
+.files-toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--border);align-items:center;}
+.files-panels{display:flex;flex:1;min-height:120px;overflow:hidden;}
+.files-panel{width:50%;display:flex;flex-direction:column;min-width:0;padding:8px;box-sizing:border-box;}.files-panel:first-child{border-right:1px solid var(--border);}
+.files-panel h3{margin:0 0 6px;}.files-nav,.files-filter{display:flex;gap:5px;margin-bottom:5px;}.files-path,.files-search{flex:1;min-width:0;}
+.files-panel{background:#fff;color:#000;}
+.files-panel[data-side="local"]{--files-side-color:#1456b8;}
+.files-panel[data-side="remote"]{--files-side-color:#b42318;}
+.files-panel h3,.files-panel .files-path,.files-panel .files-nav button,.files-panel .files-crumbs button,.files-panel .files-list th{color:var(--files-side-color);}
+.files-pane .files-panel input,.files-pane .files-panel select,.files-pane .files-panel button{background:#fff;color:#000;border-color:#cbd5e1;}
+.files-pane .files-panel .files-path,.files-pane .files-panel .files-nav button,.files-pane .files-panel .files-crumbs button{color:var(--files-side-color);}
+.files-panel .files-list th{background:#f1f5f9;}
+.files-panel .files-list tr:hover{background:#e8eef5;}
+.files-panel .files-list .files-directory{color:#603813;}
+.files-panel .files-list .files-file{color:#000;}
+.files-crumbs{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px;}.files-crumbs button{padding:2px 5px;font-size:11px;}
+.files-list{overflow:auto;flex:1;}.files-list table{border-collapse:collapse;width:100%;font-size:12px;}.files-list th{position:sticky;top:0;background:var(--bg-sunken);}.files-list td,.files-list th{text-align:left;padding:5px;border-bottom:1px solid var(--border);white-space:nowrap;}.files-list tr:hover{background:var(--accent-soft);}
+.files-queue-title{font-size:12px;margin:5px 10px;}.files-jobs{height:145px;overflow:auto;flex:none;padding:5px 10px;}.files-job{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding:5px;font-size:11px;}.files-job>span:first-child{width:100%;overflow-wrap:anywhere;}.files-message{color:var(--danger);padding:5px 10px;white-space:pre-wrap;font-size:12px;}
+
+.files-pane .files-toolbar,.files-pane .files-login,.files-pane .files-queue-title,.files-pane .files-jobs{background:#fff;color:#202020;}
+.files-pane input::placeholder{color:#555;opacity:1;}
+.files-pane .files-panel .files-list th{color:#333;}
+.files-pane .files-list th button{border:0;background:transparent;color:#333;padding:3px 0;font-weight:600;cursor:pointer;}
+.files-pane .files-job,.files-pane .files-job span{color:#000;}
+.files-pane .files-message{color:#333;background:#fff;}
+
+.files-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;background:#f1f5f9;color:#202020;border-bottom:1px solid #cbd5e1;}
+.files-tools[hidden],.files-plans[hidden]{display:none;}
+.files-tools label{display:flex;align-items:center;gap:4px;font-size:12px;}
+.files-tools span{font-size:12px;color:#444;}
+.files-tools input:not([type="checkbox"]){width:125px;}
+.files-plans{padding:8px;background:#fff;color:#202020;border-bottom:1px solid #cbd5e1;}
+.files-plan-list{max-height:180px;overflow:auto;}
+.files-plan-list table{width:100%;font-size:12px;border-collapse:collapse;}
+.files-plan-list td,.files-plan-list th{text-align:left;padding:4px;border-bottom:1px solid #ddd;overflow-wrap:anywhere;}
+.files-schedules{max-height:80px;overflow:auto;padding:0 10px;background:#fff;color:#202020;font-size:12px;}

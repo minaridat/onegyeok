@@ -1,0 +1,4 @@
+onegyeok-vnc-helper
+onegyeok-vnc-helper.dSYM/
+*.o
+build/
