@@ -40,3 +40,14 @@
 .files-plan-list table{width:100%;font-size:12px;border-collapse:collapse;}
 .files-plan-list td,.files-plan-list th{text-align:left;padding:4px;border-bottom:1px solid #ddd;overflow-wrap:anywhere;}
 .files-schedules{max-height:80px;overflow:auto;padding:0 10px;background:#fff;color:#202020;font-size:12px;}
+
+/* 선택 업로드(→ 원격) / 선택 다운로드(← 로컬) 버튼 강조: 배경색 + 굵고 큰 화살표(업로드 파랑 / 다운로드 빨강) */
+.files-transfer-btn{display:inline-flex;align-items:center;gap:6px;font-weight:700;padding:5px 12px;border-width:2px;border-style:solid;}
+.files-transfer-btn .files-arrow{font-size:22px;line-height:1;font-weight:900;-webkit-text-stroke:1.5px currentColor;}
+.files-arrow-left{display:inline-block;transform:scaleX(-1);}
+.files-upload-btn{background:#dbeafe;border-color:#1d4ed8;color:#0b2a6b;}
+.files-upload-btn .files-arrow{color:#1d4ed8;}
+.files-upload-btn:hover{background:#bfdbfe;}
+.files-download-btn{background:#fee2e2;border-color:#dc2626;color:#6b0b0b;}
+.files-download-btn .files-arrow{color:#dc2626;}
+.files-download-btn:hover{background:#fecaca;}

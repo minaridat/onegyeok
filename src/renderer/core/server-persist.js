@@ -11,15 +11,15 @@ var NON_PERSISTED_SERVER_FIELDS = ['status', 'since', 'auth', 'memo'];
 function serializeServerState(){
   return JSON.stringify({
     version: 1,
-    servers: SERVERS.map(function(s){
+    servers: SERVERS.filter(function(s){ return !s.temp; }).map(function(s){
       var copy = {};
       Object.keys(s).forEach(function(k){
         if(NON_PERSISTED_SERVER_FIELDS.indexOf(k) === -1) copy[k] = s[k];
       });
       return copy;
     }),
-    groupOrder: GROUP_ORDER.slice(),
-    collapsed: Array.from(collapsedGroups).sort()
+    groupOrder: GROUP_ORDER.filter(function(g){ return g !== QUICK_GROUP; }),
+    collapsed: Array.from(collapsedGroups).filter(function(g){ return g !== QUICK_GROUP; }).sort()
   });
 }
 

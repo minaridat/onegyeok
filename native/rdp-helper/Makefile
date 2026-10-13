@@ -1,5 +1,5 @@
 CC ?= clang
-PKGS := freerdp3 winpr3
+PKGS := freerdp-client3 freerdp3 winpr3
 
 # DEPS_PREFIX를 주면(배포용: scripts/mac/build-native-deps.sh가 만든 정적 라이브러리 prefix) Homebrew 대신
 # 그 prefix만 보고 정적 링크 + macOS 최소 버전 고정으로 빌드한다. 비우면 기존처럼 시스템/Homebrew 동적 링크(개발용).

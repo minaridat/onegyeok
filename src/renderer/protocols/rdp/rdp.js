@@ -217,7 +217,43 @@ function drawRdpFrame(tabId, rect, buffer){
 
 // onFrame/onStatus 리스너는 모듈 전체에 1개만 등록하고, sessionId로 해당 세션에 분배한다
 // (세션마다 새로 구독하면 탭을 여러 개 열었을 때 리스너가 중복으로 쌓인다).
+// 서버가 해상도를 바꾸면(동적 해상도) 캔버스를 새 크기로 다시 잡는다 — 캔버스 크기를 바꾸면 내용이 지워지고,
+// 헬퍼가 이어서 보내는 전체 화면 프레임으로 다시 채워진다.
+function applyRdpDesktopSize(tabId, size){
+  var s = rdpSessions[tabId];
+  if(!s || !size) return;
+  s.dom.canvas.width = size.width;
+  s.dom.canvas.height = size.height;
+  s.ctx = s.dom.canvas.getContext('2d');
+  s.requestedSize = size.width + 'x' + size.height;
+}
+
+// 창/패널 크기가 바뀌면(드래그, 전체화면 등) 잠깐 기다렸다가 그 크기로 원격 해상도 변경을 요청한다.
+// 1:1 보기(actual-size) 모드에서는 원격 해상도를 건드리지 않는다.
+function watchRdpDisplaySize(tabId){
+  var s = rdpSessions[tabId];
+  if(!s || s.sizeObserver || !window.ResizeObserver) return;
+  var timer = null;
+  function sendNow(){
+    var cur = rdpSessions[tabId];
+    if(!cur || cur.state !== 'connected' || cur.dom.displayWrap.classList.contains('actual-size')) return;
+    var w = cur.dom.displayWrap.clientWidth & ~1, h = cur.dom.displayWrap.clientHeight;
+    if(w < 200 || h < 200) return;
+    var key = w + 'x' + h;
+    if(key === cur.requestedSize) return;
+    cur.requestedSize = key;
+    if(hasRdpBridge) window.onegyeok.rdp.resize(tabId, w, h);
+  }
+  s.sizeCheck = sendNow;
+  s.sizeObserver = new ResizeObserver(function(){
+    if(timer) clearTimeout(timer);
+    timer = setTimeout(sendNow, 250);
+  });
+  s.sizeObserver.observe(s.dom.displayWrap);
+}
+
 if(hasRdpBridge){
+  window.onegyeok.rdp.onResized(function(sessionId, size){ applyRdpDesktopSize(sessionId, size); });
   window.onegyeok.rdp.onFrame(function(sessionId, rect, buffer){
     drawRdpFrame(sessionId, rect, buffer);
   });
@@ -246,9 +282,11 @@ function attemptRdpConnect(tabId){
   s.dom.connectBtn.textContent = '접속 중...';
   setRdpStatus(tabId, 'connecting', '');
 
-  var rect = s.dom.displayWrap.getBoundingClientRect();
-  var width = Math.max(320, Math.round(rect.width) || 1024);
-  var height = Math.max(240, Math.round(rect.height) || 768);
+  // 접속 전에는 작업영역(.rdp-workspace)이 display:none이라 displayWrap의 크기가 0이다 — 그래서 예전엔 항상
+  // 1024x768로 접속해 넓은 창에서 좌우가 비었다. pane 전체 크기에서 툴바 높이만 빼서 요청한다.
+  var RDP_TOOLBAR_H = 34;
+  var width = Math.max(320, (s.el.clientWidth || 1024) & ~1);
+  var height = Math.max(240, (s.el.clientHeight || (768 + RDP_TOOLBAR_H)) - RDP_TOOLBAR_H);
 
   window.onegyeok.rdp.connect(tabId, {
     host: srv.host, port: srv.port || 3389, username: username, password: password,
@@ -275,6 +313,10 @@ function attemptRdpConnect(tabId){
     s.dom.meta.textContent = srv.host + ':' + (srv.port || 3389);
     setRdpStatus(tabId, 'connected', '');
     setupRdpInput(tabId);
+    s.requestedSize = w + 'x' + h;
+    watchRdpDisplaySize(tabId);
+    // 접속 직후 실제 표시 영역과 요청한 해상도가 다르면(예: 접속 폼 때 측정한 크기와 차이) 바로 맞춰 달라고 요청한다.
+    setTimeout(function(){ if(s.sizeCheck) s.sizeCheck(); }, 600);
     setTimeout(function(){ s.dom.canvas.focus(); }, 0);
   });
 }
@@ -312,6 +354,7 @@ function wireRdpToolbarButtons(tabId, dom, el){
 // 살아있고, 새 창이 이어받는다(docs/기술스택/03_RDP_기술스택.md 참고).
 function detachRdpSessionLocal(tabId){
   var s = rdpSessions[tabId];
+  if(s && s.sizeObserver) s.sizeObserver.disconnect();
   var serverId = s && s.srv && s.srv.id;
   delete rdpSessions[tabId];
   if(serverId) updateServerRowStatus(serverId);
@@ -333,6 +376,7 @@ function attachRdpSession(tabId, serverId, el){
 
   wireRdpToolbarButtons(tabId, dom, el);
   setupRdpInput(tabId);
+  watchRdpDisplaySize(tabId);
   setTimeout(function(){ dom.canvas.focus(); }, 0);
 }
 
@@ -361,6 +405,7 @@ function startRdpSession(tabId, serverId, el){
 }
 
 function disposeRdpSession(tabId){
+  if(rdpSessions[tabId] && rdpSessions[tabId].sizeObserver) rdpSessions[tabId].sizeObserver.disconnect();
   var s = rdpSessions[tabId];
   if(!s) return;
   if(hasRdpBridge) window.onegyeok.rdp.disconnect(tabId);

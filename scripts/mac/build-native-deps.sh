@@ -42,9 +42,33 @@ if [ ! -f "$PREFIX/lib/libssl.a" ]; then
     make install_dev )
 fi
 
+# 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc + disp만 켜고 나머지는 끈다(정적 링크 크기·의존성 최소화).
+FREERDP_CHANNEL_FLAGS=""
+for ch in AINPUT AUDIN CLIPRDR DRIVE ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPDR RDPEAR RDPECAM \
+          RDPEI RDPEMSC RDPEWA RDPGFX RDPSND REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR; do
+  FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_${ch}=OFF"
+done
+FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_DRDYNVC=ON -DCHANNEL_DISP=ON"
+
 echo "== FreeRDP $FREERDP_TAG"
 if [ ! -f "$PREFIX/lib/libfreerdp3.a" ]; then
   fetch https://github.com/FreeRDP/FreeRDP "$FREERDP_TAG" freerdp
+  # 패치: 화면 크기 변경(재활성화) 직후 xrdp는 finalization(동기화 PDU)이 끝나기 전에 화면 업데이트를 먼저 보내는데,
+  # FreeRDP 3.32.1의 update_recv()는 상태가 ACTIVE 미만이면 연결을 끊어버린다 — 클라이언트가 자기 finalization
+  # 요청(CLIENT_SYNC)을 보낸 이후라면 업데이트를 받아들이도록 이 한 곳만 완화한다. (이미 패치된 소스에는 재적용 안 함)
+  python3 - "$SRC/freerdp/libfreerdp/core/update.c" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+marker = "BOOL update_recv(rdpUpdate* update, wStream* s)"
+a = s.index(marker)
+old = "if (!rdp_has_reached_state(update->context->rdp, CONNECTION_STATE_ACTIVE))"
+new = "if (!rdp_has_reached_state(update->context->rdp, CONNECTION_STATE_FINALIZATION_CLIENT_SYNC))"
+i = s.find(old, a)
+if i != -1 and i - a < 600:
+    s = s[:i] + new + s[i + len(old):]
+    open(p, 'w').write(s)
+PYEOF
   cmake -S "$SRC/freerdp" -B "$WORK/freerdp-build" "${COMMON_CMAKE[@]}" \
     -DOPENSSL_ROOT_DIR="$PREFIX" -DOPENSSL_USE_STATIC_LIBS=ON \
     -DWITH_CLIENT=OFF -DWITH_SERVER=OFF -DWITH_SHADOW=OFF -DWITH_PROXY=OFF -DWITH_SAMPLE=OFF \
@@ -54,7 +78,8 @@ if [ ! -f "$PREFIX/lib/libfreerdp3.a" ]; then
     -DWITH_FUSE=OFF -DWITH_KRB5=OFF -DWITH_AAD=OFF -DWITH_SDL=OFF -DWITH_SMARTCARD_EMULATE=OFF \
     -DWITH_JSON_DISABLED=ON -DWITH_URIPARSER=OFF -DUSE_UNWIND=OFF -DWITH_WEBVIEW=OFF \
     -DWITH_OPUS=OFF -DWITH_FAAD2=OFF -DWITH_FAAC=OFF -DWITH_SOXR=OFF -DWITH_GSM=OFF -DWITH_LAME=OFF -DWITH_OPENCL=OFF -DWITH_JPEG=OFF -DWITH_INTERNAL_SHA=OFF \
-    -DCHANNEL_URBDRC=OFF -DWITH_CLIENT_CHANNELS=OFF -DWITH_SERVER_CHANNELS=OFF -DWITH_INTERNAL_MD4=ON -DWITH_INTERNAL_RC4=ON
+    -DCHANNEL_URBDRC=OFF -DWITH_CLIENT_CHANNELS=ON -DWITH_SERVER_CHANNELS=OFF \
+    $FREERDP_CHANNEL_FLAGS -DWITH_INTERNAL_MD4=ON -DWITH_INTERNAL_RC4=ON
   cmake --build "$WORK/freerdp-build" -j"$JOBS"
   cmake --install "$WORK/freerdp-build"
 fi

@@ -160,6 +160,7 @@ function recordActive(id){
 
 function activate(id){
   emptyPane.classList.remove('active');
+  if(typeof quickConnectEl !== 'undefined' && quickConnectEl) quickConnectEl.hidden = true;
   var activeTab = null;
   tabbar.querySelectorAll('.tab').forEach(function(t){
     var match = t.dataset.id === id;
@@ -181,6 +182,7 @@ function activateEmpty(filter){
     ? '왼쪽에서 서버를 선택하면 여기에 세션이 열립니다.'
     : PROTO[filter].label + ' 서버를 선택하면 여기에 세션이 열립니다. (열린 ' + PROTO[filter].label + ' 세션 없음)';
   emptyPane.classList.add('active');
+  if(typeof renderQuickConnect === 'function') renderQuickConnect(filter);
 }
 
 function applyFilter(filter){

@@ -1,5 +1,5 @@
 /* Web 콘솔 pane — 주소 표시줄 + 내장 <webview> */
-.pane.web-pane{padding:0;background:var(--bg);color:var(--text);}
+#panes .pane.web-pane{padding:0;background:var(--bg);color:var(--text);}
 .web-toolbar{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--border);flex:none;}
 .web-toolbar .web-url{flex:1;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

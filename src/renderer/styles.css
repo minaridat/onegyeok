@@ -455,3 +455,18 @@
     .inspector{display:none;}
     .resizer-inspector{display:none;}
   }
+
+/* 빠른 연결(Web 주소창 / SFTP 접속 폼) — 해당 프로토콜 탭이 비어 있을 때 빈 화면에 표시 */
+.quick-connect{width:min(560px,100%);margin-top:var(--sp-4);}
+.quick-connect[hidden]{display:none;}
+.qc-form{display:flex;flex-direction:column;gap:8px;text-align:left;}
+.qc-title{font-size:var(--fs-sm);color:var(--text-muted, var(--term-text));}
+.qc-row{display:flex;gap:8px;}
+.qc-row input,.qc-row select{font:inherit;font-size:var(--fs-sm);padding:8px 10px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);min-width:0;}
+.qc-row input:focus,.qc-row select:focus{outline:none;border-color:var(--accent);}
+.qc-url,.qc-host{flex:1;}
+.qc-port{width:72px;}
+.qc-go{padding:8px 16px;border-radius:7px;border:none;background:var(--accent);color:#fff;font:inherit;font-size:var(--fs-sm);cursor:pointer;}
+.qc-hint{font-size:var(--fs-xs);color:var(--term-muted);}
+.qc-error{font-size:var(--fs-xs);color:var(--danger);min-height:1em;}

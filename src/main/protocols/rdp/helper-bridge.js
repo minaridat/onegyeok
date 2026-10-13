@@ -18,6 +18,7 @@ const MSG = {
   FRAME: 0x82,
   STATUS: 0x83,
   LOG: 0x84,
+  DESKTOP_RESIZED: 0x85, // 서버가 해상도를 바꿨다({width,height}) — 동적 해상도(화면 크기 조절)
 };
 
 function resolveHelperPath() {

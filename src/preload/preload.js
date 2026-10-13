@@ -89,6 +89,11 @@ contextBridge.exposeInMainWorld('onegyeok', {
       ipcRenderer.on('rdp:frame', listener);
       return () => ipcRenderer.removeListener('rdp:frame', listener);
     },
+    onResized: (callback) => {
+      const listener = (_event, sessionId, size) => callback(sessionId, size);
+      ipcRenderer.on('rdp:resized', listener);
+      return () => ipcRenderer.removeListener('rdp:resized', listener);
+    },
     onStatus: (callback) => {
       const listener = (_event, sessionId, status) => callback(sessionId, status);
       ipcRenderer.on('rdp:status', listener);

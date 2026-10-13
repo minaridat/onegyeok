@@ -3,6 +3,7 @@
  * process. One process = one RDP session; it exits when the session ends. */
 
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,13 @@
 #include <freerdp/scancode.h>
 #include <freerdp/gdi/gdi.h>
 #include <freerdp/codec/color.h>
+#include <freerdp/event.h>
+#include <freerdp/codecs.h>
+#include <freerdp/client/cmdline.h>
+#include <freerdp/client/disp.h>
+#include <freerdp/addin.h>
+#include <freerdp/client/channels.h>
+#include <freerdp/channels/disp.h>
 
 #include "framing.h"
 #include "jsonlite.h"
@@ -33,6 +41,7 @@
 #define MSG_FRAME 0x82
 #define MSG_STATUS 0x83
 #define MSG_LOG 0x84
+#define MSG_DESKTOP_RESIZED 0x85 /* helper -> Node: {"width":W,"height":H} — 서버가 해상도를 바꿨다 */
 
 static volatile int g_shutdown = 0;
 static ConnectParams g_params;
@@ -83,6 +92,7 @@ static uint16_t rd_u16(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8))
  * PostConnect) does all protocol/codec decoding into gdi->primary_buffer for us. We just
  * poll it on a tick and ship the changed bounding rect — see design doc rationale: we do
  * NOT want to reimplement RDP bitmap codecs ourselves. ---- */
+static volatile int g_frames_emitted = 0; /* 첫 화면 프레임을 보낸 뒤(=연결이 완전히 활성화된 뒤)에만 해상도 변경을 요청한다 */
 static BYTE* g_snapshot = NULL;
 static UINT32 g_snap_w = 0, g_snap_h = 0;
 
@@ -134,6 +144,7 @@ static void maybe_emit_frame(rdpGdi* gdi) {
 		memcpy(out + 8 + (size_t)y * rw * 4, src_row, (size_t)rw * 4);
 	}
 	frame_write(STDOUT_FILENO, MSG_FRAME, out, (uint32_t)(8 + pixel_bytes));
+	g_frames_emitted = 1;
 	free(out);
 
 	/* Full re-snapshot (simple, correct; perf headroom exists — see design doc note that a
@@ -141,6 +152,76 @@ static void maybe_emit_frame(rdpGdi* gdi) {
 	for (UINT32 y = 0; y < h; y++) {
 		memcpy(g_snapshot + (size_t)y * w * 4, gdi->primary_buffer + (size_t)y * stride, (size_t)w * 4);
 	}
+}
+
+/* ---- 동적 해상도(화면 크기 조절): RDP "disp"(DisplayControl) 채널로 서버에 모니터 레이아웃을 보내면 서버가
+ * 해상도를 바꾸고 DesktopResize 콜백이 온다. Node의 RESIZE 메시지는 stdin 스레드에서 오므로 값만 저장해 두고,
+ * 실제 전송은 RDP 이벤트 루프를 도는 연결 스레드에서 한다(FreeRDP 객체는 그 스레드에서만 만진다). ---- */
+static DispClientContext* g_disp = NULL;
+static UINT32 g_pending_w = 0, g_pending_h = 0; /* g_queue_mutex로 보호 */
+static BOOL (*g_prev_desktop_resize)(rdpContext*) = NULL;
+
+static void log_msg(const char* fmt, ...) {
+	char buf[200];
+	va_list ap;
+	va_start(ap, fmt);
+	int n = vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	/* 진단 로그는 stderr로 — Electron 메인이 헬퍼 stderr를 그대로 콘솔에 남긴다(MSG_LOG는 브리지에서 아직 안 쓴다). */
+	if (n > 0) fprintf(stderr, "[onegyeok-rdp-helper] %s\n", buf);
+}
+
+static void on_channel_connected(void* ctx, const ChannelConnectedEventArgs* e) {
+	(void)ctx;
+	if (e && e->name) log_msg("channel connected: %s", e->name);
+	if (e && e->name && strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0) g_disp = (DispClientContext*)e->pInterface;
+}
+
+static void on_channel_disconnected(void* ctx, const ChannelDisconnectedEventArgs* e) {
+	(void)ctx;
+	if (e && e->name && strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0) g_disp = NULL;
+}
+
+static BOOL my_desktop_resize(rdpContext* context) {
+	/* gdi가 등록해둔 기본 핸들러가 primary_buffer를 새 크기로 다시 만든다 — 먼저 호출한 뒤 Node에 알린다. */
+	if (g_prev_desktop_resize && !g_prev_desktop_resize(context)) return FALSE;
+	UINT32 w = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopWidth);
+	UINT32 h = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopHeight);
+	/* gdi_resize는 비트맵 디코더(planar 등)의 최대 폭/높이를 새 크기로 바꿔주지 않는다 — 안 하면 해상도가 커졌을 때
+	 * "planar->maxWidth < nSrcWidth"로 디코딩이 실패하고 연결이 끊긴다. */
+	if (context->codecs) {
+		freerdp_client_codecs_reset(context->codecs,
+		    FREERDP_CODEC_INTERLEAVED | FREERDP_CODEC_PLANAR | FREERDP_CODEC_NSCODEC | FREERDP_CODEC_REMOTEFX |
+		    FREERDP_CODEC_CLEARCODEC | FREERDP_CODEC_PROGRESSIVE, w, h);
+	}
+	log_msg("desktop resized to %ux%u", (unsigned)w, (unsigned)h);
+	char buf[64];
+	int n = jsonlite_build_connected(buf, sizeof(buf), (int)w, (int)h);
+	if (n > 0) frame_write(STDOUT_FILENO, MSG_DESKTOP_RESIZED, (const uint8_t*)buf, (uint32_t)n);
+	return TRUE;
+}
+
+static void send_pending_resize(void) {
+	if (!g_disp || !g_disp->SendMonitorLayout || !g_frames_emitted) return; /* 아직이면 대기 값은 그대로 두고 다음 틱에 재시도 */
+	pthread_mutex_lock(&g_queue_mutex);
+	UINT32 w = g_pending_w, h = g_pending_h;
+	g_pending_w = g_pending_h = 0;
+	pthread_mutex_unlock(&g_queue_mutex);
+	if (!w || !h) return;
+	if (w < DISPLAY_CONTROL_MIN_MONITOR_WIDTH) w = DISPLAY_CONTROL_MIN_MONITOR_WIDTH;
+	if (h < DISPLAY_CONTROL_MIN_MONITOR_HEIGHT) h = DISPLAY_CONTROL_MIN_MONITOR_HEIGHT;
+	if (w > DISPLAY_CONTROL_MAX_MONITOR_WIDTH) w = DISPLAY_CONTROL_MAX_MONITOR_WIDTH;
+	if (h > DISPLAY_CONTROL_MAX_MONITOR_HEIGHT) h = DISPLAY_CONTROL_MAX_MONITOR_HEIGHT;
+	w &= ~1u; /* 프로토콜상 너비는 짝수여야 한다 */
+	DISPLAY_CONTROL_MONITOR_LAYOUT layout;
+	memset(&layout, 0, sizeof(layout));
+	layout.Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
+	layout.Width = w;
+	layout.Height = h;
+	layout.DesktopScaleFactor = 100;
+	layout.DeviceScaleFactor = 100;
+	UINT rc = g_disp->SendMonitorLayout(g_disp, 1, &layout);
+	log_msg("disp SendMonitorLayout %ux%u rc=%u", (unsigned)w, (unsigned)h, (unsigned)rc);
 }
 
 /* ---- FreeRDP callbacks ---- */
@@ -166,11 +247,39 @@ static BOOL my_pre_connect(freerdp* instance) {
 	freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, tls);
 	freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, nla);
 	freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, rdp);
+
+	/* 동적 해상도: drdynvc + disp 채널을 켜고 채널 연결 이벤트를 구독한다. */
+	freerdp_settings_set_bool(settings, FreeRDP_SupportDynamicChannels, TRUE);
+	freerdp_settings_set_bool(settings, FreeRDP_SupportDisplayControl, TRUE);
+	freerdp_settings_set_bool(settings, FreeRDP_DynamicResolutionUpdate, TRUE);
+	/* 아래 RDP8 기능들은 켜져 있으면 FreeRDP가 rdpdr(장치 리디렉션) 채널을 강제로 요구하는데, 이 헬퍼는 해당 채널을
+	 * 빌드에 넣지 않았으므로 끈다 — 안 끄면 freerdp_client_load_addins가 rdpdr 로드 실패로 접속 자체가 막힌다. */
+	freerdp_settings_set_bool(settings, FreeRDP_NetworkAutoDetect, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_SupportHeartbeatPdu, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_SupportMultitransport, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_AudioCapture, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_SupportGraphicsPipeline, FALSE);
+	PubSub_SubscribeChannelConnected(instance->context->pubSub, on_channel_connected);
+	PubSub_SubscribeChannelDisconnected(instance->context->pubSub, on_channel_disconnected);
+	/* 채널 로드는 여기서 하지 않는다 — FreeRDP가 PreConnect 직후 채널 객체를 새로 만들어 바꿔치기(utils_reload_channels)하므로
+	 * PreConnect에서 로드한 채널은 버려진다. 아래 my_load_channels(instance->LoadChannels)에서 로드한다. */
 	return TRUE;
+}
+
+/* FreeRDP가 (PreConnect 이후) 채널 객체를 재생성한 직후 호출한다 — 정적/동적 채널(drdynvc, disp)은 반드시 여기서 로드해야 한다. */
+static BOOL my_load_channels(freerdp* instance) {
+	BOOL ok = freerdp_client_load_addins(instance->context->channels, instance->context->settings);
+	if (!ok) log_msg("load_channels failed");
+	return ok;
 }
 
 static BOOL my_post_connect(freerdp* instance) {
 	if (!gdi_init(instance, PIXEL_FORMAT_BGRA32)) return FALSE;
+	g_prev_desktop_resize = instance->context->update->DesktopResize;
+	instance->context->update->DesktopResize = my_desktop_resize;
 	UINT32 w = freerdp_settings_get_uint32(instance->context->settings, FreeRDP_DesktopWidth);
 	UINT32 h = freerdp_settings_get_uint32(instance->context->settings, FreeRDP_DesktopHeight);
 	char buf[128];
@@ -235,11 +344,16 @@ static void* run_connection(void* arg) {
 	(void)arg;
 	send_status("connecting", NULL);
 
+	/* 정적으로 링크된 채널(drdynvc/disp) 진입점을 FreeRDP가 찾을 수 있게 제공자를 등록한다 — freerdp_client_context_new()가 해주던
+	 * 일인데 이 헬퍼는 그 헬퍼를 쓰지 않고 freerdp_new()를 직접 쓰므로 여기서 한다. */
+	freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
+
 	freerdp* instance = freerdp_new();
 	if (!instance) { send_status("error", "freerdp_new failed"); exit(1); }
 
 	instance->PreConnect = my_pre_connect;
 	instance->PostConnect = my_post_connect;
+	instance->LoadChannels = my_load_channels;
 	instance->PostDisconnect = my_post_disconnect;
 	instance->AuthenticateEx = my_authenticate_ex;
 
@@ -262,6 +376,7 @@ static void* run_connection(void* arg) {
 
 		QueueItem* items = queue_drain();
 		if (items) dispatch_input(instance->context->input, items);
+		send_pending_resize();
 
 		maybe_emit_frame(instance->context->gdi);
 
@@ -312,9 +427,12 @@ int main(void) {
 				free(f.payload);
 				break;
 			case MSG_RESIZE:
-				/* Known v1 gap (documented in docs/기술스택/03_RDP_기술스택.md): live
-				 * resize is not yet implemented. */
-				frame_write(STDOUT_FILENO, MSG_LOG, (const uint8_t*)"RESIZE not yet supported", 24);
+				if (f.payload_len >= 4) {
+					pthread_mutex_lock(&g_queue_mutex);
+					g_pending_w = rd_u16(f.payload);
+					g_pending_h = rd_u16(f.payload + 2);
+					pthread_mutex_unlock(&g_queue_mutex);
+				}
 				free(f.payload);
 				break;
 			default:
