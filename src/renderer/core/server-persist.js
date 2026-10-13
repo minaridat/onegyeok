@@ -11,7 +11,7 @@ var NON_PERSISTED_SERVER_FIELDS = ['status', 'since', 'auth', 'memo'];
 function serializeServerState(){
   return JSON.stringify({
     version: 1,
-    servers: SERVERS.filter(function(s){ return !s.temp; }).map(function(s){
+    servers: SERVERS.filter(function(s){ return !s.temp || s.group === QUICK_GROUP; }).map(function(s){
       var copy = {};
       Object.keys(s).forEach(function(k){
         if(NON_PERSISTED_SERVER_FIELDS.indexOf(k) === -1) copy[k] = s[k];
