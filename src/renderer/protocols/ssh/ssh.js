@@ -441,8 +441,12 @@ function createPaneCellDom(paneId){
   pickerEl.addEventListener('change', function(){
     var chosen = pickerEl.value;
     pickerEl.value = '';
-    if(chosen) moveSessionIntoCell(chosen, paneId);
+    if(!chosen) return;
+    if(chosen.indexOf('srv:') === 0) replacePaneWithNewSession(paneId, chosen.slice(4));
+    else if(chosen.indexOf('pane:') === 0) moveSessionIntoCell(chosen.slice(5), paneId);
   });
+  // 서버를 등록/삭제한 직후에도 목록이 최신이도록, 열 때마다 다시 채운다(생성 시·세션 변화 시 채우는 것은 그대로 유지).
+  pickerEl.addEventListener('mousedown', function(){ populateSessionPicker(pickerEl, paneId); });
   closeBtn.addEventListener('click', function(e){ e.stopPropagation(); closePaneCell(paneId); });
   cellEl.addEventListener('mousedown', function(){ focusedPaneId = paneId; }, true);
 
@@ -453,12 +457,51 @@ function createPaneCellDom(paneId){
 // 다시 채워 항상 최신 상태를 보장한다(마우스다운 시점에만 채우면 키보드 접근성·테스트 자동화에서
 // 값이 비어 보이는 문제가 있어, 생성 시 + 주요 상태 변화 시점에 미리 채워둔다).
 function populateSessionPicker(pickerEl, forPaneId){
-  var options = ['<option value="">— 세션 선택 —</option>'];
-  Object.keys(sshSessions).forEach(function(pid){
-    if(pid === forPaneId) return;
-    options.push('<option value="'+escapeHtml(pid)+'">'+escapeHtml(sessionLabel(pid))+'</option>');
+  var forTabId = findTabForPane(forPaneId);
+  var options = ['<option value="">— 서버/세션 선택 —</option>'];
+
+  // 1) 등록된 SSH 서버 전부 — 고르면 이 자리에 그 서버의 "새 세션"을 연다. 이미 열려 있는 서버(같은 서버 포함)도 고를 수 있다.
+  var servers = SERVERS.filter(function(srv){ return srv.protocol === 'ssh'; });
+  if(servers.length){
+    options.push('<optgroup label="새 세션 열기">');
+    servers.forEach(function(srv){
+      options.push('<option value="srv:'+escapeHtml(srv.id)+'">'+escapeHtml(srv.id)+'</option>');
+    });
+    options.push('</optgroup>');
+  }
+
+  // 2) 이미 열려 있는 세션 — 다른 탭의 세션을 이 자리로 가져온다(원래 자리에서는 옮겨진다). 같은 탭 안의 다른 pane은
+  //    가져와도 분할이 합쳐질 뿐이라 후보에서 뺀다.
+  var open = Object.keys(sshSessions).filter(function(pid){
+    return pid !== forPaneId && findTabForPane(pid) !== forTabId;
   });
+  if(open.length){
+    options.push('<optgroup label="열려 있는 세션 가져오기">');
+    open.forEach(function(pid){
+      options.push('<option value="pane:'+escapeHtml(pid)+'">'+escapeHtml(sessionLabel(pid))+'</option>');
+    });
+    options.push('</optgroup>');
+  }
   pickerEl.innerHTML = options.join('');
+}
+
+// 선택한 서버의 새 SSH 세션을 이 pane 자리에 연다 — 이 pane에 있던 세션은 닫힌다(분할 직후의 빈 로그인 프롬프트가 보통이다).
+function replacePaneWithNewSession(paneId, serverId){
+  var cell = panes.querySelector('.pane-cell[data-pane-id="'+paneId+'"]');
+  var tabId = findTabForPane(paneId);
+  if(!cell || !tabId || !SERVERS.some(function(srv){ return srv.id === serverId; })) return;
+  var statusEl = cell.querySelector('.ssh-connecting');
+  var hostEl = cell.querySelector('.xterm-host');
+  disposeSession(paneId);
+  hostEl.innerHTML = '';
+  statusEl.style.display = '';
+  statusEl.textContent = '연결 준비 중...';
+  startSshSession(paneId, serverId, statusEl, hostEl);
+  updateLayoutChrome(tabId);
+  requestAnimationFrame(function(){
+    fitSshSession(paneId);
+    if(sshSessions[paneId]) sshSessions[paneId].term.focus();
+  });
 }
 
 function refreshAllSessionPickers(){
