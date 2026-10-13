@@ -114,27 +114,53 @@ function setBroadcastMode(on){
 broadcastToggleBtn.addEventListener('click', function(){ setBroadcastMode(!broadcastMode); });
 document.getElementById('broadcastOffBtn').addEventListener('click', function(){ setBroadcastMode(false); });
 
-// 터미널 안에서 한 줄을 로컬로 입력받는다 (비밀번호 입력처럼 화면에 echo하지 않음).
+// 터미널 안에서 한 줄을 로컬로 입력받는다. echo 옵션으로 화면 표시 방식을 고른다:
+//   { term, mask: false } — 입력한 글자를 그대로 보여준다(login as: 아이디)
+//   { term, mask: true }  — 글자 수만큼 '*'로 보여준다(비밀번호/Passphrase, 값 자체는 화면·저장 어디에도 남지 않음)
+//   echo 생략            — 아무것도 표시하지 않는다
 // 브로드캐스트 중에는 세션마다 독립된 버퍼를 가지므로, 같은 키 입력이 동시에 들어와도
 // 각자 알아서 자기 줄을 완성하고 각자 접속을 진행한다.
-function createLinePrompter(onSubmit, onCancel){
+function isWideChar(ch){
+  var c = ch.charCodeAt(0);
+  return (c >= 0x1100 && c <= 0x115F) || (c >= 0x2E80 && c <= 0xA4CF) || (c >= 0xAC00 && c <= 0xD7A3) ||
+    (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFE30 && c <= 0xFE6F) || (c >= 0xFF00 && c <= 0xFF60) || (c >= 0xFFE0 && c <= 0xFFE6);
+}
+
+function createLinePrompter(onSubmit, onCancel, echo){
   var buf = '';
+  var chars = []; // 화면에 그려진 글자(백스페이스 시 지울 칸 수 계산용)
+  function show(ch){
+    if(!echo) return;
+    var out = echo.mask ? '*' : ch;
+    chars.push(echo.mask ? 1 : (isWideChar(ch) ? 2 : 1));
+    echo.term.write(out);
+  }
+  function erase(){
+    if(!echo || !chars.length) return;
+    var w = chars.pop();
+    var back = '', blank = '';
+    for(var k = 0; k < w; k++){ back += '\b'; blank += ' '; }
+    echo.term.write(back + blank + back);
+  }
   return function handleInput(data){
+    // 방향키 등 이스케이프 시퀀스는 무시한다(\x1b[A 같은 문자가 입력값에 섞이지 않게).
+    data = data.replace(/\x1b\[[0-9;]*[A-Za-z~]|\x1bO[A-Za-z]/g, '');
     for(var i = 0; i < data.length; i++){
       var ch = data[i];
       var code = data.charCodeAt(i);
       if(ch === '\r' || ch === '\n'){
-        var value = buf; buf = '';
+        var value = buf; buf = ''; chars = [];
         onSubmit(value);
         return;
       } else if(code === 3){ // Ctrl+C
-        buf = '';
+        buf = ''; chars = [];
         onCancel();
         return;
       } else if(code === 127 || code === 8){ // Backspace
-        buf = buf.slice(0, -1);
+        if(buf.length){ buf = buf.slice(0, -1); erase(); }
       } else if(code >= 32){
         buf += ch;
+        show(ch);
       }
     }
   };
@@ -170,7 +196,8 @@ function promptAndConnect(id, session){
       session.activeUsername = username;
       promptAuthStep(id, session);
     },
-    function(){ session.term.write('^C\r\n'); session.term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+    function(){ session.term.write('^C\r\n'); session.term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; },
+    { term: session.term, mask: false } // 아이디는 입력하는 대로 보여준다
   );
 }
 
@@ -180,13 +207,15 @@ function promptAuthStep(id, session){
     term.write("Enter passphrase for key '" + (srv.keyFilePath || '') + "' (없으면 Enter): ");
     session.handleInput = createLinePrompter(
       function(value){ term.write('\r\n'); finishPrompt(id, session, { passphrase: value || undefined }); },
-      function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+      function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; },
+      { term: term, mask: true } // 비밀번호/Passphrase는 '*'로 표시
     );
   } else {
     term.write(session.activeUsername + '@' + srv.host + "'s password: ");
     session.handleInput = createLinePrompter(
       function(value){ term.write('\r\n'); finishPrompt(id, session, { password: value }); },
-      function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; }
+      function(){ term.write('^C\r\n'); term.writeln('연결이 취소되었습니다. 재연결 버튼으로 다시 시도할 수 있습니다.'); setSshStatus(id, 'canceled', ''); session.handleInput = function(){}; },
+      { term: term, mask: true } // 비밀번호/Passphrase는 '*'로 표시
     );
   }
 }

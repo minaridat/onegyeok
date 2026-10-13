@@ -25,13 +25,13 @@
 .sql-meta{margin-left:auto;font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums;}
 .sql-editor{flex:none;height:110px;resize:vertical;border:none;border-bottom:1px solid var(--border);padding:10px 12px;
   font-family:var(--font-mono);font-size:var(--fs-sm);background:var(--bg-elevated);color:var(--text);outline:none;}
-.sql-results-wrap{flex:1;min-height:0;overflow:auto;}
+.sql-results-wrap{flex:1;min-height:0;overflow:auto;background:#fff;color:#000;}
 .sql-results-table{border-collapse:collapse;font-family:var(--font-mono);font-size:var(--fs-xs);width:max-content;min-width:100%;}
-.sql-results-table th{position:sticky;top:0;background:var(--bg-sunken);text-align:left;padding:6px 10px;
-  border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap;}
-.sql-results-table td{padding:5px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
-.sql-results-table tr:hover td{background:var(--accent-soft);}
-.sql-empty-note{padding:var(--sp-4);color:var(--text-faint);font-size:var(--fs-sm);}
+.sql-results-table th{position:sticky;top:0;background:#f0eee8;text-align:left;padding:6px 10px;
+  border-bottom:1px solid #d6d2c7;color:#000;font-weight:700;white-space:nowrap;}
+.sql-results-table td{padding:5px 10px;border-bottom:1px solid #e6e3da;color:#000;white-space:nowrap;}
+.sql-results-table tr:hover td{background:#eef3fb;}
+.sql-empty-note{padding:var(--sp-4);color:#000;font-size:var(--fs-sm);}
 .sql-error-box{margin:10px 12px;padding:8px 10px;border-radius:6px;background:var(--danger-soft);color:var(--danger);
   font-family:var(--font-mono);font-size:var(--fs-xs);white-space:pre-wrap;flex:none;}
 
