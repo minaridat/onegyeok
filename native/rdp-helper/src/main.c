@@ -432,6 +432,14 @@ static void* run_connection(void* arg) {
 
 int main(void) {
 	compat_set_binary_stdio();
+#ifdef _WIN32
+	/* libfreerdp는 Winsock 초기화를 호출자에게 맡긴다 — 없으면 127.0.0.1도 "DNS host name was not found"로 실패한다. */
+	WSADATA wsa_data;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
+		log_msg("WSAStartup failed");
+		return 1;
+	}
+#endif
 	pthread_t conn_thread;
 	int conn_started = 0;
 

@@ -2,3 +2,6 @@ onegyeok-vnc-helper
 onegyeok-vnc-helper.dSYM/
 *.o
 build/
+onegyeok-vnc-helper.exe
+*.pdb
+*.ilk

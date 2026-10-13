@@ -152,3 +152,55 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 - RDP 크기 조절을 실제 Windows Server에서, 그리고 실제 RDP/VNC 서버 접속 전반
 - 12, 14번의 실제 화면(SQL 결과, FTP 버튼) 육안 확인
 - Apple 서명·공증 정책(2번)
+
+---
+
+## Windows (x64) 빌드 — `minaridat/win-build`
+
+[WINDOWS_BUILD.md](./WINDOWS_BUILD.md) 지시서대로 Windows 11 Pro(22000) PC에서 빌드했다. 빌드 도구: VS 18 Insiders(MSVC 14.51, Windows SDK 26100), CMake, Ninja, Strawberry Perl, NASM.
+
+### 빌드 결과
+
+| 항목 | 상태 | 내용 |
+|---|---|---|
+| 의존성 정적 빌드 | ✅ | `scripts/win/build-native-deps.ps1` — OpenSSL 3.5.9 / zlib 1.3.1 / FreeRDP 3.32.1(drdynvc+disp만) / LibVNCServer 0.9.15, 모두 `/MT` |
+| 헬퍼 빌드 | ✅ | `scripts/win/build-native.ps1` → `onegyeok-rdp-helper.exe`(7.7MB), `onegyeok-vnc-helper.exe`(5.1MB) |
+| DLL 의존성 | ✅ | `dumpbin /dependents`: 두 헬퍼 모두 Windows 시스템 DLL만(WS2_32, CRYPT32, ADVAPI32, USER32, KERNEL32, ncrypt, credui 등). VC 런타임 DLL 없음 |
+| 설치 파일 | ✅ | `npx electron-builder --win nsis --x64` → `dist/onegyeok-0.1.0-x64.exe`(116MB), 헬퍼 2개가 `resources/native/*-helper/`에 포함 |
+| 코드 서명 | 🟡 | 미서명(인증서 없음) → SmartScreen 경고. README에 "추가 정보 → 실행" 안내. 인증서는 사내 정책 결정 사항 |
+| 패키지 실행 | 🟡 | `dist/win-unpacked/onegyeok.exe` 실행 시 프로세스가 정상 기동(8초 유지)하는 것만 확인. 화면은 직접 보지 못함 |
+
+### 빌드 중 발견·수정한 문제
+
+1. **FreeRDP `cmdline.c` 빈 배열(MSVC C7757)** — 정적 채널을 전부 끄면 `staticChannels[]`가 비어 MSVC가 컴파일을 거부한다(clang은 허용). 빌드 스크립트에서 맨 앞에 빈 항목을 넣고 반복문에서 건너뛰는 패치를 적용(동작 동일). `update.c` 패치는 macOS와 동일하게 적용.
+2. **FreeRDP 헤더의 dllimport** — Windows에서 FreeRDP/WinPR 헤더는 정적 링크 분기 없이 `__declspec(dllimport)`로 선언한다. 헬퍼 빌드에 `FREERDP_EXPORTS`/`WINPR_EXPORTS`를 정의해 해결.
+3. **VNC 비밀번호 인증 실패 (OpenSSL legacy provider)** — OpenSSL 3는 DES를 legacy provider에 두는데, `no-module` 없이 빌드하면 legacy가 별도 `legacy.dll` 모듈로 빠져 libvncclient의 `OSSL_PROVIDER_load("legacy")`가 실패 → VNC 인증(DES)이 항상 실패한다. Windows는 `no-module`을 추가해 legacy를 libcrypto에 내장. **macOS(`scripts/mac/build-native-deps.sh`)도 같은 옵션이라 같은 문제가 있을 가능성이 높다 — 비밀번호 있는 VNC 서버로 macOS 빌드 확인 필요**(지시서 규칙상 macOS 스크립트는 수정하지 않음).
+4. **RDP 헬퍼 Winsock 미초기화** — libfreerdp는 `WSAStartup`을 호출자에게 맡긴다. 없으면 `127.0.0.1`도 "DNS host name was not found"로 실패. `main()`에서 Windows일 때 `WSAStartup` 호출 추가.
+5. `clock_gettime` → Windows는 `GetTickCount64`. pthread/unistd는 기존 `compat.h`(91beb23) 셈 사용.
+
+### 검증
+
+| # | 항목 | 상태 | 내용 |
+|---|---|---|---|
+| W1 | VNC 헬퍼 실제 서버 접속 | ✅ | 이 PC의 TightVNC 2.8.89(127.0.0.1:5900, VNC 비밀번호 인증)에 `test_e2e.py`로 접속 → CONNECTED 2560×1600, FRAME(알파 0xFF), DISCONNECT 후 exit 0 |
+| W2 | RDP 헬퍼 기동·오류 보고 | 🟡 | 서버 없는 127.0.0.1:3389에 접속 → STATUS connecting → error "The connection failed." 정상 보고. **실제 RDP 서버 접속은 미검증** |
+| W3 | RDP 동적 해상도(실제 Windows Server, NLA 포함) | 🔲 | 사용자 수동 검증 예정 (지시서 4장·5장 4번) |
+| W4 | 깨끗한 Windows(VM)에 설치·실행 | 🔲 | 사용자 수동 검증 예정 |
+| W5 | 설치 후 서버 0개·탭 0개 시작 | 🔲 | 수동 확인 필요 |
+| W6 | QA 1~8번(서버 저장, SSH 입력/높이/분할, 그룹, 빠른 연결, SQL 색, FTP 버튼) | 🔲 | 수동 확인 필요 |
+| W7 | VNC 앱 화면(접속·표시·입력) | 🔲 | 헬퍼는 W1로 확인. 앱 UI에서의 표시·입력은 수동 확인 필요 |
+| W8 | Windows 단축키 충돌 | 🔲 | 아래 참고 |
+
+### W8. Windows에서 앱 단축키가 터미널 Ctrl 키와 충돌 — 🔲 결정 필요
+
+- **증상(코드 확인)**: macOS의 ⌘ 단축키가 Windows에서는 `ctrlKey`로 잡히는데, 전역 `document` keydown이라 xterm이 키를 터미널에 보낸 뒤에도 앱 동작이 같이 실행된다.
+  - `Ctrl+D`(셸 EOF/로그아웃) → SSH 분할, `Ctrl+Shift+D` → 가로 분할
+  - `Ctrl+[`(= ESC, vim) / `Ctrl+]` → pane 포커스 이동
+  - `Ctrl+K`(줄 끝까지 삭제) → 명령 팔레트, `Ctrl+I`(= Tab) → 인스펙터, `Ctrl+1~9` → 탭 전환
+- 탭 이동 `Ctrl+Tab`/`Ctrl+Shift+Tab`, `Ctrl+Shift+,`/`Ctrl+Shift+.`(e.code 기반)는 코드상 Windows에서도 동작.
+- **제안**: Windows에서는 포커스가 터미널(`.xterm`) 안에 있을 때 위 조합을 앱이 가로채지 않거나, Windows Terminal처럼 `Ctrl+Shift`/`Alt+Shift` 조합으로 옮긴다. 단축키 체계 결정이 필요해 이번 빌드에서는 수정하지 않았다.
+
+### 참고
+
+- FreeRDP 빌드가 `WITH_VERBOSE_WINPR_ASSERT=ON`(기본값)이라 헬퍼가 시작 시 "runtime-check build options" 경고를 stderr에 남긴다. 동작에는 영향 없음(macOS도 동일 설정).
+- `package.json` `version`이 `0.1.0`이라 설치 파일 이름이 `onegyeok-0.1.0-x64.exe`다(릴리스 태그는 v0.1.3까지 있음). 릴리스 업로드 시 `onegyeok-x64.exe`로 올린다.

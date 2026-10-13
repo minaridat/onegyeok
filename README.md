@@ -85,6 +85,23 @@ Node.js, Homebrew 등 **아무것도 미리 설치할 필요가 없습니다** �
 > 앱 데이터(서버 목록·메모)는 `~/Library/Application Support/onegyeok/`에 암호화되어 저장됩니다. 앱을 삭제해도
 > 남아 있으니 완전히 지우려면 이 폴더도 삭제하세요.
 
+### 방법 A-2. 설치 파일로 설치 (Windows · 사용자용)
+
+macOS와 마찬가지로 **아무것도 미리 설치할 필요가 없습니다** — RDP/VNC 헬퍼(`.exe`)가 정적 링크로 들어 있어
+VC 런타임 등도 필요 없습니다.
+
+| 항목 | 요구사항 |
+|---|---|
+| CPU | **x64** (ARM64·32bit는 지원하지 않습니다) |
+| Windows | **Windows 10 22H2 이상 / Windows 11** |
+
+1. **[⬇️ onegyeok-x64.exe 다운로드](https://github.com/minaridat/onegyeok/releases/latest/download/onegyeok-x64.exe)** ([릴리스 목록](https://github.com/minaridat/onegyeok/releases))를 받아 실행합니다. 설치 위치를 고를 수 있고, 현재 사용자에게만 설치됩니다(관리자 권한 불필요).
+2. **SmartScreen 경고**: 현재 설치 파일은 코드 서명 인증서로 서명되어 있지 않아 **"Windows의 PC 보호"** 창이 뜹니다. **추가 정보 → 실행**을 누르면 설치가 진행됩니다. (인증서 도입 여부는 사내 정책으로 결정 예정)
+3. 설치 직후에는 서버 목록이 비어 있습니다. 등록한 서버는 재실행해도 유지됩니다.
+
+> 앱 데이터(서버 목록·메모)는 `%APPDATA%\onegyeok\`에 DPAPI(`safeStorage`)로 암호화되어 저장됩니다. 제거해도
+> 남아 있으니 완전히 지우려면 이 폴더도 삭제하세요.
+
 ### 방법 B. 설치 파일 직접 빌드하기 (macOS · 배포 담당자용)
 
 Apple Silicon Mac에서 빌드합니다. 빌드 머신에만 아래 도구가 필요하고, 결과물(`.dmg`)을 받는 사용자 PC에는 필요 없습니다.
@@ -107,6 +124,26 @@ npm run dist:mac              # 네이티브 헬퍼 정적 빌드 → electron-b
   `scripts/mac/build-native-deps.sh`의 `MACOSX_DEPLOYMENT_TARGET`).
 - 임시(ad-hoc) 서명만 하고 Apple 공증은 하지 않습니다(`mac.identity: "-"`) — 서명 정책이 정해지면 `package.json`의 `build.mac`을 채우세요. 서명을 아예 끄면(`null`) 다운로드한 앱이 "손상됨"으로 막힙니다.
 - 자세한 설계·검증 범위는 [06_빌드배포_기술스택.md](./docs/기술스택/06_빌드배포_기술스택.md) 참고.
+
+### 방법 B-2. 설치 파일 직접 빌드하기 (Windows · 배포 담당자용)
+
+Windows x64 PC에서 빌드합니다. 빌드 도구는 빌드 머신에만 필요합니다.
+
+```powershell
+# 빌드 도구 (최초 1회) — Visual Studio Build Tools는 "C++를 사용한 데스크톱 개발" 워크로드 + Windows SDK 선택
+winget install Kitware.CMake Ninja-build.Ninja StrawberryPerl.StrawberryPerl NASM.NASM Git.Git OpenJS.NodeJS.LTS
+
+git clone https://github.com/minaridat/onegyeok.git
+cd onegyeok
+npm install
+node node_modules/electron/install.js   # npm 11이 설치 스크립트를 막으면 Electron 바이너리를 직접 받음
+npm run dist:win              # 네이티브 헬퍼 정적 빌드 → electron-builder → dist/onegyeok-<버전>-x64.exe
+                              # (배포: macOS dmg와 같은 릴리스에 'onegyeok-x64.exe' 이름으로 업로드)
+```
+
+- 첫 빌드는 OpenSSL·zlib·FreeRDP·libvncclient를 소스에서 MSVC로 정적 빌드해 **30분 안팎** 걸립니다(이후엔 캐시
+  사용: `build/win-deps/`). 스크립트는 `scripts/win/`에 있습니다.
+- 코드 서명은 하지 않습니다(SmartScreen 경고 발생). 인증서가 정해지면 `package.json`의 `build.win`에 서명 설정을 추가하세요.
 
 ### 방법 C. 소스에서 직접 실행 (개발자용)
 
@@ -231,8 +268,8 @@ OS 자격증명 저장소 기반으로 암호화되어 저장됩니다(민감정
 | VNC | **LibVNCServer 0.9.15**(`libvncclient`)을 직접 링크한 C 네이티브 헬퍼 |
 | Web | Electron `<webview>`(메모리 전용 파티션, 부착 검증·http(s)만 허용) |
 | 저장소 / 암호화 | Electron `safeStorage`(OS 키체인) — 서버 목록 `servers.dat`, 메모 `memos.json` |
-| 패키징 | `electron-builder` 26 → macOS arm64 `.dmg`(최소 macOS 15.0) |
-| 네이티브 빌드 | `clang` + `pkg-config` Makefile, 배포용은 OpenSSL 3.5 / FreeRDP / libvncclient를 `cmake`+`ninja`로 **정적 빌드**(`scripts/mac/build-native-deps.sh`) |
+| 패키징 | `electron-builder` 26 → macOS arm64 `.dmg`(최소 macOS 15.0), Windows x64 NSIS `.exe` |
+| 네이티브 빌드 | `clang` + `pkg-config` Makefile, 배포용은 OpenSSL 3.5 / FreeRDP / libvncclient를 `cmake`+`ninja`로 **정적 빌드**(`scripts/mac/build-native-deps.sh`), Windows는 MSVC `/MT` 정적 빌드(`scripts/win/`) |
 
 선택 근거와 연결 종류별 상세는 [docs/기술스택/](./docs/기술스택/) 참고.
 
