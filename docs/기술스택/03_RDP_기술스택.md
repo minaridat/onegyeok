@@ -133,5 +133,8 @@
      `DesktopResize`에서 `freerdp_client_codecs_reset`을 호출한다.
   6. xrdp는 재활성화 중 finalization 완료 전에 화면 업데이트를 먼저 보내는데 FreeRDP 3.32.1의 `update_recv()`가 이를 거부한다 —
      빌드 스크립트가 소스를 한 줄 패치한다(상태 하한을 `FINALIZATION_CLIENT_SYNC`로 완화).
+  7. **`gdi_init()`은 `DesktopResize` 핸들러를 등록하지 않는다**(xfreerdp 등 클라이언트가 직접 `gdi_resize`를 호출). 헬퍼가 `DesktopResize`에서 `gdi_resize(gdi, w, h)`를
+     직접 불러야 한다 — 안 하면 서버는 새 해상도로 그리는데 헬퍼의 그림 버퍼는 옛 크기 그대로라, 키운 방향(오른쪽/아래)의 새 영역이 영원히 비어 보인다(줄이는 쪽은 정상으로 보임).
+  8. 해상도 변경 직후 Refresh Rect(화면 전체 재전송 요청)를 +400ms/+1500ms에 한 번씩 보낸다 — 새 영역을 스스로 다시 그리지 않는 서버 대비.
 - **검증**: xrdp 0.9.24(`scottyhardy/docker-remote-desktop`, Xorg 세션) 대상으로 접속 후 패널 폭을 여러 번 바꿔 650/1122/782px 등으로
-  해상도가 따라가는 것을 확인. **실제 Windows Server 대상은 미검증**(Windows는 `disp` 채널을 표준으로 지원하므로 동작할 것으로 예상).
+  해상도가 따라가는 것을 확인했고, 키운 뒤 캔버스 오른쪽·아래 끝 픽셀까지 실제로 그려지는지(알파 255)도 가로·세로 모두 확인. **실제 Windows Server 대상은 미검증**(Windows는 `disp` 채널을 표준으로 지원하므로 동작할 것으로 예상).

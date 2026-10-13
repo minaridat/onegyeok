@@ -3,6 +3,7 @@
  * process. One process = one RDP session; it exits when the session ends. */
 
 #include <pthread.h>
+#include <time.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -160,6 +161,32 @@ static void maybe_emit_frame(rdpGdi* gdi) {
 static DispClientContext* g_disp = NULL;
 static UINT32 g_pending_w = 0, g_pending_h = 0; /* g_queue_mutex로 보호 */
 static BOOL (*g_prev_desktop_resize)(rdpContext*) = NULL;
+/* 해상도가 바뀐 직후 서버에 "화면 전체를 다시 보내달라"(Refresh Rect)고 요청할 시각(ms, 0이면 없음). 일부 서버(xrdp 등)는 키운 해상도의
+ * 새 영역을 스스로 다시 그려주지 않아 오른쪽/아래가 비어 보이기 때문에, 연결이 안정된 뒤 두 번(+400ms, +1500ms) 요청한다. */
+static uint64_t g_refresh_at[2] = {0, 0};
+static void log_msg(const char* fmt, ...);
+
+static uint64_t now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)ts.tv_sec * 1000u + (uint64_t)(ts.tv_nsec / 1000000);
+}
+
+static void send_due_refresh(rdpContext* context) {
+	if (!context || !context->gdi || !context->update || !context->update->RefreshRect) return;
+	uint64_t now = now_ms();
+	for (int i = 0; i < 2; i++) {
+		if (g_refresh_at[i] && now >= g_refresh_at[i]) {
+			g_refresh_at[i] = 0;
+			RECTANGLE_16 rect;
+			rect.left = 0;
+			rect.top = 0;
+			rect.right = (UINT16)context->gdi->width;
+			rect.bottom = (UINT16)context->gdi->height;
+			context->update->RefreshRect(context, 1, &rect);
+		}
+	}
+}
 
 static void log_msg(const char* fmt, ...) {
 	char buf[200];
@@ -183,10 +210,12 @@ static void on_channel_disconnected(void* ctx, const ChannelDisconnectedEventArg
 }
 
 static BOOL my_desktop_resize(rdpContext* context) {
-	/* gdi가 등록해둔 기본 핸들러가 primary_buffer를 새 크기로 다시 만든다 — 먼저 호출한 뒤 Node에 알린다. */
-	if (g_prev_desktop_resize && !g_prev_desktop_resize(context)) return FALSE;
 	UINT32 w = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopWidth);
 	UINT32 h = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopHeight);
+	/* gdi_init()은 DesktopResize 핸들러를 등록해주지 않는다 — 우리가 직접 gdi 버퍼를 새 크기로 다시 만들어야 한다.
+	 * 안 하면 서버는 새 해상도로 그리는데 클라이언트 버퍼는 옛 크기 그대로라 새로 생긴 영역이 영원히 비어 보인다. */
+	if (g_prev_desktop_resize && !g_prev_desktop_resize(context)) return FALSE;
+	if (!gdi_resize(context->gdi, w, h)) return FALSE;
 	/* gdi_resize는 비트맵 디코더(planar 등)의 최대 폭/높이를 새 크기로 바꿔주지 않는다 — 안 하면 해상도가 커졌을 때
 	 * "planar->maxWidth < nSrcWidth"로 디코딩이 실패하고 연결이 끊긴다. */
 	if (context->codecs) {
@@ -195,6 +224,8 @@ static BOOL my_desktop_resize(rdpContext* context) {
 		    FREERDP_CODEC_CLEARCODEC | FREERDP_CODEC_PROGRESSIVE, w, h);
 	}
 	log_msg("desktop resized to %ux%u", (unsigned)w, (unsigned)h);
+	g_refresh_at[0] = now_ms() + 400;
+	g_refresh_at[1] = now_ms() + 1500;
 	char buf[64];
 	int n = jsonlite_build_connected(buf, sizeof(buf), (int)w, (int)h);
 	if (n > 0) frame_write(STDOUT_FILENO, MSG_DESKTOP_RESIZED, (const uint8_t*)buf, (uint32_t)n);
@@ -377,6 +408,7 @@ static void* run_connection(void* arg) {
 		QueueItem* items = queue_drain();
 		if (items) dispatch_input(instance->context->input, items);
 		send_pending_resize();
+		send_due_refresh(instance->context);
 
 		maybe_emit_frame(instance->context->gdi);
 
