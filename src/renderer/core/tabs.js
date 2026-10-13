@@ -230,6 +230,7 @@ function selectServer(serverId, protocolOverride){
     applyFilter(proto);
   }
   activate(tabId);
+  return tabId;
 }
 
 // closeTabById/detachTabLocal이 공유하는 꼬리 부분 — 탭·pane DOM과 레이아웃 테이블 엔트리를

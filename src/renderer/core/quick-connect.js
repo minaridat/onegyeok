@@ -1,8 +1,9 @@
 // 빠른 연결 — 서버를 등록하지 않고 주소만 입력해 바로 여는 기능(Web/SFTP·FTP/SSH/SQL/RDP/VNC).
 // 해당 프로토콜 레일 버튼을 눌러 열린 세션이 없을 때 빈 화면(emptyPane)에 뜬다.
 // 입력한 대상은 사이드바 "빠른 연결" 그룹에 임시 서버(temp:true)로 만들어 기존 selectServer 흐름을 그대로 쓴다.
-// 이력은 프로토콜별 최신 5개만 유지하고(호스트/포트만 — 사용자명·비밀번호는 저장하지 않음) 개별 삭제할 수 있다.
-// 주소를 잘못 입력했을 때는 열린 탭 위의 주소 바(#qcAddrBar)에서 고쳐 다시 연결한다(Web은 자체 주소창이 있음).
+// 폼 한 화면에서 호스트·포트·사용자명·비밀번호를 한 번에 입력해 바로 접속한다(접속 화면에서 다시 묻지 않음).
+// 이력은 프로토콜별 최신 5개만 유지하고(호스트/포트/사용자명만 저장 — 비밀번호는 절대 저장하지 않고 접속 시점에만 메모리로 전달)
+// 개별 삭제할 수 있다. 접속이 안 되면 열린 탭 위의 주소 바(#qcAddrBar)에서 주소·계정을 고쳐 다시 연결한다(Web은 자체 주소창).
 var QUICK_GROUP = '빠른 연결';
 var QUICK_MAX_PER_PROTOCOL = 5;
 var quickConnectEl = document.getElementById('quickConnect');
@@ -71,7 +72,7 @@ function ensureQuickServer(rec){
   if(!srv){
     srv = {
       id: quickServerId(rec.label || quickLabelFor(rec)), name: '', group: QUICK_GROUP, protocol: rec.protocol, host: rec.host, port: rec.port,
-      username: '', authMethod: 'password', keyFilePath: null, jump: null, sqlEngine: rec.sqlEngine || null, database: rec.database || '',
+      username: rec.username || '', authMethod: 'password', keyFilePath: null, jump: null, sqlEngine: rec.sqlEngine || null, database: rec.database || '',
       fileProtocol: rec.fileProtocol || null, temp: true, status: 'off', since: '연결 안 됨'
     };
     srv.name = srv.id;
@@ -80,15 +81,44 @@ function ensureQuickServer(rec){
     if(GROUP_ORDER.indexOf(QUICK_GROUP) === -1) GROUP_ORDER.push(QUICK_GROUP);
   }
   srv.qcAt = Date.now();
+  if(rec.username !== undefined){ srv.username = rec.username; srv.auth = authLabel(srv); }
   pruneQuickHistory(rec.protocol);
   renderTree();
   populateGroupSelectors();
   return srv;
 }
 
-function openQuickServer(rec){
+function openQuickServer(rec, password){
   var srv = ensureQuickServer(rec);
-  selectServer(srv.id);
+  var tabId = selectServer(srv.id);
+  applyQuickPassword(tabId, srv, password);
+}
+
+// 새로 열린 탭의 접속 화면(프로토콜별로 다름)에 입력받은 비밀번호를 넣고 접속을 시작한다. 비밀번호는 DOM/메모리로만 전달하고
+// 서버 레코드에는 남기지 않는다. 사용자명이 레코드에 있으면 각 프로토콜이 사용자명 단계를 건너뛰므로 비밀번호만 채우면 된다.
+function applyQuickPassword(tabId, srv, password){
+  if(!password) return;
+  setTimeout(function(){
+    var pane = panes.querySelector('.pane[data-id="' + tabId + '"]');
+    if(!pane) return;
+    if(srv.protocol === 'ssh'){
+      var sess = typeof sshSessions !== 'undefined' ? sshSessions[tabId] : null;
+      if(sess && srv.username && sess.handleInput) sess.handleInput(password + '\r');
+      return;
+    }
+    var map = {
+      sftp: ['.files-secret', '.files-connect-btn'],
+      sql: ['.sql-f-password', '.sql-connect-btn'],
+      rdp: ['.rdp-f-password', '.rdp-connect-btn'],
+      vnc: ['.vnc-f-password', '.vnc-connect-btn']
+    }[srv.protocol];
+    if(!map) return;
+    var pw = pane.querySelector(map[0]), btn = pane.querySelector(map[1]);
+    if(!pw || !btn) return;
+    if(srv.protocol !== 'vnc' && !srv.username) return; // 사용자명이 없으면 접속 화면에서 입력하도록 둔다
+    pw.value = password;
+    btn.click();
+  }, 120);
 }
 
 // "10.0.0.5:8443"처럼 스킴 없이 포트가 붙은 입력은 host/port로 나누고, 스킴이 있으면 그대로 host에 둔다(web.js가 URL로 조립).
@@ -108,11 +138,11 @@ function parseQuickWebInput(raw){
 // ---- 빈 화면의 빠른 연결 폼 ----
 var QUICK_FORMS = {
   web:  { title: '빠른 주소 열기' },
-  sftp: { title: '빠른 SFTP / FTP / FTPS 연결', hint: '사용자명/비밀번호는 다음 화면에서 입력합니다 (저장되지 않음).' },
-  ssh:  { title: '빠른 SSH 연결', hint: '사용자명/비밀번호는 접속 후 터미널에서 입력합니다 (저장되지 않음).' },
-  sql:  { title: '빠른 SQL 연결', hint: '사용자명/비밀번호는 다음 화면에서 입력합니다 (저장되지 않음).' },
-  rdp:  { title: '빠른 RDP 연결', hint: '사용자명/비밀번호는 다음 화면에서 입력합니다 (저장되지 않음).' },
-  vnc:  { title: '빠른 VNC 연결', hint: '비밀번호는 다음 화면에서 입력합니다 (저장되지 않음).' }
+  sftp: { title: '빠른 SFTP / FTP / FTPS 연결', hint: '사용자명과 비밀번호를 같이 넣으면 바로 접속합니다. 비밀번호는 저장되지 않습니다.' },
+  ssh:  { title: '빠른 SSH 연결', hint: '사용자명과 비밀번호를 같이 넣으면 바로 접속합니다. 비워두면 터미널에서 입력합니다. 비밀번호는 저장되지 않습니다.' },
+  sql:  { title: '빠른 SQL 연결', hint: '사용자명과 비밀번호를 같이 넣으면 바로 접속합니다. 비밀번호는 저장되지 않습니다.' },
+  rdp:  { title: '빠른 RDP 연결', hint: '사용자명과 비밀번호를 같이 넣으면 바로 접속합니다. 비밀번호는 저장되지 않습니다.' },
+  vnc:  { title: '빠른 VNC 연결', hint: '비밀번호를 같이 넣으면 바로 접속합니다. 비밀번호는 저장되지 않습니다.' }
 };
 
 function quickFormHtml(filter){
@@ -127,9 +157,16 @@ function quickFormHtml(filter){
     row = extra + '<input class="qc-host" type="text" placeholder="호스트 (예: 10.0.0.5)" spellcheck="false">' +
       '<input class="qc-port" type="text" inputmode="numeric" maxlength="5">';
   }
+  var cred = '';
+  if(filter !== 'web'){
+    cred = '<div class="qc-row">' +
+      (filter === 'vnc' ? '' : '<input class="qc-user" type="text" placeholder="사용자명" autocomplete="off" spellcheck="false">') +
+      '<input class="qc-pass" type="password" placeholder="비밀번호 (저장되지 않음)" autocomplete="new-password"></div>';
+  }
   return '<form class="qc-form" autocomplete="off" data-filter="' + filter + '">' +
     '<div class="qc-title">' + cfg.title + '</div>' +
     '<div class="qc-row">' + row + '<button type="submit" class="qc-go">' + (filter === 'web' ? '열기' : '접속') + '</button></div>' +
+    cred +
     (filter === 'sql' ? '<div class="qc-row"><input class="qc-db" type="text" placeholder="데이터베이스 (선택)" spellcheck="false"></div>' : '') +
     (cfg.hint ? '<div class="qc-hint">' + cfg.hint + '</div>' : '') +
     '<div class="qc-error"></div>' +
@@ -186,10 +223,14 @@ function renderQuickConnect(filter){
     if(mode) rec.fileProtocol = mode.value;
     if(engine) rec.sqlEngine = engine.value;
     if(db) rec.database = db.value.trim();
+    var userEl = f.querySelector('.qc-user');
+    if(userEl) rec.username = userEl.value.trim();
+    var password = f.querySelector('.qc-pass').value;
     var portStr = f.querySelector('.qc-port').value.trim();
     rec.port = hp.port || (portStr ? parseInt(portStr, 10) : quickDefaultPort(rec));
     if(!(rec.port > 0 && rec.port < 65536)){ err.textContent = '포트가 올바르지 않습니다.'; return; }
-    openQuickServer(rec);
+    f.querySelector('.qc-pass').value = '';
+    openQuickServer(rec, password);
   });
   quickConnectEl.addEventListener('click', quickRecentClick);
   refreshQuickRecent();
@@ -224,6 +265,10 @@ function updateQcAddrBar(tabId){
     qcAddrBarEl.dataset.tab = tabId;
     qcAddrBarEl.querySelector('.qc-addr-proto').textContent = srv.protocol === 'sftp' ? (srv.fileProtocol || 'sftp').toUpperCase() : srv.protocol === 'sql' ? (QUICK_SQL_LABELS[srv.sqlEngine] || 'SQL') : srv.protocol.toUpperCase();
     qcAddrBarEl.querySelector('.qc-addr-input').value = joinHostPort(srv.host, srv.port);
+    var u = qcAddrBarEl.querySelector('.qc-addr-user');
+    u.hidden = srv.protocol === 'vnc';
+    u.value = srv.username || '';
+    qcAddrBarEl.querySelector('.qc-addr-pass').value = '';
     qcAddrBarEl.querySelector('.qc-addr-error').textContent = '';
   }
   window.dispatchEvent(new Event('resize'));
@@ -236,7 +281,11 @@ function applyQuickAddress(tabId, text){
   if(!old) return;
   var hp = parseHostPort((text || '').trim());
   if(!hp.host || /\s/.test(hp.host)){ errEl.textContent = '호스트를 입력해주세요.'; return; }
+  var userEl = qcAddrBarEl.querySelector('.qc-addr-user'), passEl = qcAddrBarEl.querySelector('.qc-addr-pass');
   var rec = { protocol: old.protocol, host: hp.host, fileProtocol: old.fileProtocol, sqlEngine: old.sqlEngine, database: old.database };
+  if(old.protocol !== 'vnc') rec.username = userEl.value.trim();
+  var password = passEl.value;
+  passEl.value = '';
   rec.port = hp.port || quickDefaultPort(rec);
   var connected = (sessionFor(tabId) || {}).state === 'connected';
   var srv = ensureQuickServer(rec);
@@ -247,7 +296,8 @@ function applyQuickAddress(tabId, text){
       renderTree();
     }
   }
-  selectServer(srv.id);
+  var newTabId = selectServer(srv.id);
+  applyQuickPassword(newTabId, srv, password);
 }
 
 if(qcAddrBarEl){
