@@ -42,6 +42,7 @@ function serverRowHtml(s){
     'data-status="'+s.status+'" data-since="'+escapeHtml(s.since)+'" data-jump="'+escapeHtml(s.jump||'없음')+'">' +
     '<span class="proto-chip proto-'+s.protocol+'">'+PROTO[s.protocol].icon+'<span class="stat'+(s.status==='on'?' on':'')+'"></span></span>' +
     '<span class="server-name">'+escapeHtml(s.name)+jumpTag+'</span>' +
+    (s.temp ? '<button type="button" class="server-del" title="빠른 연결 이력에서 삭제" aria-label="삭제">×</button>' : '') +
     '<svg class="icon go" viewBox="0 0 20 20"><polyline points="8 4 14 10 8 16"></polyline></svg>' +
   '</div>';
 }
@@ -85,6 +86,8 @@ tree.addEventListener('click', function(e){
     schedulePersistServers();
     return;
   }
+  var del = e.target.closest('.server-del');
+  if(del){ e.stopPropagation(); removeQuickServer(del.closest('.server').dataset.id); return; }
   var row = e.target.closest('.server');
   if(row){ selectServer(row.dataset.id); }
 });
