@@ -76,9 +76,10 @@ Node.js, Homebrew 등 **아무것도 미리 설치할 필요가 없습니다** �
 | macOS | **15 (Sequoia) 이상** — 15, 26 이상 |
 
 1. **[⬇️ onegyeok-arm64.dmg 다운로드](https://github.com/minaridat/onegyeok/releases/latest/download/onegyeok-arm64.dmg)** (약 144MB, 항상 최신 버전 · [릴리스 목록](https://github.com/minaridat/onegyeok/releases))를 받아서 열고, `onegyeok`을 **응용 프로그램(Applications)** 폴더로 드래그합니다.
-2. **처음 실행할 때**: 현재 빌드는 Apple 서명·공증이 되어 있지 않아 "확인되지 않은 개발자" 경고로 막힙니다.
-   - `응용 프로그램`에서 `onegyeok`을 **우클릭 → 열기 → 열기**를 한 번 누르면 이후에는 바로 실행됩니다.
-   - 또는 터미널에서 `xattr -dr com.apple.quarantine /Applications/onegyeok.app` 실행 후 열기.
+2. **처음 실행할 때**: 현재 빌드는 Apple 공증이 되어 있지 않아(임시 서명만 있음) macOS가 **"확인되지 않은 개발자"** 경고로 막습니다. 한 번만 허용하면 이후에는 바로 열립니다.
+   - **방법 ①** `응용 프로그램`에서 `onegyeok`을 더블클릭해 경고를 띄운 뒤(완료/취소 누름) → **시스템 설정 → 개인정보 보호 및 보안** → 아래쪽 **"그래도 열기"** → 암호/Touch ID 인증.
+   - **방법 ②** 터미널에서 한 줄: `xattr -dr com.apple.quarantine /Applications/onegyeok.app` 실행 후 열기.
+   - "손상되었기 때문에 열 수 없습니다"가 뜨면 이전 버전 파일입니다 — 최신 `.dmg`를 다시 받으세요(v0.1.0 파일은 서명 수정판으로 교체됨).
 3. 서버 등록은 앱에서 직접 합니다 — 설치 직후에는 서버 목록이 비어 있습니다. 등록한 서버는 재실행해도 유지됩니다.
 
 > 앱 데이터(서버 목록·메모)는 `~/Library/Application Support/onegyeok/`에 암호화되어 저장됩니다. 앱을 삭제해도
@@ -104,7 +105,7 @@ npm run dist:mac              # 네이티브 헬퍼 정적 빌드 → electron-b
   `build/mac-deps/`). 인터넷 연결이 필요합니다.
 - 최소 macOS 버전은 15.0으로 고정됩니다(`package.json`의 `build.mac.minimumSystemVersion`,
   `scripts/mac/build-native-deps.sh`의 `MACOSX_DEPLOYMENT_TARGET`).
-- 코드사이닝/공증은 하지 않습니다(`mac.identity: null`) — 서명 정책이 정해지면 `package.json`의 `build.mac`을 채우세요.
+- 임시(ad-hoc) 서명만 하고 Apple 공증은 하지 않습니다(`mac.identity: "-"`) — 서명 정책이 정해지면 `package.json`의 `build.mac`을 채우세요. 서명을 아예 끄면(`null`) 다운로드한 앱이 "손상됨"으로 막힙니다.
 - 자세한 설계·검증 범위는 [06_빌드배포_기술스택.md](./docs/기술스택/06_빌드배포_기술스택.md) 참고.
 
 ### 방법 C. 소스에서 직접 실행 (개발자용)
