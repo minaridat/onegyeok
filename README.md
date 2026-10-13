@@ -75,7 +75,7 @@ Node.js, Homebrew 등 **아무것도 미리 설치할 필요가 없습니다** �
 | 칩 | **Apple Silicon (M1 이상)** — 인텔(x64) Mac은 지원하지 않습니다 |
 | macOS | **15 (Sequoia) 이상** — 15, 26 이상 |
 
-1. 전달받은 `onegyeok-<버전>-arm64.dmg`를 열고 `onegyeok`을 **응용 프로그램(Applications)** 폴더로 드래그합니다.
+1. **[⬇️ onegyeok-arm64.dmg 다운로드](https://github.com/minaridat/onegyeok/releases/latest/download/onegyeok-arm64.dmg)** (약 144MB, 항상 최신 버전 · [릴리스 목록](https://github.com/minaridat/onegyeok/releases))를 받아서 열고, `onegyeok`을 **응용 프로그램(Applications)** 폴더로 드래그합니다.
 2. **처음 실행할 때**: 현재 빌드는 Apple 서명·공증이 되어 있지 않아 "확인되지 않은 개발자" 경고로 막힙니다.
    - `응용 프로그램`에서 `onegyeok`을 **우클릭 → 열기 → 열기**를 한 번 누르면 이후에는 바로 실행됩니다.
    - 또는 터미널에서 `xattr -dr com.apple.quarantine /Applications/onegyeok.app` 실행 후 열기.
@@ -97,6 +97,7 @@ git clone https://github.com/minaridat/onegyeok.git
 cd onegyeok
 npm install
 npm run dist:mac              # 네이티브 헬퍼 정적 빌드 → electron-builder → dist/onegyeok-<버전>-arm64.dmg
+                              # (배포: gh release create vX.Y.Z 로 .dmg를 'onegyeok-arm64.dmg' 이름으로 업로드)
 ```
 
 - 첫 빌드는 OpenSSL·FreeRDP·libvncclient를 소스에서 컴파일해 **수 분~십수 분** 걸립니다(이후엔 캐시 사용:
