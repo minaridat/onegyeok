@@ -7,7 +7,7 @@
 .ssh-connecting.err{color:var(--danger);}
 
 /* 탭 내 터미널 분할(세션 복제/세션 선택) — docs/기능명세/04_터미널분할_기능명세.md */
-.pane-layout{position:relative;}
+
 .pane-split-controls{position:absolute;top:4px;right:4px;z-index:2;display:flex;gap:2px;
   background:rgba(0,0,0,.35);border-radius:6px;padding:2px;opacity:.35;transition:opacity .12s;}
 .pane-layout:hover .pane-split-controls{opacity:1;}

@@ -69,6 +69,14 @@ registerMainProtocol('rdp', {
               const frame = parseFramePayload(payload);
               updateFrameCache(sessionId, frame);
               sendToSession(sessionId, 'rdp:frame', { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
+            } else if (type === MSG.DESKTOP_RESIZED) {
+              let size = null;
+              try { size = JSON.parse(payload.toString('utf8')); } catch (_e) { /* 무시 */ }
+              if (size && size.width > 0 && size.height > 0) {
+                // 해상도가 바뀌면 합성 화면 캐시도 새 크기로 비운다(이후 첫 FRAME이 전체 화면으로 다시 채움).
+                frameCaches.set(sessionId, { width: size.width, height: size.height, buffer: Buffer.alloc(size.width * size.height * 4) });
+                sendToSession(sessionId, 'rdp:resized', { width: size.width, height: size.height });
+              }
             } else if (type === MSG.STATUS) {
               let status;
               try { status = JSON.parse(payload.toString('utf8')); } catch (_e) { status = { state: 'error', message: '상태 메시지 파싱 실패' }; }

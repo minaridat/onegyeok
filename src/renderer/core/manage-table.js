@@ -16,7 +16,10 @@ function populateGroupSelectors(){
   document.getElementById('manageBulkGroup').innerHTML = '<option value="">그룹 이동...</option>' + opts;
   var fGroup = document.getElementById('f-group');
   var prevValue = fGroup.value;
-  fGroup.innerHTML = opts + '<option value="__new__">+ 새 그룹 추가...</option>';
+  // 그룹이 하나도 없으면 select의 유일한 옵션이 "+ 새 그룹 추가..."가 되어 이미 선택된 상태라 change가 안 뜬다 —
+  // 선택 가능한 빈 옵션을 앞에 둬서 "새 그룹 추가"를 눌렀을 때 항상 change가 발생하게 한다(저장 시 그룹 비면 '기타').
+  fGroup.innerHTML = (GROUP_ORDER.length ? '' : '<option value="">(그룹 없음 — 기타)</option>') +
+    opts + '<option value="__new__">+ 새 그룹 추가...</option>';
   if(GROUP_ORDER.indexOf(prevValue) > -1) fGroup.value = prevValue;
 }
 

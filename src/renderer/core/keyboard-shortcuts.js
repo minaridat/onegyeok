@@ -14,10 +14,13 @@ document.addEventListener('keydown', function(e){
     if(tabs[idx]) activate(tabs[idx].dataset.id);
     return;
   }
-  var next = (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowRight') ||
-    ((e.metaKey || e.ctrlKey) && e.key === '>');
-  var prev = (e.ctrlKey && e.key === 'Tab' && e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowLeft') ||
-    ((e.metaKey || e.ctrlKey) && e.key === '<');
+  // ⌘< / ⌘>: macOS는 ⌘를 누르면 e.key가 '<'/'>'가 아니라 ','/'.'로 오는 경우가 많아 e.key만으로는 안 잡힌다 —
+  // 물리 키(e.code: Comma/Period, Shift 동반)도 함께 본다. Alt가 눌린 조합(⌘⌥,)은 제외.
+  var metaOrCtrl = (e.metaKey || e.ctrlKey) && !e.altKey;
+  var isNextKey = metaOrCtrl && (e.key === '>' || (e.shiftKey && e.code === 'Period'));
+  var isPrevKey = metaOrCtrl && (e.key === '<' || (e.shiftKey && e.code === 'Comma'));
+  var next = (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowRight') || isNextKey;
+  var prev = (e.ctrlKey && e.key === 'Tab' && e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowLeft') || isPrevKey;
   if(next || prev){
     e.preventDefault();
     var list = visibleTabs();
