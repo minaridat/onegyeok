@@ -172,6 +172,7 @@ function activate(id){
   inspectorFor(id);
   recordActive(id);
   if(activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  if(typeof updateQcAddrBar === 'function') updateQcAddrBar(id);
 }
 
 function activateEmpty(filter){
@@ -182,6 +183,7 @@ function activateEmpty(filter){
     ? '왼쪽에서 서버를 선택하면 여기에 세션이 열립니다.'
     : PROTO[filter].label + ' 서버를 선택하면 여기에 세션이 열립니다. (열린 ' + PROTO[filter].label + ' 세션 없음)';
   emptyPane.classList.add('active');
+  if(typeof updateQcAddrBar === 'function') updateQcAddrBar(null);
   if(typeof renderQuickConnect === 'function') renderQuickConnect(filter);
 }
 
@@ -201,6 +203,8 @@ function applyFilter(filter){
     b.classList.toggle('active', b.dataset.filter === filter);
   });
   filterLabelEl.textContent = filter === 'all' ? '전체' : PROTO[filter].label;
+  var webAddBtn = document.getElementById('sidebarWebAddBtn');
+  if(webAddBtn) webAddBtn.hidden = filter !== 'web';
 
   var vis = visibleTabs();
   var remembered = lastActiveByFilter[filter];
@@ -226,6 +230,7 @@ function selectServer(serverId, protocolOverride){
     applyFilter(proto);
   }
   activate(tabId);
+  return tabId;
 }
 
 // closeTabById/detachTabLocal이 공유하는 꼬리 부분 — 탭·pane DOM과 레이아웃 테이블 엔트리를

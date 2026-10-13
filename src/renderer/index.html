@@ -212,6 +212,7 @@
         <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
         <input type="text" placeholder="서버 검색...">
       </div>
+      <button class="sidebar-web-add" id="sidebarWebAddBtn" type="button" hidden>＋ Web 등록 (북마크)</button>
       <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
       <div class="tree" id="tree"></div>
       <button class="add-group">+ 그룹 추가</button>
@@ -243,6 +244,14 @@
         <span class="grow"></span>
         <button class="insp-btn" id="broadcastOffBtn">끄기</button>
       </div>
+      <form class="qc-addrbar" id="qcAddrBar" hidden autocomplete="off">
+        <span class="qc-addr-proto"></span>
+        <input class="qc-addr-input" type="text" spellcheck="false" aria-label="접속 주소" placeholder="호스트:포트">
+        <input class="qc-addr-user" type="text" spellcheck="false" autocomplete="off" aria-label="사용자명" placeholder="사용자명">
+        <input class="qc-addr-pass" type="password" autocomplete="new-password" aria-label="비밀번호" placeholder="비밀번호">
+        <button type="submit" class="qc-addr-go" title="입력한 주소·계정으로 다시 연결">다시 연결</button>
+        <span class="qc-addr-error"></span>
+      </form>
       <div class="panes" id="panes">
         <div class="pane pane-empty active" id="emptyPane" data-id="__empty">
           <svg class="icon" viewBox="0 0 20 20" style="width:26px;height:26px;color:var(--term-muted)"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>

@@ -33,13 +33,19 @@ COMMON_CMAKE=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFI
   -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON)
 
 echo "== OpenSSL $OPENSSL_TAG"
-if [ ! -f "$PREFIX/lib/libssl.a" ]; then
+# no-module: OpenSSL 3는 DES를 legacy provider에 두는데, 이 옵션이 없으면 legacy가 별도 모듈(.dylib)로 빠져
+# libvncclient의 VNC 비밀번호 인증(OSSL_PROVIDER_load("legacy"))이 정적 링크 환경에서 항상 실패한다.
+# 옵션을 바꾸면 이미 빌드된 prefix도 다시 만들도록 stamp 파일로 구분한다.
+OPENSSL_STAMP="$PREFIX/.openssl-no-module"
+if [ ! -f "$PREFIX/lib/libssl.a" ] || [ ! -f "$OPENSSL_STAMP" ]; then
   fetch https://github.com/openssl/openssl "$OPENSSL_TAG" openssl
   ( cd "$SRC/openssl"
-    ./Configure darwin64-arm64-cc no-shared no-tests no-apps no-docs \
+    [ -f Makefile ] && make distclean >/dev/null 2>&1 || true
+    ./Configure darwin64-arm64-cc no-shared no-module no-tests no-apps no-docs \
       --prefix="$PREFIX" --libdir=lib -mmacosx-version-min="$MACOSX_DEPLOYMENT_TARGET"
     make -j"$JOBS" build_libs
     make install_dev )
+  touch "$OPENSSL_STAMP"
 fi
 
 # 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc + disp만 켜고 나머지는 끈다(정적 링크 크기·의존성 최소화).
