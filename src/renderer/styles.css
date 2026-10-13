@@ -499,3 +499,8 @@
 .sidebar-web-add{margin:0 var(--sp-3) var(--sp-2);padding:7px 8px;font-size:var(--fs-xs);color:var(--accent);background:var(--accent-soft);
   border:1px solid var(--accent);border-radius:7px;cursor:pointer;text-align:left;font-weight:600;}
 .sidebar-web-add[hidden]{display:none;}
+.qc-addr-user,.qc-addr-pass{flex:0 1 150px;min-width:0;font:inherit;font-size:var(--fs-xs);padding:4px 8px;border:1px solid var(--border);
+  border-radius:6px;background:var(--bg-elev, #fff);color:var(--text);}
+.qc-addr-user[hidden]{display:none;}
+.qc-addr-user:focus,.qc-addr-pass:focus{outline:none;border-color:var(--accent);}
+.qc-user,.qc-pass{flex:1;}

@@ -247,7 +247,9 @@
       <form class="qc-addrbar" id="qcAddrBar" hidden autocomplete="off">
         <span class="qc-addr-proto"></span>
         <input class="qc-addr-input" type="text" spellcheck="false" aria-label="접속 주소" placeholder="호스트:포트">
-        <button type="submit" class="qc-addr-go" title="이 주소로 다시 연결">주소 변경 후 다시 연결</button>
+        <input class="qc-addr-user" type="text" spellcheck="false" autocomplete="off" aria-label="사용자명" placeholder="사용자명">
+        <input class="qc-addr-pass" type="password" autocomplete="new-password" aria-label="비밀번호" placeholder="비밀번호">
+        <button type="submit" class="qc-addr-go" title="입력한 주소·계정으로 다시 연결">다시 연결</button>
         <span class="qc-addr-error"></span>
       </form>
       <div class="panes" id="panes">
