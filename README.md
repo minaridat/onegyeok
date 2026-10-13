@@ -10,8 +10,9 @@
 > 입력 → 여러 서버 동시 입력(브로드캐스트) 모드까지 실제 동작 그대로입니다.
 
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-444?style=flat-square)
-![stack](https://img.shields.io/badge/stack-Electron%20%2B%20ssh2%20%2B%20xterm.js-444?style=flat-square)
-![status](https://img.shields.io/badge/status-Phase%201%20(SSH)%20in%20progress-orange?style=flat-square)
+![stack](https://img.shields.io/badge/stack-Electron%20%2B%20ssh2%20%2B%20xterm.js%20%2B%20libfreerdp-444?style=flat-square)
+![macOS](https://img.shields.io/badge/macOS-15%2B%20(Apple%20Silicon)-444?style=flat-square)
+![status](https://img.shields.io/badge/status-SSH%20%C2%B7%20SQL%20%C2%B7%20SFTP%20%C2%B7%20RDP%20%C2%B7%20VNC%20%C2%B7%20Web%20implemented-brightgreen?style=flat-square)
 
 ---
 
@@ -35,8 +36,12 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
   접속해 쿼리를 실행하고 결과를 테이블로 봅니다. 비밀번호는 SSH와 동일하게 저장하지 않습니다.
 - **SFTP / FTP / FTPS 파일 탐색기** — 듀얼 패널, 파일·폴더 재귀 업/다운로드, 비교 후 한 방향 동기화, 로컬/원격 일괄 이름 변경, 활성 연결에서 1회 예약 전송, 전송 큐·일시정지/재개/취소, 원격 파일 관리와 선택형 SHA-256 검증을 제공합니다. SSH 등록 정보에서 별도 SFTP 탭을 열 수 있습니다. 자세한 지원 범위는 [파일 전송 명세](./docs/기능명세/03_SFTP_기능명세.md)를 참고하세요.
 - **RDP/VNC 원격 데스크톱** — `libfreerdp`/`libvncclient`를 직접 링크한 네이티브 헬퍼(외부 서버·Docker
-  불필요)가 실제 원격 화면을 `<canvas>`에 렌더링하고 마우스/키보드를 그대로 전달합니다. 최초 1회
-  `npm run build:native` 빌드가 필요합니다(아래 참고).
+  불필요)가 실제 원격 화면을 `<canvas>`에 렌더링하고 마우스/키보드를 그대로 전달합니다. 설치 파일(`.dmg`)에는
+  헬퍼가 정적으로 포함되어 있어 따로 설치할 것이 없습니다(소스 실행 시에만 `npm run build:native` 필요).
+- **Web 콘솔** — URL을 서버로 등록해 탭 안의 내장 웹뷰로 엽니다(기본 브라우저로 열기도 지원). 쿠키/세션은
+  디스크에 남기지 않고, 자체 서명 인증서 사이트는 기본 차단 후 "이 탭에서만 계속"으로 수동 허용할 수 있습니다.
+- **서버 목록 영속화** — 등록한 서버(호스트/그룹/프로토콜 등)는 OS 키체인 기반으로 암호화되어 저장되고
+  재실행 후에도 유지됩니다. 비밀번호는 저장하지 않습니다.
 - **탭 안에서 터미널 분할** — 하나의 SSH 탭을 가로/세로로 나눠 같은 서버의 새 세션을 띄우거나,
   이미 열려 있는 다른 세션을 그 자리로 그대로 가져올 수 있습니다(서버 측 tmux에 의존하지 않음).
 - **앱 종료 시 모든 연결 강제 종료** — 보안 요구사항(F-502). 프로토콜 필터·탭 전환 중에는 연결이
@@ -60,8 +65,48 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
 
 ## 설치 및 실행
 
-> ⚠️ 아직 더블클릭으로 설치하는 `.dmg`/`.exe` 패키지는 준비 중입니다(`electron-builder` 적용 예정 —
-> [00_메인_기술스택.md](./docs/기술스택/00_메인_기술스택.md) 5장 참고). 지금은 **소스에서 직접 실행**합니다.
+### 방법 A. 설치 파일로 설치 (macOS · 사용자용)
+
+Node.js, Homebrew 등 **아무것도 미리 설치할 필요가 없습니다** — 앱 런타임과 RDP/VNC 네이티브 헬퍼가 모두
+설치 파일 안에 들어 있습니다.
+
+| 항목 | 요구사항 |
+|---|---|
+| 칩 | **Apple Silicon (M1 이상)** — 인텔(x64) Mac은 지원하지 않습니다 |
+| macOS | **15 (Sequoia) 이상** — 15, 26 이상 |
+
+1. 전달받은 `onegyeok-<버전>-arm64.dmg`를 열고 `onegyeok`을 **응용 프로그램(Applications)** 폴더로 드래그합니다.
+2. **처음 실행할 때**: 현재 빌드는 Apple 서명·공증이 되어 있지 않아 "확인되지 않은 개발자" 경고로 막힙니다.
+   - `응용 프로그램`에서 `onegyeok`을 **우클릭 → 열기 → 열기**를 한 번 누르면 이후에는 바로 실행됩니다.
+   - 또는 터미널에서 `xattr -dr com.apple.quarantine /Applications/onegyeok.app` 실행 후 열기.
+3. 서버 등록은 앱에서 직접 합니다 — 설치 직후에는 서버 목록이 비어 있습니다. 등록한 서버는 재실행해도 유지됩니다.
+
+> 앱 데이터(서버 목록·메모)는 `~/Library/Application Support/onegyeok/`에 암호화되어 저장됩니다. 앱을 삭제해도
+> 남아 있으니 완전히 지우려면 이 폴더도 삭제하세요.
+
+### 방법 B. 설치 파일 직접 빌드하기 (macOS · 배포 담당자용)
+
+Apple Silicon Mac에서 빌드합니다. 빌드 머신에만 아래 도구가 필요하고, 결과물(`.dmg`)을 받는 사용자 PC에는 필요 없습니다.
+
+```bash
+# 빌드 도구 (최초 1회)
+brew install node cmake ninja pkgconf
+xcode-select --install        # Xcode Command Line Tools가 없다면
+
+git clone https://github.com/minaridat/onegyeok.git
+cd onegyeok
+npm install
+npm run dist:mac              # 네이티브 헬퍼 정적 빌드 → electron-builder → dist/onegyeok-<버전>-arm64.dmg
+```
+
+- 첫 빌드는 OpenSSL·FreeRDP·libvncclient를 소스에서 컴파일해 **수 분~십수 분** 걸립니다(이후엔 캐시 사용:
+  `build/mac-deps/`). 인터넷 연결이 필요합니다.
+- 최소 macOS 버전은 15.0으로 고정됩니다(`package.json`의 `build.mac.minimumSystemVersion`,
+  `scripts/mac/build-native-deps.sh`의 `MACOSX_DEPLOYMENT_TARGET`).
+- 코드사이닝/공증은 하지 않습니다(`mac.identity: null`) — 서명 정책이 정해지면 `package.json`의 `build.mac`을 채우세요.
+- 자세한 설계·검증 범위는 [06_빌드배포_기술스택.md](./docs/기술스택/06_빌드배포_기술스택.md) 참고.
+
+### 방법 C. 소스에서 직접 실행 (개발자용)
 
 ### 공통 준비물
 
@@ -70,6 +115,7 @@ Termius, Royal TSX, FileZilla Pro처럼 각각 유료 프로그램으로 따로 
 - **RDP/VNC를 쓰려면**: 네이티브 헬퍼(`libfreerdp`/`libvncclient` 직접 링크, 외부 서버·Docker 불필요)를
   한 번 빌드해야 합니다 — `npm install` 뒤 `npm run build:native` 실행(아래 참고). SSH/SQL/SFTP/Web은
   필요 없습니다. macOS는 `brew install freerdp libvncserver pkg-config`로 빌드 의존성을 먼저 설치하세요.
+  (이 개발용 빌드는 Homebrew 라이브러리를 동적 링크하므로 배포용이 아닙니다 — 배포는 방법 A/B)
 
 설치 여부 확인:
 
@@ -166,11 +212,29 @@ OS 자격증명 저장소 기반으로 암호화되어 저장됩니다(민감정
 ## 보안 설계 요약
 
 - 비밀번호·Key Passphrase는 **어떤 형태로도 저장하지 않습니다** — 연결 1회에만 메모리에서 사용되고 폐기됩니다.
-- 서버별 메모는 OS 자격증명 저장소(macOS Keychain / Windows DPAPI) 기반의 Electron `safeStorage`로 암호화해 저장합니다.
-- 앱 종료(정상/강제 포함) 시 열려 있는 모든 SSH/SQL 연결이 예외 없이 종료됩니다.
+- 서버별 메모와 서버 목록은 OS 자격증명 저장소(macOS Keychain / Windows DPAPI) 기반의 Electron `safeStorage`로 암호화해 저장합니다(마스터 패스워드 방식은 아직 없음).
+- Web 콘솔의 쿠키/세션은 탭별 메모리 전용 파티션이라 디스크에 남지 않고, 계정 자동입력은 없습니다.
+- 앱 종료(정상/강제 포함) 시 열려 있는 모든 SSH/SQL/RDP/VNC/SFTP 연결이 예외 없이 종료됩니다.
 - 상세 설계는 [기획서.md](./docs/기획서.md) 3.9절, [00_공통_기능명세.md](./docs/기능명세/00_공통_기능명세.md)의 "보안 아키텍처" 절 참고.
 
 ---
+
+## 기술 스택
+
+| 영역 | 사용 기술 |
+|---|---|
+| 앱 프레임워크 | Electron 44 (Chromium + Node.js), 번들러 없는 순수 JS 렌더러, `contextIsolation` + `sandbox` |
+| SSH / 터미널 | `ssh2`(순수 JS), `@xterm/xterm` 6 + fit addon |
+| SQL | `mysql2`(MySQL/MariaDB), `pg`(PostgreSQL), `mssql`(MS SQL Server) |
+| SFTP / FTP / FTPS | `ssh2-sftp-client`, `basic-ftp` |
+| RDP | **FreeRDP 3.32.1**(`libfreerdp3`)을 직접 링크한 C 네이티브 헬퍼 — 화면은 IPC로 `<canvas>`에 렌더링 |
+| VNC | **LibVNCServer 0.9.15**(`libvncclient`)을 직접 링크한 C 네이티브 헬퍼 |
+| Web | Electron `<webview>`(메모리 전용 파티션, 부착 검증·http(s)만 허용) |
+| 저장소 / 암호화 | Electron `safeStorage`(OS 키체인) — 서버 목록 `servers.dat`, 메모 `memos.json` |
+| 패키징 | `electron-builder` 26 → macOS arm64 `.dmg`(최소 macOS 15.0) |
+| 네이티브 빌드 | `clang` + `pkg-config` Makefile, 배포용은 OpenSSL 3.5 / FreeRDP / libvncclient를 `cmake`+`ninja`로 **정적 빌드**(`scripts/mac/build-native-deps.sh`) |
+
+선택 근거와 연결 종류별 상세는 [docs/기술스택/](./docs/기술스택/) 참고.
 
 ## 개발 문서
 
@@ -180,7 +244,7 @@ OS 자격증명 저장소 기반으로 암호화되어 저장됩니다(민감정
 |---|---|
 | [docs/기획서.md](./docs/기획서.md) | 전체 기획, 문제 정의, 로드맵, 보안 요구사항 |
 | [docs/기능명세/](./docs/기능명세/) | 연결 종류별 기능 명세(00_공통, 01_SSH, 02_SQL, 03_SFTP, 04_tmux분할, 05_RDP, 06_VNC, 07_Web) — 목록·ID 대역표는 폴더의 README 참고 |
-| [docs/기술스택/](./docs/기술스택/) | 연결 종류별 라이브러리 선택 근거(00_메인, 01_SSH, 02_SQL, 03_RDP, 04_VNC, 05_SFTP) |
+| [docs/기술스택/](./docs/기술스택/) | 연결 종류별 라이브러리 선택 근거(00_메인, 01_SSH, 02_SQL, 03_RDP, 04_VNC, 05_SFTP, 06_빌드배포) |
 
 ## 개발자용 실행
 
@@ -204,8 +268,11 @@ npm start
 - [x] VNC 원격 화면 공유("VNC" 연결 종류) — `libvncclient` 네이티브 헬퍼
 - [x] 앱 종료 시 전체 연결(SSH/SQL/RDP/VNC) 강제 종료
 - [ ] 마스터 패스워드 앱 잠금
-- [ ] 서버 목록 자체 암호화 저장, 접속 로그 기록
+- [x] 서버 목록 암호화 저장(safeStorage, 재실행 후 복원)
+- [ ] 접속 로그 기록, 마스터 패스워드 기반 키 파생
 - [x] SFTP/FTP/FTPS — 파일·폴더 전송, 비교·동기화, 일괄 이름 변경, 세션 예약 구현
-- [ ] Web — 기능 명세는 작성됨([docs/기능명세/](./docs/기능명세/)), 구현은 아직
+- [x] Web 콘솔 — 내장 웹뷰 + 기본 브라우저 열기, 자체 서명 인증서 수동 허용
+- [x] macOS(Apple Silicon, 15+) 설치 파일(`.dmg`) 빌드
+- [ ] 코드사이닝/공증, Windows 설치 파일
 
 전체 체크리스트는 [docs/기능명세/](./docs/기능명세/)의 각 파일 "완료 기준" 절 참고.
