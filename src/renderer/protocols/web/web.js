@@ -15,7 +15,8 @@ function buildWebUrl(srv){
   } else {
     var scheme = (!srv.port || srv.port === 443 || srv.port === 8443 || srv.port === 9443) ? 'https' : 'http';
     var portPart = (srv.port && srv.port !== 80 && srv.port !== 443) ? ':' + srv.port : '';
-    url = scheme + '://' + host + portPart;
+    var hm = /^([^/?#]*)(.*)$/.exec(host); // 경로가 붙은 host("example.com/a")는 포트를 경로 앞에 끼운다
+    url = scheme + '://' + hm[1] + portPart + hm[2];
   }
   try {
     var u = new URL(url);
@@ -39,11 +40,12 @@ function buildWebPane(tabId, serverId, el, initialUrl){
     '<div class="web-toolbar">' +
       '<button type="button" class="web-back" title="뒤로">←</button>' +
       '<button type="button" class="web-reload" title="새로고침">↻</button>' +
-      '<span class="web-url"></span>' +
+      '<input type="text" class="web-url" spellcheck="false" autocomplete="off" aria-label="주소">' +
+      '<button type="button" class="web-bookmark" title="이 페이지를 서버로 등록(북마크)">☆ 북마크</button>' +
       '<button type="button" class="web-external" title="기본 브라우저로 열기">브라우저로 열기</button>' +
     '</div>';
   var urlEl = el.querySelector('.web-url');
-  urlEl.textContent = url;
+  urlEl.value = url;
   var view = document.createElement('webview');
   view.setAttribute('src', url);
   view.setAttribute('partition', 'web-' + tabId); // persist: 없음 → 메모리 전용(F-1104), 앱 전체 공유
@@ -81,15 +83,64 @@ function buildWebPane(tabId, serverId, el, initialUrl){
     }
     errBox.hidden = false;
   });
-  view.addEventListener('did-navigate', function(e){ urlEl.textContent = e.url; });
-  view.addEventListener('did-navigate-in-page', function(e){ if(e.isMainFrame) urlEl.textContent = e.url; });
+  // 크롬처럼 주소창을 직접 고쳐 Enter로 이동/재연결한다. 입력 중에는 페이지 이동 이벤트가 값을 덮어쓰지 않는다.
+  function showUrl(u){ if(document.activeElement !== urlEl) urlEl.value = u; }
+  view.addEventListener('did-navigate', function(e){ showUrl(e.url); });
+  view.addEventListener('did-navigate-in-page', function(e){ if(e.isMainFrame) showUrl(e.url); });
+  urlEl.addEventListener('focus', function(){ urlEl.select(); });
+  urlEl.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ try { urlEl.value = view.getURL(); } catch(err){} urlEl.blur(); return; }
+    if(e.key !== 'Enter') return;
+    e.preventDefault();
+    var parsed = parseQuickWebInput(urlEl.value);
+    var target = parsed && buildWebUrl({ host: parsed.host, port: parsed.port });
+    if(!target){ urlEl.classList.add('invalid'); return; }
+    urlEl.classList.remove('invalid');
+    errBox.hidden = true;
+    urlEl.value = target;
+    urlEl.blur();
+    view.loadURL(target);
+  });
+  urlEl.addEventListener('input', function(){ urlEl.classList.remove('invalid'); });
+  el.querySelector('.web-bookmark').addEventListener('click', function(){
+    var cur = urlEl.value;
+    try { cur = view.getURL() || cur; } catch(err){}
+    var title = '';
+    try { title = view.getTitle(); } catch(err){}
+    openWebBookmark(cur, title);
+  });
   el.querySelector('.web-back').addEventListener('click', function(){ if(view.canGoBack()) view.goBack(); });
   el.querySelector('.web-reload').addEventListener('click', function(){ view.reload(); });
   el.querySelector('.web-external').addEventListener('click', function(){
-    if(window.onegyeok && window.onegyeok.web) window.onegyeok.web.openExternal(urlEl.textContent);
+    if(window.onegyeok && window.onegyeok.web) window.onegyeok.web.openExternal(urlEl.value);
   });
   return s;
 }
+
+// 현재 페이지를 서버 등록 모달에 채워 열어 북마크처럼 저장한다(그룹 기본값 "북마크"). 저장 전에는 아무것도 만들지 않는다.
+function openWebBookmark(url, title){
+  openEdit(null);
+  document.getElementById('f-protocol').value = 'web';
+  refreshRegExtra(null);
+  var host = url;
+  try { host = new URL(url).host; } catch(e){}
+  var groupEl = document.getElementById('f-group');
+  if(!Array.prototype.some.call(groupEl.options, function(o){ return o.value === '북마크'; })){
+    var opt = document.createElement('option'); opt.value = '북마크'; opt.textContent = '북마크';
+    groupEl.insertBefore(opt, groupEl.firstChild);
+  }
+  groupEl.value = '북마크';
+  document.getElementById('f-name').value = (title && title.length < 40 ? title : host);
+  document.getElementById('f-host').value = url;
+  document.getElementById('f-port').value = '';
+}
+
+var sidebarWebAddBtn = document.getElementById('sidebarWebAddBtn');
+if(sidebarWebAddBtn) sidebarWebAddBtn.addEventListener('click', function(){
+  openEdit(null);
+  document.getElementById('f-protocol').value = 'web';
+  refreshRegExtra(null);
+});
 
 registerProtocol('web', {
   meta: { label:'Web', icon:'<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"></circle><line x1="2.5" y1="10" x2="17.5" y2="10"></line><path d="M10 2.5c2.2 2 2.2 13 0 15M10 2.5c-2.2 2-2.2 13 0 15"></path></svg>' },
