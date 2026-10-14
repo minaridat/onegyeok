@@ -84,6 +84,7 @@ contextBridge.exposeInMainWorld('onegyeok', {
     mouse: (sessionId, x, y, flags) => ipcRenderer.send('rdp:mouse', sessionId, x, y, flags),
     key: (sessionId, scancode, flags) => ipcRenderer.send('rdp:key', sessionId, scancode, flags),
     resize: (sessionId, width, height) => ipcRenderer.send('rdp:resize', sessionId, width, height),
+    frameAck: (sessionId) => ipcRenderer.send('rdp:frame-ack', sessionId),
     onFrame: (callback) => {
       const listener = (_event, sessionId, rect, buffer) => callback(sessionId, rect, buffer);
       ipcRenderer.on('rdp:frame', listener);

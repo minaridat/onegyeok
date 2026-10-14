@@ -3,6 +3,9 @@
  * process. One process = one RDP session; it exits when the session ends. */
 
 #include "compat.h"
+#ifdef _WIN32
+#include <timeapi.h> /* timeBeginPeriod (winmm) */
+#endif
 #include <time.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -439,6 +442,9 @@ int main(void) {
 		log_msg("WSAStartup failed");
 		return 1;
 	}
+	/* Windows 기본 타이머 해상도는 15.6ms라 연결 루프의 Sleep(20)이 실제로는 약 31ms가 된다(화면 갱신·입력 처리 주기가
+	 * macOS의 1.5배). 이 프로세스 동안만 1ms로 올린다 — 프로세스가 끝나면 OS가 자동으로 되돌린다. */
+	timeBeginPeriod(1);
 #endif
 	pthread_t conn_thread;
 	int conn_started = 0;
