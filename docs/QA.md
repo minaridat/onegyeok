@@ -279,6 +279,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
   - `Ctrl+<` / `Ctrl+>`(25번), `Ctrl+Alt+방향키`(칸 이동)는 capture 단계에서 먼저 처리돼 터미널에서도 동작한다.
   - `Ctrl+K` · `Ctrl+I` · `Ctrl+B` · `Ctrl+1~9`는 터미널에 입력 중이면 셸로 간다 → 단축키 탭(Windows 쪽 안내문)과 README 단축키표에 표시.
   - `Ctrl+Shift+W`는 W9 참고. 일부 PC는 인텔 그래픽 드라이버가 `Ctrl+Alt+방향키`를 화면 회전에 쓰므로, 칸 이동이 안 먹으면 그 설정을 확인한다.
+- 설치 파일: `dist/onegyeok-0.1.0-x64.exe` 재생성(app.asar에 스플릿뷰·탭 닫기 메뉴·Windows 키 보완 포함 확인). 작업 폴더 안에 빌드하면 Orca가 `win-unpacked/resources/app.asar`를 열어 둬서(Restart Manager로 확인) 다음 빌드가 EBUSY로 실패하므로, 출력 폴더를 작업 폴더 밖으로 지정해 빌드하고 설치 파일만 `dist/`로 복사했다.
 - 확인: 개발 앱을 Windows에서 실행해(CDP) 렌더러 예외·오류 없음, 창 제목 `onegyeok 0`, 단축키 탭에서 Windows가 위·"현재"로 표시되는 것까지 확인. 스플릿뷰 드래그 등 화면 동작은 수동 확인 필요.
 
 ### 참고
