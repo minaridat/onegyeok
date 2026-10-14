@@ -163,7 +163,7 @@
       <button class="rail-btn" data-filter="rdp" title="RDP">
         <svg class="icon" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>
       </button>
-      <button class="rail-btn future" data-filter="vnc" title="VNC · Phase 5 예정">
+      <button class="rail-btn" data-filter="vnc" title="VNC">
         <svg class="icon" viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>
         <span class="badge">P5</span>
       </button>
@@ -288,6 +288,10 @@
               <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><path d="M5 2.5h8l3 3v12H5z"></path><polyline points="13 2.5 13 5.5 16 5.5"></polyline><line x1="7.5" y1="9" x2="13.5" y2="9"></line><line x1="7.5" y1="12" x2="13.5" y2="12"></line><line x1="7.5" y1="15" x2="11" y2="15"></line></svg>
               메모
             </button>
+            <button class="insp-tab insp-tab-keys" type="button" data-tab="keys">
+              <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><rect x="2.5" y="5" width="15" height="10" rx="1.6"></rect><line x1="5.5" y1="8.5" x2="6.5" y2="8.5"></line><line x1="9.5" y1="8.5" x2="10.5" y2="8.5"></line><line x1="13.5" y1="8.5" x2="14.5" y2="8.5"></line><line x1="6.5" y1="12" x2="13.5" y2="12"></line></svg>
+              단축키
+            </button>
           </div>
         </div>
 
@@ -317,6 +321,10 @@
           </div>
 
           <p class="insp-note">비밀번호는 저장되지 않으며, 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다. tmux 등 세션 유지가 필요하면 터미널 안에서 직접 실행해주세요.</p>
+        </div>
+
+        <div class="insp-pane" data-pane="keys">
+          <div class="shortcut-help" id="shortcutHelp"></div>
         </div>
 
         <div class="insp-pane" data-pane="memo">
@@ -360,6 +368,7 @@
 <script src="core/inspector.js"></script>
 <script src="core/tabs.js"></script>
 <script src="core/splitview.js"></script>
+<script src="core/shortcuts-help.js"></script>
 <script src="core/quick-connect.js"></script>
 <script src="core/manage-table.js"></script>
 <script src="core/edit-modal.js"></script>
