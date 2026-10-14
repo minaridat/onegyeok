@@ -6,6 +6,7 @@ document.addEventListener('keydown', function(e){
     if(appEl.classList.contains('manage-open')){ closeManage(); return; }
     closePalette(); return;
   }
+  if((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b' && !(e.target && e.target.closest && e.target.closest('.xterm'))){ e.preventDefault(); toggleSidebar(); return; }
   if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'i'){ e.preventDefault(); toggleInspector(); return; }
   if((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)){
     e.preventDefault();
