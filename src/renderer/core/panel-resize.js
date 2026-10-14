@@ -33,7 +33,14 @@ function setupResizer(handleEl, cssVar, opts){
 }
 
 setupResizer(document.getElementById('resizerSidebar'), '--sidebar-w', {
-  reverse:false, fallback:SIDEBAR_FALLBACK_W, reserve:600
+  reverse:false, fallback:SIDEBAR_FALLBACK_W, reserve:600,
+  onWidthChange: function(w){
+    // 끝까지 밀면 서버 목록이 접힌다(줄도 함께 사라지고, 탭줄 왼쪽 버튼 / 전체 보기 버튼 / ⌘B로 다시 연다).
+    if(w < INSPECTOR_COLLAPSE_AT && sideOpen){
+      setSidebar(false);
+      appEl.style.setProperty('--sidebar-w', SIDEBAR_FALLBACK_W + 'px');
+    }
+  }
 });
 setupResizer(document.getElementById('resizerInspector'), '--inspector-w', {
   reverse:true, fallback:INSPECTOR_FALLBACK_W, reserve:600,

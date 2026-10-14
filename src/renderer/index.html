@@ -207,10 +207,6 @@
 
     <!-- sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-collapsed-handle" id="sideHandle" title="서버 목록 펼치기 (⌘B)">
-        <svg class="icon" viewBox="0 0 20 20"><polyline points="7 4 13 10 7 16"></polyline></svg>
-        <span class="insp-handle-label">서버 목록</span>
-      </div>
       <div class="sidebar-top">
         <div class="sidebar-search">
           <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
@@ -231,6 +227,9 @@
     <!-- main / tabs / terminal -->
     <section class="main">
       <div class="tabbar-row">
+        <button class="tab-open-btn" id="sideOpenBtn" type="button" title="서버 목록 열기 (⌘B)" aria-label="서버 목록 열기">
+          <svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.4"></rect><line x1="7" y1="3.5" x2="7" y2="16.5"></line></svg>
+        </button>
         <button class="tab-scroll-btn" id="tabScrollLeft" title="이전 탭 보기">
           <svg class="icon" viewBox="0 0 20 20"><polyline points="12 4 6 10 12 16"></polyline></svg>
         </button>
@@ -244,6 +243,9 @@
         </button>
         <button class="icon-toggle" id="broadcastToggleBtn" title="동시 입력 모드 — 열린 모든 SSH 탭에 같은 키 입력을 동시에 전송(비밀번호 입력 포함)">
           <svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.3"></circle><path d="M6.2 6.2a5.4 5.4 0 0 0 0 7.6M13.8 6.2a5.4 5.4 0 0 1 0 7.6M3.3 3.3a9.7 9.7 0 0 0 0 13.4M16.7 3.3a9.7 9.7 0 0 1 0 13.4"></path></svg>
+        </button>
+        <button class="tab-open-btn" id="inspOpenBtn" type="button" title="연결 정보 열기 (⌘I)" aria-label="연결 정보 열기">
+          <svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.4"></rect><line x1="13" y1="3.5" x2="13" y2="16.5"></line></svg>
         </button>
       </div>
       <div class="broadcast-banner" id="broadcastBanner">
@@ -273,10 +275,6 @@
 
     <!-- inspector -->
     <aside class="inspector" id="inspector">
-      <div class="insp-collapsed-handle" id="inspHandle" title="연결 정보 펼치기 (⌘I)">
-        <svg class="icon" viewBox="0 0 20 20"><polyline points="13 4 7 10 13 16"></polyline></svg>
-        <span class="insp-handle-label">연결 정보</span>
-      </div>
       <div class="insp-body" id="inspBody">
         <div class="insp-head">
           <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기 (⌘I)" aria-label="패널 접기">
