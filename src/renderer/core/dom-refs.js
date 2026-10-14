@@ -6,3 +6,5 @@ var inspToggleBtn = document.getElementById('inspToggleBtn');
 var closeActiveTabBtn = document.getElementById('closeActiveTabBtn');
 var inspHandle = document.getElementById('inspHandle');
 var inspCollapseBtn = document.getElementById('inspCollapseBtn');
+var sideCollapseBtn = document.getElementById('sideCollapseBtn');
+var sideHandle = document.getElementById('sideHandle');

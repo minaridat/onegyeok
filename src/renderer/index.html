@@ -184,7 +184,6 @@
     <!-- topbar -->
     <header class="topbar">
       <h1>onegyeok</h1>
-      <span class="mock-tag">컨셉 목업</span>
       <button class="palette-trigger" id="paletteOpenBtn">
         <svg class="icon" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
         서버 검색 / 빠른 연결
@@ -208,9 +207,18 @@
 
     <!-- sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-search">
-        <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
-        <input type="text" placeholder="서버 검색...">
+      <div class="sidebar-collapsed-handle" id="sideHandle" title="서버 목록 펼치기 (⌘B)">
+        <svg class="icon" viewBox="0 0 20 20"><polyline points="7 4 13 10 7 16"></polyline></svg>
+        <span class="insp-handle-label">서버 목록</span>
+      </div>
+      <div class="sidebar-top">
+        <div class="sidebar-search">
+          <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+          <input type="text" placeholder="서버 검색...">
+        </div>
+        <button class="insp-collapse-btn" id="sideCollapseBtn" type="button" title="서버 목록 접기 (⌘B)" aria-label="서버 목록 접기">
+          <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="13 4 7 10 13 16"></polyline></svg>
+        </button>
       </div>
       <button class="sidebar-web-add" id="sidebarWebAddBtn" type="button" hidden>＋ Web 등록 (북마크)</button>
       <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
@@ -271,13 +279,16 @@
       </div>
       <div class="insp-body" id="inspBody">
         <div class="insp-head">
-          <div class="insp-tabs" role="tablist">
-            <button class="insp-tab active" type="button" data-tab="info">연결 정보</button>
-            <button class="insp-tab" type="button" data-tab="memo">메모</button>
-          </div>
-          <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기">
+          <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기 (⌘I)" aria-label="패널 접기">
             <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="7 4 13 10 7 16"></polyline></svg>
           </button>
+          <div class="insp-tabs" role="tablist">
+            <button class="insp-tab active" type="button" data-tab="info">연결 정보</button>
+            <button class="insp-tab insp-tab-memo" type="button" data-tab="memo">
+              <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><path d="M5 2.5h8l3 3v12H5z"></path><polyline points="13 2.5 13 5.5 16 5.5"></polyline><line x1="7.5" y1="9" x2="13.5" y2="9"></line><line x1="7.5" y1="12" x2="13.5" y2="12"></line><line x1="7.5" y1="15" x2="11" y2="15"></line></svg>
+              메모
+            </button>
+          </div>
         </div>
 
         <div class="insp-pane active" data-pane="info">
