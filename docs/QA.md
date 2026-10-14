@@ -215,7 +215,8 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 - **조치**: README를 Orca 스타일(중앙 정렬 헤더·배지·언어 선택·다운로드 버튼·기능별 2단 표)로 다시 썼다. macOS(Apple Silicon)/Windows(x64) **다운로드 버튼**, 맥 **개인정보 보호 및 보안 → "그래도 열기"** 허용 안내를 포함한 간단한 Install, 가독성을 높인 사용 매뉴얼·단축키·FAQ를 담았다. "진행 상태" 절은 삭제했다.
 - **분리**: 소스 실행·설치 파일 직접 빌드(macOS/Windows)·기술 스택·개발 문서는 `docs/DEVELOPER.md`로 옮기고 README에서 링크한다.
 - **다국어**: 기본은 한국어이고 `中文 · 日本語 · English`는 `docs/readme/README.{zh-CN,ja,en}.md`로 전환한다(앱 UI는 한국어라 번역본에 한국어 버튼명을 병기).
-- **이미지**: 실제 앱 화면(`docs/assets/*.jpg`, 로컬 테스트 서버 SSH·MySQL·SFTP·xrdp·웹 페이지로 촬영)과 로고(`docs/assets/logo.svg`).
+- **이미지**: 실제 앱을 조작하며 녹화한 **움직이는 GIF**(`docs/assets/*.gif` 9개 — 스플릿뷰 드래그·합치기·크기 조절·이름 변경, SSH 접속·입력, 동시 입력, SQL 쿼리, SFTP 업로드, RDP 해상도 추종, Web·북마크, 빠른 연결, 단축키 탭)와 로고(`docs/assets/logo.svg`). 로컬 테스트 서버(SSH·MySQL·SFTP·xrdp·웹 페이지)에 실제로 접속해 촬영했다.
+- **다운로드 버튼 아래 안내**: macOS "그래도 열기"(시스템 설정 → 개인정보 보호 및 보안), Windows SmartScreen "추가 정보 → 실행"을 굵은 글씨로 항상 보이게 넣었다.
 - **함께 고친 것**: SQL 결과의 날짜가 `Tue Oct 13 2026 … GMT+0900` 형태로 나오던 것을 DB 값 그대로(`YYYY-MM-DD HH:mm:ss`)로, MySQL 연결 문자셋을 utf8mb4로 지정(`db-manager.js`).
 
 ---

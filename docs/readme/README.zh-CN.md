@@ -26,11 +26,16 @@
 </p>
 
 <p align="center">
+  <b>🍎 macOS — 首次运行时：系统设置 → 隐私与安全性 → 向下滚动点击“仍要打开” → 输入密码 / Touch ID 验证</b><br/>
+  <b>🪟 Windows — 出现“Windows 已保护你的电脑”（SmartScreen）窗口时：更多信息 → 仍要运行</b>
+</p>
+
+<p align="center">
   <sub>安装方法及<b>首次运行时的安全许可说明</b>请见下方 <a href="#install">Install</a> · <a href="https://github.com/minaridat/onegyeok/releases">全部版本</a></sub>
 </p>
 
 <p align="center">
-  <img src="../assets/splitview.jpg" alt="onegyeok — 在分屏中并排显示 SSH、Web 与 SQL" width="960" />
+  <img src="../assets/splitview.gif" alt="onegyeok — 在分屏中并排显示 SSH、Web 与 SQL" width="960" />
 </p>
 
 > **说明：** 应用界面目前为韩语。下文按钮和菜单名称以中文说明，并在括号中标注韩语界面文字。
@@ -51,7 +56,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/splitview.jpg" alt="分屏视图" width="100%" />
+  <img src="../assets/splitview.gif" alt="分屏视图" width="100%" />
 </td>
 </tr>
 <tr>
@@ -65,7 +70,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/ssh.jpg" alt="SSH 终端" width="100%" />
+  <img src="../assets/ssh.gif" alt="SSH 终端" width="100%" />
 </td>
 </tr>
 <tr>
@@ -79,7 +84,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/broadcast.jpg" alt="同时输入" width="100%" />
+  <img src="../assets/broadcast.gif" alt="同时输入" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +98,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/sql.jpg" alt="SQL 客户端" width="100%" />
+  <img src="../assets/sql.gif" alt="SQL 客户端" width="100%" />
 </td>
 </tr>
 <tr>
@@ -107,7 +112,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/sftp.jpg" alt="SFTP 文件管理器" width="100%" />
+  <img src="../assets/sftp.gif" alt="SFTP 文件管理器" width="100%" />
 </td>
 </tr>
 <tr>
@@ -121,7 +126,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/rdp.jpg" alt="RDP 远程桌面" width="100%" />
+  <img src="../assets/rdp.gif" alt="RDP 远程桌面" width="100%" />
 </td>
 </tr>
 <tr>
@@ -135,7 +140,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/web.jpg" alt="Web 控制台" width="100%" />
+  <img src="../assets/web.gif" alt="Web 控制台" width="100%" />
 </td>
 </tr>
 <tr>
@@ -149,7 +154,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/quick-connect.jpg" alt="快速连接" width="100%" />
+  <img src="../assets/quick-connect.gif" alt="快速连接" width="100%" />
 </td>
 </tr>
 <tr>
@@ -163,7 +168,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/shortcuts.jpg" alt="快捷键标签页" width="100%" />
+  <img src="../assets/shortcuts.gif" alt="快捷键标签页" width="100%" />
 </td>
 </tr>
 </table>

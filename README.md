@@ -26,11 +26,16 @@
 </p>
 
 <p align="center">
+  <b>🍎 macOS — 처음 실행할 때: 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 "그래도 열기" 클릭 → 암호/Touch ID 인증</b><br/>
+  <b>🪟 Windows — "Windows의 PC 보호"(SmartScreen) 창이 뜨면: 추가 정보 → 실행</b>
+</p>
+
+<p align="center">
   <sub>설치 방법과 <b>처음 실행 시 보안 허용 안내</b>는 아래 <a href="#install">Install</a>을 확인하세요 · <a href="https://github.com/minaridat/onegyeok/releases">전체 릴리스</a></sub>
 </p>
 
 <p align="center">
-  <img src="docs/assets/splitview.jpg" alt="onegyeok — SSH, Web, SQL을 한 화면에 나란히 띄운 스플릿뷰" width="960" />
+  <img src="docs/assets/splitview.gif" alt="onegyeok — SSH, Web, SQL을 한 화면에 나란히 띄운 스플릿뷰" width="960" />
 </p>
 
 ---
@@ -49,7 +54,7 @@
 
 </td>
 <td width="58%">
-  <img src="docs/assets/splitview.jpg" alt="스플릿뷰" width="100%" />
+  <img src="docs/assets/splitview.gif" alt="스플릿뷰" width="100%" />
 </td>
 </tr>
 <tr>
@@ -63,7 +68,7 @@ xterm.js 기반 터미널. 로그인 아이디는 보이고 비밀번호는 `*`�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/ssh.jpg" alt="SSH 터미널" width="100%" />
+  <img src="docs/assets/ssh.gif" alt="SSH 터미널" width="100%" />
 </td>
 </tr>
 <tr>
@@ -77,7 +82,7 @@ xterm.js 기반 터미널. 로그인 아이디는 보이고 비밀번호는 `*`�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/broadcast.jpg" alt="동시 입력 모드" width="100%" />
+  <img src="docs/assets/broadcast.gif" alt="동시 입력 모드" width="100%" />
 </td>
 </tr>
 <tr>
@@ -91,7 +96,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/sql.jpg" alt="SQL 클라이언트" width="100%" />
+  <img src="docs/assets/sql.gif" alt="SQL 클라이언트" width="100%" />
 </td>
 </tr>
 <tr>
@@ -105,7 +110,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/sftp.jpg" alt="SFTP 파일 탐색기" width="100%" />
+  <img src="docs/assets/sftp.gif" alt="SFTP 파일 탐색기" width="100%" />
 </td>
 </tr>
 <tr>
@@ -119,7 +124,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/rdp.jpg" alt="RDP 원격 데스크톱" width="100%" />
+  <img src="docs/assets/rdp.gif" alt="RDP 원격 데스크톱" width="100%" />
 </td>
 </tr>
 <tr>
@@ -133,7 +138,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/web.jpg" alt="Web 콘솔" width="100%" />
+  <img src="docs/assets/web.gif" alt="Web 콘솔" width="100%" />
 </td>
 </tr>
 <tr>
@@ -147,7 +152,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/quick-connect.jpg" alt="빠른 연결" width="100%" />
+  <img src="docs/assets/quick-connect.gif" alt="빠른 연결" width="100%" />
 </td>
 </tr>
 <tr>
@@ -161,7 +166,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 
 </td>
 <td width="58%">
-  <img src="docs/assets/shortcuts.jpg" alt="단축키 탭" width="100%" />
+  <img src="docs/assets/shortcuts.gif" alt="단축키 탭" width="100%" />
 </td>
 </tr>
 </table>
