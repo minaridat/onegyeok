@@ -1,11 +1,11 @@
 /* Web 콘솔 pane — 주소 표시줄 + 내장 <webview> */
-#panes .pane.web-pane{padding:0;background:var(--bg);color:var(--text);}
+#panes .pane.web-pane{padding:0;background:var(--bg);color:var(--text);container:webpane / inline-size;}
 .web-toolbar{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--border);flex:none;}
 .web-toolbar .web-url{flex:1;min-width:0;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text);
   padding:5px 10px;border:1px solid var(--border);border-radius:14px;background:var(--bg-elev, #fff);}
 .web-toolbar .web-url:focus{outline:none;border-color:var(--accent);}
 .web-toolbar .web-url.invalid{border-color:var(--danger);}
-.web-toolbar button{font:inherit;font-size:var(--fs-xs);padding:4px 9px;border-radius:6px;border:1px solid var(--border);
+.web-toolbar button{white-space:nowrap;flex:none;font:inherit;font-size:var(--fs-xs);padding:4px 9px;border-radius:6px;border:1px solid var(--border);
   background:transparent;color:var(--text);cursor:pointer;}
 .web-toolbar button:hover{background:var(--hover, rgba(128,128,128,.12));}
 .web-pane webview{flex:1;border:none;background:#fff;}
@@ -18,3 +18,5 @@
 .web-load-error-desc{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);word-break:break-all;}
 .web-load-error button{margin-top:6px;padding:8px 14px;border-radius:7px;border:1px solid var(--danger);background:transparent;
   color:var(--danger);font:inherit;font-size:var(--fs-sm);cursor:pointer;}
+/* 스플릿뷰 칸처럼 좁아지면 버튼 글자를 숨기고 아이콘만 남겨 주소창 공간을 확보한다 */
+@container webpane (max-width:560px){.web-toolbar .lbl{display:none;}}

@@ -41,8 +41,8 @@ function buildWebPane(tabId, serverId, el, initialUrl){
       '<button type="button" class="web-back" title="뒤로">←</button>' +
       '<button type="button" class="web-reload" title="새로고침">↻</button>' +
       '<input type="text" class="web-url" spellcheck="false" autocomplete="off" aria-label="주소">' +
-      '<button type="button" class="web-bookmark" title="이 페이지를 서버로 등록(북마크)">☆ 북마크</button>' +
-      '<button type="button" class="web-external" title="기본 브라우저로 열기">브라우저로 열기</button>' +
+      '<button type="button" class="web-bookmark" title="이 페이지를 서버로 등록(북마크)">☆<span class="lbl"> 북마크</span></button>' +
+      '<button type="button" class="web-external" title="기본 브라우저로 열기">↗<span class="lbl"> 브라우저로 열기</span></button>' +
     '</div>';
   var urlEl = el.querySelector('.web-url');
   urlEl.value = url;

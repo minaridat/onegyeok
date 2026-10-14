@@ -90,9 +90,20 @@ var emptyMsgEl = document.getElementById('emptyMsg');
 var filterLabelEl = document.getElementById('filterLabel');
 
 function visibleTabs(){
+  // 스플릿뷰 멤버(.in-group)는 그룹탭 하나로 대신 보이므로 ⌘1~9/탭 이동 대상에서 뺀다.
   return Array.prototype.filter.call(tabbar.querySelectorAll('.tab'), function(t){
-    return !t.classList.contains('filtered-out');
+    return !t.classList.contains('filtered-out') && !t.classList.contains('in-group');
   });
+}
+
+// 필터(레일 버튼)에 맞는 탭인지 — 그룹탭은 포함된 멤버 중 하나라도 맞으면 보인다.
+function tabMatchesFilter(t, filter){
+  if(filter === 'all') return true;
+  if(t.classList.contains('group-tab')){
+    var g = groups[t.dataset.id];
+    return !!g && splitLeaves(g.root).some(function(id){ var m = splitTabEl(id); return m && m.dataset.protocol === filter; });
+  }
+  return t.dataset.protocol === filter;
 }
 
 function renumberTabs(){
@@ -155,10 +166,17 @@ function recordActive(id){
   var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
   if(!tab) return;
   lastActiveByFilter['all'] = id;
+  if(tab.classList.contains('group-tab') && groups[id]){
+    splitLeaves(groups[id].root).forEach(function(m){ var mt = splitTabEl(m); if(mt) lastActiveByFilter[mt.dataset.protocol] = id; });
+    return;
+  }
   lastActiveByFilter[tab.dataset.protocol] = id;
 }
 
 function activate(id){
+  // 스플릿뷰 그룹탭(또는 그 멤버 탭)이면 그룹 전체를 보여주는 쪽에서 처리한다.
+  if(typeof splitActivate === 'function' && splitActivate(id)) return;
+  if(typeof splitHideOverlays === 'function') splitHideOverlays(null);
   emptyPane.classList.remove('active');
   if(typeof quickConnectEl !== 'undefined' && quickConnectEl) quickConnectEl.hidden = true;
   var activeTab = null;
@@ -176,6 +194,7 @@ function activate(id){
 }
 
 function activateEmpty(filter){
+  if(typeof splitHideOverlays === 'function') splitHideOverlays(null);
   tabbar.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
   panes.querySelectorAll('.pane').forEach(function(p){ p.classList.remove('active'); });
   tree.querySelectorAll('.server').forEach(function(s){ s.classList.remove('selected'); });
@@ -196,7 +215,7 @@ function applyFilter(filter){
   currentFilter = filter;
   applyTreeFilterVisual();
   tabbar.querySelectorAll('.tab').forEach(function(t){
-    t.classList.toggle('filtered-out', !(filter === 'all' || t.dataset.protocol === filter));
+    t.classList.toggle('filtered-out', !tabMatchesFilter(t, filter));
   });
   renumberTabs();
   document.querySelectorAll('.rail-btn[data-filter]').forEach(function(b){
@@ -242,7 +261,6 @@ function removeTabDom(tabId){
   var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
   tab.remove();
   if(pane) pane.remove();
-  delete tabLayouts[tabId];
   renumberTabs();
   if(wasActive){
     var remaining = visibleTabs()[0];
@@ -251,32 +269,25 @@ function removeTabDom(tabId){
 }
 
 // 탭을 완전히 닫는다 — skipDispose가 true면 세션은 이미 다른 곳으로 옮겨진 상태이므로
-// 탭/레이아웃 UI만 정리하고 세션 자체는 건드리지 않는다(moveSessionIntoCell에서 사용).
-// tabLayouts(SSH 전용 pane-split 테이블)는 ssh.js가 정의하는 전역이다 — 분할돼 있지 않은
-// 탭(대부분의 프로토콜)은 거기에 엔트리가 없으므로 ids는 항상 [tabId] 하나로 떨어진다.
+// 탭 UI만 정리하고 세션 자체는 건드리지 않는다.
 function closeTabById(tabId, skipDispose){
   var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   if(!tab) return;
-  if(!skipDispose){
-    var layout = tabLayouts[tabId];
-    var ids = layout ? layout.paneIds.slice() : [tabId];
-    ids.forEach(function(id){ disposeSession(id); });
-  }
+  // 스플릿뷰: 그룹탭이면 포함된 세션 전부를(확인 후) 닫고, 멤버 칸이면 그룹에서 먼저 빼낸 뒤 평소처럼 닫는다.
+  if(typeof splitCloseHook === 'function' && splitCloseHook(tabId)) return;
+  if(!skipDispose) disposeSession(tabId);
   removeTabDom(tabId);
 }
 
 // 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
 // 로컬 UI만 정리한다(detachLocal이 없는 프로토콜은 disposeSession으로 자동 폴백 — 연결까지
-// 완전히 끊김, core/registry.js의 계약 설명 참고). SSH는 탭이 분할돼 있으면(pane-split) 여러
-// 세션을 한 번에 옮기는 복잡도를 감수하지 않고 전부 끊는다 — 분할 해제 후 다시 시도하면 된다.
+// 완전히 끊김, core/registry.js의 계약 설명 참고). 스플릿뷰 칸은 먼저 그룹에서 독립 탭으로 빼낸 뒤 이 경로를 탄다.
 function detachTabLocal(tabId){
   var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   if(!tab) return;
   var proto = tab.dataset.protocol;
   var p = getProtocol(proto);
-  var layout = tabLayouts[tabId];
-  var isSplit = layout && layout.paneIds.length > 1;
-  if(p && p.detachLocal && !isSplit) p.detachLocal(tabId);
+  if(p && p.detachLocal) p.detachLocal(tabId);
   else disposeSession(tabId);
   removeTabDom(tabId);
 }
@@ -319,7 +330,6 @@ closeActiveTabBtn.addEventListener('click', function(){
 function removeServerById(serverId){
   if(hasMemoBridge) window.onegyeok.saveMemo(serverId, '');
   var tabIdsToRemove = Array.prototype.map.call(tabbar.querySelectorAll('.tab[data-server-id="'+serverId+'"]'), function(t){ return t.dataset.id; });
-  // closeTabById가 분할된 탭이면 그 안의 pane 세션까지 전부 정리한다(tabLayouts 기준).
   tabIdsToRemove.forEach(function(tabId){ closeTabById(tabId); });
   SERVERS = SERVERS.filter(function(s){ return s.id !== serverId; });
   selectedManageIds.delete(serverId);
@@ -343,8 +353,6 @@ tabbar.addEventListener('click', function(e){
   var tab = e.target.closest('.tab');
   if(!tab) return;
   if(close){
-    // 탭을 닫으면 그 탭의 모든 pane(분할돼 있었다면 전부)의 세션이 종료된다 — closeTabById가
-    // tabLayouts를 참고해 분할된 탭이면 paneId 전부를, 아니면 탭 자신만 정리한다.
     closeTabById(tab.dataset.id);
     return;
   }
@@ -353,50 +361,57 @@ tabbar.addEventListener('click', function(e){
 });
 
 // ==================================================================
-// 탭 드래그-아웃으로 별도 창 분리/병합 (크롬 탭 방식) — src/main/core/window-manager.js와 짝.
-// 수평으로만 움직이면(탭바 안에 머무르면) 그냥 클릭/드래그로 취급해 아무 일도 안 한다(현재
-// 탭바 안 순서 변경 기능은 없음). 탭바 bounding box 밖으로 수직 이동하면 분리 의도로 본다.
+// 탭 드래그 — (1) 창 안 내용 영역에 놓으면 스플릿뷰로 합치기(core/splitview.js), (2) 창 밖으로 끌어내면 별도 창으로
+// 분리/병합(크롬 탭 방식, src/main/core/window-manager.js와 짝). 칸 헤더(.cell-header)를 끌면 (3) 탭바에 놓아 독립 탭으로 빼내거나
+// (4) 창 밖으로 끌어 새 창으로 옮긴다. 그룹탭 자체는 1차에서 창 밖 분리를 지원하지 않는다(docs/기능명세/08_스플릿뷰 F-1318).
 //
-// 크롬처럼 "쥐고 있는 동안 실제 창이 커서를 따라다니는" 모션 — Electron은 OS 네이티브 창
-// 드래그를 노출하지 않으므로, 탭바 밖으로 나가는 그 순간 바로 진짜 BrowserWindow를 만들고
-// (mouseup까지 기다리지 않음) 매 mousemove마다 그 창을 setPosition으로 옮긴다. 이게 가능한
-// 건 Chromium이 마우스 캡처를 암묵적으로 유지해서, 커서가 이 창의 뷰포트 밖으로(심지어 OS
-// 창 경계 밖으로) 나가도 mousedown을 받은 document에 mousemove/mouseup이 계속 들어오기
-// 때문이다(Playwright로 clientY를 음수까지 보내며 실측 확인함 — 실제 OS 드래그에서도 같은
-// Chromium 내부 캡처 메커니즘이라 똑같이 동작할 것으로 보지만, 100% 동일한 물리 드래그는
-// 수동으로도 확인해볼 가치가 있다). 손을 뗄 때 다른 onegyeok 창(원래 창 포함) 위였으면 그
-// 창에 병합하고 드래그용 창은 닫는다 — 아니면 그 자리에 그대로 둔다.
+// 별도 창 분리 모션: Electron은 OS 네이티브 창 드래그를 노출하지 않으므로, 커서가 창 밖으로 나가는 순간 바로 진짜
+// BrowserWindow를 만들고(mouseup까지 기다리지 않음) 매 mousemove마다 그 창을 setPosition으로 옮긴다. Chromium이 마우스
+// 캡처를 유지해 커서가 뷰포트 밖으로 나가도 mousedown을 받은 document에 mousemove/mouseup이 계속 들어오기 때문이다.
+// 손을 뗄 때 다른 onegyeok 창(원래 창 포함) 위였으면 그 창에 병합하고 드래그용 창은 닫는다 — 아니면 그 자리에 그대로 둔다.
 // ==================================================================
-var dragState = null; // { tabId, serverId, protocol, startX, startY, dragging, grabOffsetX/Y,
-                       //   lastScreenX/Y, liveWindowId, creatingWindow, pendingComplete,
-                       //   pollTimer, mergeTargetId }
+var dragState = null; // { kind:'tab'|'group'|'cell', tabId, serverId, protocol, label, startX, startY, dragging, grabOffsetX/Y,
+                       //   lastScreenX/Y, liveWindowId, creatingWindow, pendingComplete, pollTimer, mergeTargetId, dropTarget, overTabbar }
 var suppressNextTabClick = false;
 var TEAROFF_THRESHOLD = 8; // 이 이상 움직여야 드래그로 인정(클릭과 구분)
 var MERGE_POLL_MS = 150;
 
 function hasWindowBridge(){ return !!(window.onegyeok && window.onegyeok.window); }
 
-tabbar.addEventListener('mousedown', function(e){
-  if(!hasWindowBridge()) return;
-  if(e.button !== 0) return; // 좌클릭만
-  if(e.target.closest('.close, .tab-reconnect, .tab-add, .tab-broadcast-check')) return;
-  var tab = e.target.closest('.tab');
-  if(!tab) return;
-  var tabRect = tab.getBoundingClientRect();
+function startTabDrag(e, el, kind, tabEl){
+  var r = el.getBoundingClientRect();
+  var nameEl = tabEl.querySelector('.tab-name');
   dragState = {
-    tabId: tab.dataset.id, serverId: tab.dataset.serverId, protocol: tab.dataset.protocol,
+    kind: kind, tabId: tabEl.dataset.id, serverId: tabEl.dataset.serverId, protocol: tabEl.dataset.protocol,
+    label: (nameEl && nameEl.textContent) || tabEl.dataset.id,
     startX: e.clientX, startY: e.clientY, dragging: false,
-    // 커서가 탭 안 어디를 쥐었는지 — 드래그 창도 같은 지점이 커서 밑에 오도록 옮긴다.
-    grabOffsetX: e.clientX - tabRect.left, grabOffsetY: e.clientY - tabRect.top,
+    // 커서가 요소 안 어디를 쥐었는지 — 드래그 창도 같은 지점이 커서 밑에 오도록 옮긴다.
+    grabOffsetX: e.clientX - r.left, grabOffsetY: e.clientY - r.top,
     lastScreenX: window.screenX + e.clientX, lastScreenY: window.screenY + e.clientY,
     liveWindowId: null, creatingWindow: false, pendingComplete: false,
-    pollTimer: null, mergeTargetId: null,
+    pollTimer: null, mergeTargetId: null, dropTarget: null, overTabbar: false,
   };
   document.addEventListener('mousemove', onTabDragMove);
   document.addEventListener('mouseup', onTabDragEnd);
+}
+
+tabbar.addEventListener('mousedown', function(e){
+  if(e.button !== 0) return; // 좌클릭만
+  if(e.target.closest('.close, .tab-reconnect, .tab-add, .tab-broadcast-check, .group-rename')) return;
+  var tab = e.target.closest('.tab');
+  if(!tab) return;
+  startTabDrag(e, tab, tab.classList.contains('group-tab') ? 'group' : 'tab', tab);
 });
 
-// 탭바 밖으로 나가는 첫 순간 호출 — 실제 창을 만들고(비동기), 응답이 오면 그 시점의 최신
+panes.addEventListener('mousedown', function(e){
+  if(e.button !== 0) return;
+  var header = e.target.closest('.cell-header');
+  if(!header || e.target.closest('button, input')) return;
+  var tab = tabbar.querySelector('.tab[data-id="'+header.dataset.tabId+'"]');
+  if(tab) startTabDrag(e, header, 'cell', tab);
+});
+
+// 창 밖으로 나가는 첫 순간 호출 — 실제 창을 만들고(비동기), 응답이 오면 그 시점의 최신
 // 커서 위치로 한 번 더 맞춘다. 아주 빠르게 드래그&드롭하면 이 응답이 mouseup 이후에 올 수도
 // 있어서(ds.pendingComplete), 그 경우 onTabDragEnd가 이미 정해둔 결과를 바로 반영한다.
 function beginLiveTearOff(ds){
@@ -422,33 +437,40 @@ function beginLiveTearOff(ds){
 }
 
 function onTabDragMove(e){
-  if(!dragState) return;
-  var dx = e.clientX - dragState.startX, dy = e.clientY - dragState.startY;
-  if(!dragState.dragging && Math.sqrt(dx*dx + dy*dy) < TEAROFF_THRESHOLD) return;
-  dragState.dragging = true;
-  dragState.lastScreenX = window.screenX + e.clientX;
-  dragState.lastScreenY = window.screenY + e.clientY;
+  var ds = dragState;
+  if(!ds) return;
+  var dx = e.clientX - ds.startX, dy = e.clientY - ds.startY;
+  if(!ds.dragging && Math.sqrt(dx*dx + dy*dy) < TEAROFF_THRESHOLD) return;
+  if(!ds.dragging){
+    ds.dragging = true;
+    splitDragStart(ds.label); // 고스트 라벨 + 드래그 중 webview가 마우스를 가로채지 않게 하는 body 클래스
+  }
+  ds.lastScreenX = window.screenX + e.clientX;
+  ds.lastScreenY = window.screenY + e.clientY;
 
-  var rect = tabbar.getBoundingClientRect();
-  var outsideTabbar = e.clientY < rect.top - 10 || e.clientY > rect.bottom + 10;
+  var outsideWindow = e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
 
-  if(outsideTabbar && !dragState.liveWindowId && !dragState.creatingWindow){
-    beginLiveTearOff(dragState);
+  if(outsideWindow && ds.kind !== 'group' && hasWindowBridge() && !ds.liveWindowId && !ds.creatingWindow){
+    if(ds.kind === 'cell'){ splitExtract(ds.tabId); ds.kind = 'tab'; } // 칸은 먼저 독립 탭으로 뺀 뒤 새 창으로 옮긴다
+    splitDragVisualsOff();
+    beginLiveTearOff(ds);
   }
 
-  if(dragState.liveWindowId != null){
-    window.onegyeok.window.dragMoveWindow(dragState.liveWindowId,
-      dragState.lastScreenX - dragState.grabOffsetX, dragState.lastScreenY - dragState.grabOffsetY);
-    if(!dragState.pollTimer){
-      // 창이 생긴 뒤로는 계속 켜둔다(탭바 안쪽으로 돌아와도) — 원래 창 위로 되돌아오면 그
+  if(ds.liveWindowId != null){
+    window.onegyeok.window.dragMoveWindow(ds.liveWindowId,
+      ds.lastScreenX - ds.grabOffsetX, ds.lastScreenY - ds.grabOffsetY);
+    if(!ds.pollTimer){
+      // 창이 생긴 뒤로는 계속 켜둔다(창 안쪽으로 돌아와도) — 원래 창 위로 되돌아오면 그
       // 창도 다시 유효한 병합 대상이어야(크롬처럼 제자리로 돌아가면 다시 합쳐짐) 하기 때문.
-      dragState.pollTimer = setInterval(function(){
+      ds.pollTimer = setInterval(function(){
         if(!dragState || dragState.liveWindowId == null) return;
         window.onegyeok.window.isPointInAnotherWindow(dragState.lastScreenX, dragState.lastScreenY, dragState.liveWindowId).then(function(winId){
           if(dragState) dragState.mergeTargetId = winId;
         });
       }, MERGE_POLL_MS);
     }
+  } else if(!ds.creatingWindow){
+    splitDragMove(ds, e); // 창 안 — 스플릿뷰 드롭 영역 표시 / 탭바 빼내기 강조
   }
 }
 
@@ -463,15 +485,20 @@ function onTabDragEnd(e){
 
   if(ds.liveWindowId != null){
     suppressNextTabClick = true;
+    splitDragVisualsOff();
     window.onegyeok.window.completeTearOffDrag(ds.liveWindowId, ds.mergeTargetId);
   } else if(ds.creatingWindow){
     // beginTearOffDrag 응답이 아직 안 왔는데 손을 뗀 경우(아주 짧은 드래그) — 응답 오면
     // beginLiveTearOff가 바로 완료 처리하도록 표시만 해둔다.
     suppressNextTabClick = true;
+    splitDragVisualsOff();
     ds.pendingComplete = true;
+  } else {
+    // 창 안에서 끝남 — 합치기/빼내기 또는 아무 일 없음. 탭 요소가 사라져 click이 안 올 수도 있으니 플래그는 곧바로 풀어준다.
+    suppressNextTabClick = true;
+    setTimeout(function(){ suppressNextTabClick = false; }, 0);
+    splitDragEnd(ds);
   }
-  // liveWindowId도 creatingWindow도 아니면 — outsideTabbar가 한 번도 안 된 것(탭바 안에서만
-  // 움직임) — 아무 것도 만들어진 게 없으니 할 일이 없다.
 }
 
 if(hasWindowBridge()){
