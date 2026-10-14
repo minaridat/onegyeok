@@ -262,8 +262,8 @@ SSH·SQL·SFTP·RDP·VNC·Web 어느 조합이든 한 화면에서 나란히 볼
 | 연결 정보 패널 접기/펼치기 | `⌘I` | `Ctrl+I` |
 | 열린 창·모달 닫기 | `Esc` | `Esc` |
 | 번호로 탭 이동 | `⌘1`–`⌘9` | `Ctrl+1`–`Ctrl+9` |
-| 이전 / 다음 탭 | `⌃<` / `⌃>` (Control) | `Ctrl+<` / `Ctrl+>` |
-| 이전 / 다음 탭 (대체) | `⌃Tab` / `⌃⇧Tab`, `⌘<` / `⌘>` | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+| 이전 / 다음 탭 | `Ctrl+<` / `Ctrl+>` (Control 키) | `Ctrl+<` / `Ctrl+>` |
+| 이전 / 다음 탭 (대체) | `Ctrl+Tab` / `Ctrl+Shift+Tab`, `⌘<` / `⌘>` | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
 | 이전 / 다음 탭 (일반 탭에서만) | `⌘⌥←` / `⌘⌥→` | `Ctrl+Alt+←` / `Ctrl+Alt+→` |
 | 그룹탭 칸 사이 이동 | `⌘⌥+방향키` | `Ctrl+Alt+방향키` |
 | SQL 쿼리 실행 | `⌘Enter` | `Ctrl+Enter` |
