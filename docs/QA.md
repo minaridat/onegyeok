@@ -291,6 +291,13 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 - 설치 파일: `dist/onegyeok-0.1.0-x64.exe` 재생성(app.asar에 스플릿뷰·탭 닫기 메뉴·Windows 키 보완 포함 확인). 작업 폴더 안에 빌드하면 Orca가 `win-unpacked/resources/app.asar`를 열어 둬서(Restart Manager로 확인) 다음 빌드가 EBUSY로 실패하므로, 출력 폴더를 작업 폴더 밖으로 지정해 빌드하고 설치 파일만 `dist/`로 복사했다.
 - 확인: 개발 앱을 Windows에서 실행해(CDP) 렌더러 예외·오류 없음, 창 제목 `onegyeok 0`, 단축키 탭에서 Windows가 위·"현재"로 표시되는 것까지 확인. 스플릿뷰 드래그 등 화면 동작은 수동 확인 필요.
 
+### 릴리스 기록
+
+| 릴리스 | Windows 설치 파일 | 비고 |
+|---|---|---|
+| v0.1.12 | main 9cab5f0 기준 빌드 | 첫 Windows 업로드 |
+| v0.1.13, v0.1.14 | main a326659 기준 재빌드(SQL 날짜 표시·문자셋 수정 포함), sha256 `ce1efec3…4195f2` | 맥 쪽에서 임시로 붙여 둔 v0.1.12 파일을 교체. 두 릴리스는 앱 코드가 같다(v0.1.14는 README만 변경). `releases/latest/download/onegyeok-x64.exe`로 받은 파일 해시가 일치하는 것을 확인 |
+
 ### 참고
 
 - FreeRDP 빌드가 `WITH_VERBOSE_WINPR_ASSERT=ON`(기본값)이라 헬퍼가 시작 시 "runtime-check build options" 경고를 stderr에 남긴다. 동작에는 영향 없음(macOS도 동일 설정).
