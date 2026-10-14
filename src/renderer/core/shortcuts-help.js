@@ -10,8 +10,8 @@ var SHORTCUT_HELP = [
   ]},
   { title: '탭 이동', rows: [
     ['번호로 탭 이동', '⌘ 1–9', 'Ctrl 1–9'],
-    ['이전 / 다음 탭', '⌃ < / ⌃ >', 'Ctrl < / Ctrl >'],
-    ['이전 / 다음 탭 (대체)', '⌃ Tab / ⌃ ⇧ Tab · ⌘ < / ⌘ >', 'Ctrl Tab / Ctrl Shift Tab'],
+    ['이전 / 다음 탭', 'Ctrl < / Ctrl >', 'Ctrl < / Ctrl >'],
+    ['이전 / 다음 탭 (대체)', 'Ctrl Tab / Ctrl Shift Tab / ⌘ < / ⌘ >', 'Ctrl Tab / Ctrl Shift Tab'],
     ['이전 / 다음 탭 (일반 탭에서만)', '⌘ ⌥ ← / ⌘ ⌥ →', 'Ctrl Alt ← / Ctrl Alt →'],
   ]},
   { title: '스플릿뷰 (그룹탭)', rows: [
@@ -24,7 +24,7 @@ var SHORTCUT_HELP = [
   { title: '프로토콜별', rows: [
     ['SQL 쿼리 실행', '⌘ Enter', 'Ctrl Enter'],
     ['Web 주소 이동 / 되돌리기', 'Enter / Esc', 'Enter / Esc'],
-    ['SSH 접속 프롬프트 취소', '⌃ C', 'Ctrl C'],
+    ['SSH 접속 프롬프트 취소', 'Ctrl C', 'Ctrl C'],
   ]},
 ];
 
