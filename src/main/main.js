@@ -5,6 +5,7 @@ const windowManager = require('./core/window-manager');
 const dialogCore = require('./core/dialog');
 const memoStore = require('./core/memo-store');
 const serverStore = require('./core/server-store');
+const { installAppMenu } = require('./core/app-menu');
 
 // require()하는 것만으로 각 프로토콜 모듈의 registerMainProtocol(...) 등록이 실행된다
 // (이 require 목록이 곧 "현재 지원하는 연결 종류" 목록이다 — 새 프로토콜은 이 한 줄만 추가).
@@ -151,6 +152,7 @@ ipcMain.handle('window:completeTearOffDrag', (_event, windowId, mergeTargetId) =
 });
 
 app.whenReady().then(() => {
+  installAppMenu();
   mainWindow = windowManager.createAppWindow(ctx, null);
 
   app.on('activate', () => {

@@ -115,6 +115,12 @@ contextBridge.exposeInMainWorld('onegyeok', {
       ipcRenderer.on('window:tabDetached', listener);
       return () => ipcRenderer.removeListener('window:tabDetached', listener);
     },
+    // 앱 메뉴의 "탭 닫기"(⌘W / Windows Ctrl+Shift+W) — src/main/core/app-menu.js
+    onCloseTabRequest: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on('menu:close-tab', listener);
+      return () => ipcRenderer.removeListener('menu:close-tab', listener);
+    },
     onTabAttached: (callback) => {
       const listener = (_event, payload) => callback(payload);
       ipcRenderer.on('window:tabAttached', listener);

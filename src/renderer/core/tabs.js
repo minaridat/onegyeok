@@ -506,6 +506,11 @@ function onTabDragEnd(e){
 }
 
 if(hasWindowBridge()){
+  // 앱 메뉴의 "탭 닫기" — 활성 탭(그룹탭이면 그룹 전체, 연결 중이면 확인 후)을 닫는다. 열린 탭이 없으면 아무 일도 하지 않는다.
+  window.onegyeok.window.onCloseTabRequest(function(){
+    var active = tabbar.querySelector('.tab.active');
+    if(active) closeTabById(active.dataset.id);
+  });
   window.onegyeok.window.onTabDetached(function(tabId){
     detachTabLocal(tabId);
   });
