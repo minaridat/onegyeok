@@ -26,11 +26,16 @@
 </p>
 
 <p align="center">
+  <b>🍎 macOS — 初回起動時: システム設定 → プライバシーとセキュリティ → 下へスクロールして「このまま開く」をクリック → パスワード / Touch ID で認証</b><br/>
+  <b>🪟 Windows — 「Windows によって PC が保護されました」（SmartScreen）が表示されたら: 詳細情報 → 実行</b>
+</p>
+
+<p align="center">
   <sub>インストール方法と<b>初回起動時のセキュリティ許可</b>については、下の <a href="#install">Install</a> をご覧ください · <a href="https://github.com/minaridat/onegyeok/releases">すべてのリリース</a></sub>
 </p>
 
 <p align="center">
-  <img src="../assets/splitview.jpg" alt="onegyeok — SSH・Web・SQL を並べたスプリットビュー" width="960" />
+  <img src="../assets/splitview.gif" alt="onegyeok — SSH・Web・SQL を並べたスプリットビュー" width="960" />
 </p>
 
 > **お知らせ:** アプリの画面表示は現在韓国語です。以下ではボタンやメニュー名を日本語で説明し、括弧内に韓国語の表示を併記します。
@@ -51,7 +56,7 @@
 
 </td>
 <td width="58%">
-  <img src="../assets/splitview.jpg" alt="スプリットビュー" width="100%" />
+  <img src="../assets/splitview.gif" alt="スプリットビュー" width="100%" />
 </td>
 </tr>
 <tr>
@@ -65,7 +70,7 @@ xterm.js ベースのターミナル。ログイン名は表示され、パス�
 
 </td>
 <td width="58%">
-  <img src="../assets/ssh.jpg" alt="SSH ターミナル" width="100%" />
+  <img src="../assets/ssh.gif" alt="SSH ターミナル" width="100%" />
 </td>
 </tr>
 <tr>
@@ -79,7 +84,7 @@ xterm.js ベースのターミナル。ログイン名は表示され、パス�
 
 </td>
 <td width="58%">
-  <img src="../assets/broadcast.jpg" alt="同時入力モード" width="100%" />
+  <img src="../assets/broadcast.gif" alt="同時入力モード" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +98,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server に接続してクエリを実行
 
 </td>
 <td width="58%">
-  <img src="../assets/sql.jpg" alt="SQL クライアント" width="100%" />
+  <img src="../assets/sql.gif" alt="SQL クライアント" width="100%" />
 </td>
 </tr>
 <tr>
@@ -107,7 +112,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server に接続してクエリを実行
 
 </td>
 <td width="58%">
-  <img src="../assets/sftp.jpg" alt="SFTP エクスプローラー" width="100%" />
+  <img src="../assets/sftp.gif" alt="SFTP エクスプローラー" width="100%" />
 </td>
 </tr>
 <tr>
@@ -121,7 +126,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server に接続してクエリを実行
 
 </td>
 <td width="58%">
-  <img src="../assets/rdp.jpg" alt="RDP リモートデスクトップ" width="100%" />
+  <img src="../assets/rdp.gif" alt="RDP リモートデスクトップ" width="100%" />
 </td>
 </tr>
 <tr>
@@ -135,7 +140,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server に接続してクエリを実行
 
 </td>
 <td width="58%">
-  <img src="../assets/web.jpg" alt="Web コンソール" width="100%" />
+  <img src="../assets/web.gif" alt="Web コンソール" width="100%" />
 </td>
 </tr>
 <tr>
@@ -149,7 +154,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server に接続してクエリを実行
 
 </td>
 <td width="58%">
-  <img src="../assets/quick-connect.jpg" alt="クイック接続" width="100%" />
+  <img src="../assets/quick-connect.gif" alt="クイック接続" width="100%" />
 </td>
 </tr>
 <tr>
@@ -163,7 +168,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server に接続してクエリを実行
 
 </td>
 <td width="58%">
-  <img src="../assets/shortcuts.jpg" alt="ショートカットタブ" width="100%" />
+  <img src="../assets/shortcuts.gif" alt="ショートカットタブ" width="100%" />
 </td>
 </tr>
 </table>
