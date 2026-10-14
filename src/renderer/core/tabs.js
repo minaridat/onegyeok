@@ -336,7 +336,11 @@ function removeServerById(serverId){
 }
 
 document.querySelectorAll('.rail-btn[data-filter]').forEach(function(btn){
-  btn.addEventListener('click', function(){ applyFilter(btn.dataset.filter); });
+  btn.addEventListener('click', function(){
+    // 서버 목록이 접혀 있을 때 맨 위 "전체 보기" 메인 버튼을 누르면 서버 목록이 다시 펼쳐진다.
+    if(btn.dataset.filter === 'all' && typeof sideOpen !== 'undefined' && !sideOpen) setSidebar(true);
+    applyFilter(btn.dataset.filter);
+  });
 });
 
 tabbar.addEventListener('click', function(e){

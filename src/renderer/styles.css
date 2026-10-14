@@ -110,10 +110,20 @@
     box-shadow:var(--shadow);
     background:var(--bg-elevated);
   }
-  .app.insp-collapsed{grid-template-columns:52px var(--sidebar-w) 5px 1fr 0px 40px;}
-  .app.side-collapsed{grid-template-columns:52px 40px 0px 1fr 5px var(--inspector-w);}
-  .app.side-collapsed.insp-collapsed{grid-template-columns:52px 40px 0px 1fr 0px 40px;}
-  .app.side-collapsed .resizer-sidebar{pointer-events:none;}
+  /* 서버 목록·연결 정보 패널을 접으면 줄(경계선·여백)까지 완전히 사라지고, 탭줄의 작은 버튼으로 다시 연다. */
+  .app.insp-collapsed{grid-template-columns:52px var(--sidebar-w) 5px 1fr 0px 0px;}
+  .app.side-collapsed{grid-template-columns:52px 0px 0px 1fr 5px var(--inspector-w);}
+  .app.side-collapsed.insp-collapsed{grid-template-columns:52px 0px 0px 1fr 0px 0px;}
+  .app.side-collapsed .sidebar,.app.side-collapsed .resizer-sidebar{display:none;}
+  .app.insp-collapsed .inspector,.app.insp-collapsed .resizer-inspector{display:none;}
+  .app:not(.side-collapsed) .sidebar,.app:not(.insp-collapsed) .inspector{animation:panelPop .16s ease-out;}
+  @keyframes panelPop{from{opacity:0;transform:scale(.97);}to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){.app .sidebar,.app .inspector{animation:none;}}
+  .tab-open-btn{display:none;align-items:center;justify-content:center;width:28px;flex:none;border:none;background:transparent;
+    color:var(--text-faint);cursor:pointer;border-radius:6px;margin:3px 2px;}
+  .tab-open-btn:hover{background:var(--accent-soft);color:var(--accent);}
+  .tab-open-btn .icon{width:15px;height:15px;}
+  .app.side-collapsed #sideOpenBtn,.app.insp-collapsed #inspOpenBtn{display:flex;}
   .app.resizing{cursor:col-resize;user-select:none;}
 
   /* ---------- panel resize handles ---------- */
@@ -337,21 +347,10 @@
   .insp-memo textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent;}
   .insp-memo textarea::placeholder{color:var(--text-faint);}
 
-  .sidebar-collapsed-handle{display:none;flex-direction:column;align-items:center;gap:10px;padding-top:14px;
-    width:100%;cursor:pointer;color:var(--text-faint);}
-  .sidebar-collapsed-handle:hover{color:var(--accent);}
-  .app.side-collapsed .sidebar > :not(.sidebar-collapsed-handle){display:none;}
-  .app.side-collapsed .sidebar-collapsed-handle{display:flex;}
   .insp-tab-memo{display:inline-flex;align-items:center;gap:5px;color:var(--accent);background:var(--accent-soft);
     border:1px solid var(--accent);}
   .insp-tab-memo:hover{color:var(--accent);background:var(--accent-soft);filter:brightness(.97);}
   .insp-tab-memo.active{background:var(--accent);color:#fff;}
-  .insp-collapsed-handle{display:none;flex-direction:column;align-items:center;gap:10px;padding-top:14px;
-    width:100%;cursor:pointer;color:var(--text-faint);}
-  .insp-collapsed-handle:hover{color:var(--accent);}
-  .insp-handle-label{writing-mode:vertical-rl;text-orientation:mixed;font-size:var(--fs-2xs);letter-spacing:.04em;}
-  .app.insp-collapsed .insp-body{display:none;}
-  .app.insp-collapsed .insp-collapsed-handle{display:flex;}
 
   /* ---------- statusbar ---------- */
   .statusbar{grid-area:statusbar;display:flex;align-items:center;gap:var(--sp-4);padding:0 var(--sp-4);
