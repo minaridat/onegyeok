@@ -20,8 +20,9 @@ document.addEventListener('keydown', function(e){
   var metaOrCtrl = (e.metaKey || e.ctrlKey) && !e.altKey;
   var isNextKey = metaOrCtrl && (e.key === '>' || (e.shiftKey && e.code === 'Period'));
   var isPrevKey = metaOrCtrl && (e.key === '<' || (e.shiftKey && e.code === 'Comma'));
-  var next = (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowRight') || isNextKey;
-  var prev = (e.ctrlKey && e.key === 'Tab' && e.shiftKey) || (e.metaKey && e.altKey && e.key === 'ArrowLeft') || isPrevKey;
+  var altNav = (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey; // 그룹탭이 아닐 때만 여기까지 온다(그룹탭의 칸 이동은 splitview.js가 먼저 가로챔)
+  var next = (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) || (altNav && e.key === 'ArrowRight') || isNextKey;
+  var prev = (e.ctrlKey && e.key === 'Tab' && e.shiftKey) || (altNav && e.key === 'ArrowLeft') || isPrevKey;
   if(next || prev){
     e.preventDefault();
     var list = visibleTabs();
