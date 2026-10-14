@@ -54,7 +54,10 @@ function renderShortcutHelp(){
           g.rows.map(function(r){
             return '<div class="sc-row"><span class="sc-label">' + escapeHtml(r[0]) + '</span><span class="sc-keys">' + shortcutKeysHtml(r[sec.col]) + '</span></div>';
           }).join('') + '</div>';
-      }).join('') + '</section>';
+      }).join('') +
+      // Windows의 Ctrl 단축키는 터미널 제어키와 겹쳐서, 터미널에 포커스가 있으면 앱이 가로채지 않는다(keyboard-shortcuts.js isTerminalCtrlKey).
+      (sec.os === 'win' ? '<div class="sc-note">터미널에 입력 중일 때 Ctrl K · Ctrl I · Ctrl B · Ctrl 1–9는 앱 단축키가 아니라 셸로 전달됩니다(Ctrl D·Ctrl [ 같은 터미널 키와 겹치지 않게). 탭 이동·탭 닫기·칸 이동은 터미널에서도 동작합니다.</div>' : '') +
+      '</section>';
   }).join('');
 }
 renderShortcutHelp();
