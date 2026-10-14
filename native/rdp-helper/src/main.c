@@ -415,7 +415,7 @@ static void* run_connection(void* arg) {
 	uint64_t last_emit = 0;
 	while (!g_shutdown) {
 		HANDLE handles[MAXIMUM_WAIT_OBJECTS] = { 0 };
-		DWORD nhandles = freerdp_get_event_handles(instance->context, handles, ARRAYSIZE(handles));
+		DWORD nhandles = freerdp_get_event_handles(instance->context, handles, (DWORD)(sizeof(handles) / sizeof(handles[0])));
 		if (nhandles == 0) { log_msg("freerdp_get_event_handles failed"); break; }
 		WaitForMultipleObjects(nhandles, handles, FALSE, 5);
 		if (!freerdp_check_event_handles(instance->context)) break;
