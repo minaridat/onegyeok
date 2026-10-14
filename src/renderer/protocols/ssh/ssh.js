@@ -278,6 +278,7 @@ function startSshSession(tabId, serverId, statusEl, hostEl){
   var fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(hostEl);
+  term.attachCustomKeyEventHandler(terminalKeyPassthrough);
 
   var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null, srv: srv, authAttempts: 0, activeUsername: null };
   sshSessions[tabId] = session;
@@ -345,6 +346,7 @@ function attachSshSession(tabId, serverId, statusEl, hostEl){
   var fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(hostEl);
+  term.attachCustomKeyEventHandler(terminalKeyPassthrough);
 
   var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'connecting', handleInput: function(){}, srv: srv, authAttempts: 0, activeUsername: srv.username || null };
   sshSessions[tabId] = session;

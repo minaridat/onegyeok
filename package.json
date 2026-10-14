@@ -8,7 +8,9 @@
     "start": "electron .",
     "build:native": "make -C native/rdp-helper && make -C native/vnc-helper",
     "build:native:mac": "bash scripts/mac/build-native-deps.sh && make -C native/rdp-helper clean && make -C native/vnc-helper clean && make -C native/rdp-helper DEPS_PREFIX=$PWD/build/mac-deps/prefix && make -C native/vnc-helper DEPS_PREFIX=$PWD/build/mac-deps/prefix",
-    "dist:mac": "npm run build:native:mac && electron-builder --mac dmg --arm64"
+    "dist:mac": "npm run build:native:mac && electron-builder --mac dmg --arm64",
+    "build:native:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/win/build-native.ps1",
+    "dist:win": "npm run build:native:win && electron-builder --win nsis --x64"
   },
   "license": "UNLICENSED",
   "devDependencies": {
@@ -40,14 +42,16 @@
         "from": "native/rdp-helper",
         "to": "native/rdp-helper",
         "filter": [
-          "onegyeok-rdp-helper"
+          "onegyeok-rdp-helper",
+          "onegyeok-rdp-helper.exe"
         ]
       },
       {
         "from": "native/vnc-helper",
         "to": "native/vnc-helper",
         "filter": [
-          "onegyeok-vnc-helper"
+          "onegyeok-vnc-helper",
+          "onegyeok-vnc-helper.exe"
         ]
       }
     ],
@@ -64,6 +68,22 @@
       "minimumSystemVersion": "15.0",
       "identity": "-",
       "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-${version}-x64.${ext}"
     },
     "npmRebuild": false
   }

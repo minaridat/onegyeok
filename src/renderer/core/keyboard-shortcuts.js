@@ -1,5 +1,22 @@
 // ---- keyboard shortcuts (전역) ----
+// 터미널(xterm)에 포커스가 있을 때 Ctrl 단독 조합은 셸·vim의 제어키(Ctrl+D=EOF, Ctrl+[=ESC, Ctrl+K=줄 끝까지 삭제 등)다.
+// document 리스너는 xterm이 키를 이미 원격으로 보낸 뒤에 실행되므로, 여기서 가로채면 두 동작이 겹친다 — 앱 단축키를 건너뛴다.
+// ⌘(macOS)는 터미널 제어키가 아니라 그대로 앱 단축키로 쓴다.
+function isTerminalCtrlKey(e){
+  return e.ctrlKey && !e.metaKey && !!(e.target && e.target.closest && e.target.closest('.xterm'));
+}
+
+// xterm은 처리한 키를 preventDefault한다. macOS는 메뉴 가속키가 페이지보다 먼저 받지만, Windows/Linux의 Electron은
+// 페이지가 소비하지 않은 키만 메뉴로 넘기므로 터미널에서 Ctrl+Shift+W(탭 닫기, app-menu.js)가 셸의 ^W로 새어 버린다.
+// 앱 메뉴가 받아야 하는 조합은 xterm이 처리하지 않게 한다(ssh.js가 attachCustomKeyEventHandler로 붙인다).
+function terminalKeyPassthrough(e){
+  if(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyW') return false;
+  return true;
+}
+
 document.addEventListener('keydown', function(e){
+  // Ctrl+Tab(탭 전환)은 터미널 제어키로 쓰이지 않아 예외 — 없으면 Windows에서 터미널을 떠나지 않고 탭을 바꿀 방법이 없다.
+  if(isTerminalCtrlKey(e) && e.key !== 'Tab') return;
   if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); openPalette(); return; }
   if(e.key === 'Escape'){
     if(appEl.classList.contains('edit-open')){ closeEdit(); return; }

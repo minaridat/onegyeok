@@ -565,6 +565,7 @@ body.split-dragging{user-select:none;-webkit-user-select:none;}
 .insp-tab-keys{display:inline-flex;align-items:center;gap:5px;}
 .shortcut-help{display:flex;flex-direction:column;gap:var(--sp-4);padding-bottom:var(--sp-3);}
 .sc-os h4{margin:0 0 var(--sp-2);font-size:var(--fs-sm);display:flex;align-items:center;gap:6px;}
+.sc-note{margin-top:var(--sp-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5;}
 .sc-cur{font-size:var(--fs-2xs);font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:8px;padding:1px 7px;}
 .sc-group{margin-bottom:var(--sp-3);}
 .sc-title{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;color:var(--text-faint);text-transform:uppercase;margin-bottom:4px;}
