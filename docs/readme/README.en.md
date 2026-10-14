@@ -26,11 +26,16 @@
 </p>
 
 <p align="center">
+  <b>🍎 macOS — on first launch: System Settings → Privacy &amp; Security → scroll down and click "Open Anyway" → authenticate with password / Touch ID</b><br/>
+  <b>🪟 Windows — when "Windows protected your PC" (SmartScreen) appears: More info → Run anyway</b>
+</p>
+
+<p align="center">
   <sub>See <a href="#install">Install</a> below for setup steps, including the <b>first-launch security approval</b> · <a href="https://github.com/minaridat/onegyeok/releases">All releases</a></sub>
 </p>
 
 <p align="center">
-  <img src="../assets/splitview.jpg" alt="onegyeok — SSH, Web and SQL side by side in a split view" width="960" />
+  <img src="../assets/splitview.gif" alt="onegyeok — SSH, Web and SQL side by side in a split view" width="960" />
 </p>
 
 > **Note:** the app's interface is currently in Korean. Button and menu names below are given in English with the Korean label in parentheses.
@@ -51,7 +56,7 @@ Drag a tab onto the edge of another tab's screen and **any mix of SSH · SQL · 
 
 </td>
 <td width="58%">
-  <img src="../assets/splitview.jpg" alt="Split view" width="100%" />
+  <img src="../assets/splitview.gif" alt="Split view" width="100%" />
 </td>
 </tr>
 <tr>
@@ -65,7 +70,7 @@ xterm.js terminal. The login name stays visible, the password shows as `*`, and 
 
 </td>
 <td width="58%">
-  <img src="../assets/ssh.jpg" alt="SSH terminal" width="100%" />
+  <img src="../assets/ssh.gif" alt="SSH terminal" width="100%" />
 </td>
 </tr>
 <tr>
@@ -79,7 +84,7 @@ Tick several SSH sessions and the same keystrokes go to all of them — **starti
 
 </td>
 <td width="58%">
-  <img src="../assets/broadcast.jpg" alt="Broadcast input" width="100%" />
+  <img src="../assets/broadcast.gif" alt="Broadcast input" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +98,7 @@ Connect to MySQL / MariaDB · PostgreSQL · MS SQL Server, run queries and read 
 
 </td>
 <td width="58%">
-  <img src="../assets/sql.jpg" alt="SQL client" width="100%" />
+  <img src="../assets/sql.gif" alt="SQL client" width="100%" />
 </td>
 </tr>
 <tr>
@@ -107,7 +112,7 @@ Connect to MySQL / MariaDB · PostgreSQL · MS SQL Server, run queries and read 
 
 </td>
 <td width="58%">
-  <img src="../assets/sftp.jpg" alt="SFTP explorer" width="100%" />
+  <img src="../assets/sftp.gif" alt="SFTP explorer" width="100%" />
 </td>
 </tr>
 <tr>
@@ -121,7 +126,7 @@ Native helpers render the remote screen — no external server needed. Resize th
 
 </td>
 <td width="58%">
-  <img src="../assets/rdp.jpg" alt="RDP remote desktop" width="100%" />
+  <img src="../assets/rdp.gif" alt="RDP remote desktop" width="100%" />
 </td>
 </tr>
 <tr>
@@ -135,7 +140,7 @@ Open internal web consoles in the built-in browser. Edit the address bar like Ch
 
 </td>
 <td width="58%">
-  <img src="../assets/web.jpg" alt="Web console" width="100%" />
+  <img src="../assets/web.gif" alt="Web console" width="100%" />
 </td>
 </tr>
 <tr>
@@ -149,7 +154,7 @@ Connect without registering anything: put **host, user and password in one form*
 
 </td>
 <td width="58%">
-  <img src="../assets/quick-connect.jpg" alt="Quick connect" width="100%" />
+  <img src="../assets/quick-connect.gif" alt="Quick connect" width="100%" />
 </td>
 </tr>
 <tr>
@@ -163,7 +168,7 @@ The **Shortcuts** (단축키) tab of the right-hand panel lists every macOS and 
 
 </td>
 <td width="58%">
-  <img src="../assets/shortcuts.jpg" alt="Shortcuts tab" width="100%" />
+  <img src="../assets/shortcuts.gif" alt="Shortcuts tab" width="100%" />
 </td>
 </tr>
 </table>
