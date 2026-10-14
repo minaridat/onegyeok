@@ -43,17 +43,30 @@ function jsonPayload(obj) { return Buffer.from(JSON.stringify(obj), 'utf8'); }
 
 // child.stdout에서 들어오는 바이트를 프레임 단위로 잘라 onEvent(type, payload)를 호출한다.
 // 부분 수신(한 번의 'data' 이벤트가 프레임 하나와 정확히 안 맞는 경우)을 버퍼로 흡수한다.
+// 화면 프레임은 수 MB인데 파이프는 64KB씩 들어오므로, 조각마다 누적 버퍼를 다시 이어 붙이면 복사량이 프레임 크기의
+// 제곱으로 늘어난다(1920×1080 한 장에 약 110ms → 헬퍼가 쓰기에서 막혀 입력 처리까지 밀림). 조각은 모아 두기만 하고
+// 프레임 하나가 다 찼을 때 한 번만 합친다(같은 조건에서 약 6ms).
 function makeFrameReader(onEvent) {
-  let buf = Buffer.alloc(0);
+  let chunks = [];
+  let total = 0;
+  let need = -1; // 지금 프레임의 전체 길이(4바이트 길이 필드 포함), 아직 모르면 -1
   return function onData(chunk) {
-    buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+    chunks.push(chunk);
+    total += chunk.length;
     for (;;) {
-      if (buf.length < 4) return;
-      const len = buf.readUInt32LE(0);
-      if (buf.length < 4 + len) return;
+      if (need < 0) {
+        if (total < 4) return;
+        if (chunks[0].length < 4) chunks = [Buffer.concat(chunks, total)];
+        need = 4 + chunks[0].readUInt32LE(0);
+      }
+      if (total < need) return;
+      const buf = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks, total);
       const type = buf.readUInt8(4);
-      const payload = buf.subarray(5, 4 + len);
-      buf = buf.subarray(4 + len);
+      const payload = buf.subarray(5, need);
+      const rest = buf.subarray(need);
+      chunks = rest.length ? [rest] : [];
+      total = rest.length;
+      need = -1;
       onEvent(type, payload);
     }
   };

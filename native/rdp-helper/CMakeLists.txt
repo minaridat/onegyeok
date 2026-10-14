@@ -28,7 +28,7 @@ if(WIN32)
 	# FreeRDP/WinPR 헤더는 Windows에서 *_EXPORTS가 없으면 무조건 dllimport로 선언한다(정적 링크용 분기가 없음).
 	# 정적 라이브러리에 직접 링크하므로 FreeRDP 트리 내부 빌드와 같이 *_EXPORTS를 정의해 __imp_ 참조를 피한다.
 	target_compile_definitions(onegyeok-rdp-helper PRIVATE FREERDP_EXPORTS WINPR_EXPORTS _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
-	target_link_libraries(onegyeok-rdp-helper PRIVATE ws2_32 crypt32 secur32 ncrypt bcrypt advapi32 user32 shell32 ole32 dbghelp shlwapi rpcrt4 netapi32 ntdsapi)
+	target_link_libraries(onegyeok-rdp-helper PRIVATE ws2_32 crypt32 secur32 ncrypt bcrypt advapi32 user32 shell32 ole32 dbghelp shlwapi rpcrt4 netapi32 ntdsapi winmm)
 endif()
 if(MSVC)
 	target_compile_options(onegyeok-rdp-helper PRIVATE /W3 /utf-8)

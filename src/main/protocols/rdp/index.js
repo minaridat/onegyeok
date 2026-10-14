@@ -35,6 +35,69 @@ function updateFrameCache(sessionId, frame) {
   }
 }
 
+// 렌더러로 보내는 화면 흐름 제어 — 렌더러가 그리는 속도보다 헬퍼가 빨리 보내면(창·폴더를 끌 때처럼 넓은 영역이 계속
+// 바뀔 때) IPC 큐에 프레임이 쌓여 화면이 입력보다 점점 늦어진다. 그래서 렌더러에는 한 번에 한 프레임만 보내고(다 그리면
+// rdp:frame-ack), 그 사이에 온 FRAME은 위 캐시에 합성만 해 두었다가 바뀐 영역을 합친 사각형 하나로 다음에 보낸다.
+// ack가 오지 않아도(창이 닫히는 중 등) ACK_TIMEOUT_MS 뒤에는 다시 보낸다.
+const ACK_TIMEOUT_MS = 250;
+const flows = new Map(); // sessionId -> { inFlight, timer, dirty: {x0,y0,x1,y1}|null }
+
+function flowOf(sessionId) {
+  let f = flows.get(sessionId);
+  if (!f) { f = { inFlight: false, timer: null, dirty: null }; flows.set(sessionId, f); }
+  return f;
+}
+
+function clearFlow(sessionId) {
+  const f = flows.get(sessionId);
+  if (f && f.timer) clearTimeout(f.timer);
+  flows.delete(sessionId);
+}
+
+function markInFlight(sessionId, f) {
+  f.inFlight = true;
+  if (f.timer) clearTimeout(f.timer);
+  f.timer = setTimeout(() => { f.timer = null; f.inFlight = false; pumpFrame(sessionId); }, ACK_TIMEOUT_MS);
+}
+
+// 쌓인 변경 영역을 캐시에서 잘라 한 번에 보낸다.
+function pumpFrame(sessionId) {
+  const f = flows.get(sessionId);
+  if (!f || f.inFlight || !f.dirty || !savedCtx) return;
+  const cache = frameCaches.get(sessionId);
+  const d = f.dirty;
+  f.dirty = null;
+  if (!cache) return;
+  const x0 = Math.max(0, d.x0), y0 = Math.max(0, d.y0);
+  const x1 = Math.min(cache.width, d.x1), y1 = Math.min(cache.height, d.y1);
+  const w = x1 - x0, h = y1 - y0;
+  if (w <= 0 || h <= 0) return;
+  const pixels = Buffer.allocUnsafe(w * h * 4);
+  for (let row = 0; row < h; row++) {
+    const srcStart = ((y0 + row) * cache.width + x0) * 4;
+    cache.buffer.copy(pixels, row * w * 4, srcStart, srcStart + w * 4);
+  }
+  markInFlight(sessionId, f);
+  savedCtx.sendToSession(sessionId, 'rdp:frame', { x: x0, y: y0, w, h }, pixels);
+}
+
+function queueFrame(sessionId, frame) {
+  const f = flowOf(sessionId);
+  if (!f.inFlight && !f.dirty) {
+    // 렌더러가 놀고 있으면 받은 프레임을 그대로 보낸다(추가 복사 없음).
+    markInFlight(sessionId, f);
+    savedCtx.sendToSession(sessionId, 'rdp:frame', { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
+    return;
+  }
+  const x1 = frame.x + frame.w, y1 = frame.y + frame.h;
+  if (!f.dirty) f.dirty = { x0: frame.x, y0: frame.y, x1, y1 };
+  else {
+    f.dirty.x0 = Math.min(f.dirty.x0, frame.x); f.dirty.y0 = Math.min(f.dirty.y0, frame.y);
+    f.dirty.x1 = Math.max(f.dirty.x1, x1); f.dirty.y1 = Math.max(f.dirty.y1, y1);
+  }
+  pumpFrame(sessionId);
+}
+
 registerMainProtocol('rdp', {
   wire(ctx) {
     savedCtx = ctx;
@@ -68,7 +131,7 @@ registerMainProtocol('rdp', {
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);
               updateFrameCache(sessionId, frame);
-              sendToSession(sessionId, 'rdp:frame', { x: frame.x, y: frame.y, w: frame.w, h: frame.h }, frame.pixels);
+              queueFrame(sessionId, frame);
             } else if (type === MSG.DESKTOP_RESIZED) {
               let size = null;
               try { size = JSON.parse(payload.toString('utf8')); } catch (_e) { /* 무시 */ }
@@ -90,6 +153,7 @@ registerMainProtocol('rdp', {
               if (status.state === 'disconnected' || status.state === 'error') {
                 sessions.delete(sessionId);
                 frameCaches.delete(sessionId);
+                clearFlow(sessionId);
                 unregisterSession(sessionId);
               }
             }
@@ -105,6 +169,7 @@ registerMainProtocol('rdp', {
           }
           sessions.delete(sessionId);
           frameCaches.delete(sessionId);
+          clearFlow(sessionId);
           unregisterSession(sessionId);
         });
         helper.child.on('error', (err) => {
@@ -118,6 +183,7 @@ registerMainProtocol('rdp', {
           }
           sessions.delete(sessionId);
           frameCaches.delete(sessionId);
+          clearFlow(sessionId);
           unregisterSession(sessionId);
         });
 
@@ -137,10 +203,18 @@ registerMainProtocol('rdp', {
       const helper = sessions.get(sessionId);
       if (helper) { helper.disconnect(); helper.kill(); sessions.delete(sessionId); }
       frameCaches.delete(sessionId);
+      clearFlow(sessionId);
       unregisterSession(sessionId);
       return { ok: true };
     });
 
+    ipcMain.on('rdp:frame-ack', (_event, sessionId) => {
+      const f = flows.get(sessionId);
+      if (!f) return;
+      if (f.timer) { clearTimeout(f.timer); f.timer = null; }
+      f.inFlight = false;
+      pumpFrame(sessionId);
+    });
     ipcMain.on('rdp:mouse', (_event, sessionId, x, y, flags) => {
       const helper = sessions.get(sessionId);
       if (helper) helper.mouse(x, y, flags);
@@ -160,6 +234,9 @@ registerMainProtocol('rdp', {
   onSessionWindowChanged(sessionId, newWin) {
     const cache = frameCaches.get(sessionId);
     if (cache) {
+      const f = flowOf(sessionId);
+      f.dirty = null; // 전체 화면을 보내므로 쌓인 영역은 필요 없다
+      markInFlight(sessionId, f);
       newWin.webContents.send('rdp:frame', sessionId, { x: 0, y: 0, w: cache.width, h: cache.height }, cache.buffer);
     }
     if (savedCtx) savedCtx.replayLastSend(sessionId, 'rdp:status', newWin);
@@ -169,11 +246,14 @@ registerMainProtocol('rdp', {
     const helper = sessions.get(sessionId);
     if (helper) { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); sessions.delete(sessionId); }
     frameCaches.delete(sessionId);
+    clearFlow(sessionId);
   },
 
   disconnectAll() {
     sessions.forEach((helper) => { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); });
     sessions.clear();
     frameCaches.clear();
+    flows.forEach((f) => { if (f.timer) clearTimeout(f.timer); });
+    flows.clear();
   },
 });

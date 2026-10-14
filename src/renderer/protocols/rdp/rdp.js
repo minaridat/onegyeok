@@ -204,12 +204,14 @@ function drawRdpFrame(tabId, rect, buffer){
   var src = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   var n = rect.w * rect.h;
   var out = new Uint8ClampedArray(n * 4);
+  // 픽셀 하나를 32비트 정수 하나로 처리한다(바이트 4번 옮기는 것보다 수 배 빠름). 리틀엔디언에서 BGRA 바이트는
+  // 정수로 0xAARRGGBB, 캔버스 RGBA는 0xAABBGGRR — R·B를 맞바꾸고 알파는 255(RDP 프레임엔 실질적 알파가 없음).
+  if(src.byteOffset % 4) src = src.slice(0, n * 4); // Uint32Array는 4바이트 정렬이 필요
+  var s32 = new Uint32Array(src.buffer, src.byteOffset, n);
+  var o32 = new Uint32Array(out.buffer);
   for(var i = 0; i < n; i++){
-    var si = i * 4;
-    out[si] = src[si + 2];     // R <- B
-    out[si + 1] = src[si + 1]; // G
-    out[si + 2] = src[si];     // B <- R
-    out[si + 3] = 255;         // A (RDP 프레임엔 실질적 알파가 없음)
+    var px = s32[i];
+    o32[i] = 0xFF000000 | ((px & 0xFF) << 16) | (px & 0xFF00) | ((px >>> 16) & 0xFF);
   }
   var imageData = new ImageData(out, rect.w, rect.h);
   s.ctx.putImageData(imageData, rect.x, rect.y);
@@ -260,7 +262,9 @@ function watchRdpDisplaySize(tabId){
 if(hasRdpBridge){
   window.onegyeok.rdp.onResized(function(sessionId, size){ applyRdpDesktopSize(sessionId, size); });
   window.onegyeok.rdp.onFrame(function(sessionId, rect, buffer){
-    drawRdpFrame(sessionId, rect, buffer);
+    try { drawRdpFrame(sessionId, rect, buffer); }
+    // 메인 프로세스는 이 ack를 받아야 다음 화면을 보낸다(흐름 제어, main/protocols/rdp/index.js) — 그리기 실패나 없는 세션이어도 항상 보낸다.
+    finally { window.onegyeok.rdp.frameAck(sessionId); }
   });
   window.onegyeok.rdp.onStatus(function(sessionId, status){
     var s = rdpSessions[sessionId];
