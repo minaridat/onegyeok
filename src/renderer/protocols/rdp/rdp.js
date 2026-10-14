@@ -245,9 +245,14 @@ function watchRdpDisplaySize(tabId){
     if(hasRdpBridge) window.onegyeok.rdp.resize(tabId, w, h);
   }
   s.sizeCheck = sendNow;
+  // 스플릿뷰 경계를 끌거나 탭을 끄는 동안에는 해상도 변경을 보내지 않고, 손을 뗀 뒤(splitsettled)에 한 번만 반영한다.
+  function settleThenSend(){
+    if(window.__splitDragging){ timer = setTimeout(settleThenSend, 250); return; }
+    sendNow();
+  }
   s.sizeObserver = new ResizeObserver(function(){
     if(timer) clearTimeout(timer);
-    timer = setTimeout(sendNow, 250);
+    timer = setTimeout(settleThenSend, 250);
   });
   s.sizeObserver.observe(s.dom.displayWrap);
 }

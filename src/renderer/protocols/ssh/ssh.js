@@ -36,7 +36,6 @@ function setSshStatus(tabId, state, message){
     }
   }
   if(currentInspectedId === tabId) updateConnActionButton(tabId);
-  refreshAllSessionPickers();
 }
 
 function fitSshSession(id){
@@ -93,6 +92,7 @@ function setTabBroadcastChecked(tabEl, checked){
   cb.checked = checked;
   if(checked) broadcastSet.add(id); else broadcastSet.delete(id);
   tabEl.classList.toggle('broadcast-active', checked);
+  if(typeof syncCellBroadcast === 'function') syncCellBroadcast(id); // 스플릿뷰 칸 헤더의 체크박스/빨간 테두리와 동기화
 }
 
 function setBroadcastMode(on){
@@ -107,6 +107,7 @@ function setBroadcastMode(on){
     cb.disabled = !hasSession;
     if(on && hasSession) setTabBroadcastChecked(t, true); // 기본값: 전체 선택
     else { cb.checked = false; t.classList.remove('broadcast-active'); }
+    if(typeof syncCellBroadcast === 'function') syncCellBroadcast(t.dataset.id);
   });
   updateBroadcastCount();
 }
@@ -277,9 +278,11 @@ function startSshSession(tabId, serverId, statusEl, hostEl){
   var fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(hostEl);
+  term.attachCustomKeyEventHandler(terminalKeyPassthrough);
 
   var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null, srv: srv, authAttempts: 0, activeUsername: null };
   sshSessions[tabId] = session;
+  observeSshSize(tabId);
   statusEl.style.display = 'none';
 
   term.onData(function(data){ dispatchTerminalInput(tabId, data); });
@@ -303,31 +306,21 @@ function startSshSession(tabId, serverId, statusEl, hostEl){
   promptAndConnect(tabId, session);
 }
 
-// startSession/attachSession 레지스트리 메서드가 공유하는 pane 뼈대(분할 컨트롤 + 첫 셀) —
-// 중복 방지. 반환값은 createPaneCellDom()의 첫 셀 결과(statusEl/hostEl 포함).
+// startSession/attachSession 레지스트리 메서드가 공유하는 pane 뼈대(상태 표시 + xterm 호스트).
 function buildSshPaneShell(tabId, el){
-  el.className = 'pane pane-layout ssh-pane';
-  el.innerHTML =
-    '<div class="pane-split-controls">' +
-      '<button type="button" class="split-btn" data-orientation="row" title="세로 분할 (⌘D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="7" height="16" rx="1"></rect><rect x="11" y="2" width="7" height="16" rx="1"></rect></svg></button>' +
-      '<button type="button" class="split-btn" data-orientation="column" title="가로 분할 (⌘⇧D)"><svg class="icon" viewBox="0 0 20 20" style="width:12px;height:12px"><rect x="2" y="2" width="16" height="7" rx="1"></rect><rect x="2" y="11" width="16" height="7" rx="1"></rect></svg></button>' +
-    '</div>' +
-    '<div class="pane-cells"></div>';
-  tabLayouts[tabId] = { orientation: null, paneIds: [tabId] };
-  var firstCell = createPaneCellDom(tabId);
-  el.querySelector('.pane-cells').appendChild(firstCell.cellEl);
-  return firstCell;
+  el.className = 'pane ssh-pane';
+  el.innerHTML = '<div class="ssh-connecting">연결 준비 중...</div><div class="xterm-host"></div>';
+  return { statusEl: el.querySelector('.ssh-connecting'), hostEl: el.querySelector('.xterm-host') };
 }
 
 // 탭을 다른 창으로 끌어내 뺄 때(Stage B) 이 창(원래 창)에서 호출된다 — IPC 연결 종료 없이
 // xterm Terminal·세션 맵 엔트리 등 로컬 UI 상태만 정리한다. main 프로세스의 실제 ssh2 연결은
-// 살아있고, 새 창이 이어받는다. 탭이 분할돼 있으면(여러 pane) 안전하게 전부 정리하지 못하므로
-// core/tabs.js의 detachTabLocal()이 애초에 분할된 탭에는 이 함수를 부르지 않는다(항상 단일
-// 세션 가정).
+// 살아있고, 새 창이 이어받는다.
 function detachSshSessionLocal(tabId){
   var s = sshSessions[tabId];
   if(!s) return;
   try { s.term.dispose(); } catch(_e){ /* noop */ }
+  if(s.ro) s.ro.disconnect();
   var serverId = s.srv && s.srv.id;
   delete sshSessions[tabId];
   broadcastSet.delete(tabId);
@@ -353,9 +346,11 @@ function attachSshSession(tabId, serverId, statusEl, hostEl){
   var fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(hostEl);
+  term.attachCustomKeyEventHandler(terminalKeyPassthrough);
 
   var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'connecting', handleInput: function(){}, srv: srv, authAttempts: 0, activeUsername: srv.username || null };
   sshSessions[tabId] = session;
+  observeSshSize(tabId);
   statusEl.style.display = 'none';
 
   term.onData(function(data){ dispatchTerminalInput(tabId, data); });
@@ -376,330 +371,26 @@ function disposeSshSession(tabId){
   if(!s) return;
   if(hasSshBridge) window.onegyeok.ssh.disconnect(tabId);
   try { s.term.dispose(); } catch(_e){ /* noop */ }
+  if(s.ro) s.ro.disconnect();
   var serverId = s.srv && s.srv.id;
   delete sshSessions[tabId];
   broadcastSet.delete(tabId);
   if(broadcastMode) updateBroadcastCount();
   if(serverId) updateServerRowStatus(serverId);
-  refreshAllSessionPickers();
 }
 
-// ==================================================================
-// 탭 내 터미널 분할 (세션 복제 / 세션 선택 기반, tmux 비의존)
-// docs/기능명세/04_터미널분할_기능명세.md — 분할로 생기는 새 pane에는 기본적으로 같은 서버의
-// 새 독립 세션이 연결되고(F-216과 동일 원칙), pane 헤더의 세션 선택기로 이미 열려 있는 다른
-// 세션(다른 탭 포함)을 그대로 가져와 이 자리에 배치할 수도 있다. v1은 한 탭 안에서 가로 일렬
-// 또는 세로 일렬 중 하나의 방향만 지원한다(F-801).
-// ==================================================================
-var tabLayouts = {}; // tabId -> { orientation: 'row'|'column'|null, paneIds: string[] }
-var splitSeq = 0;
-var focusedPaneId = null;
-
-function findTabForPane(paneId){
-  for(var tabId in tabLayouts){
-    if(tabLayouts[tabId].paneIds.indexOf(paneId) > -1) return tabId;
-  }
-  return null;
-}
-
-function sessionLabel(paneId){
-  var s = sshSessions[paneId];
-  if(!s || !s.srv) return paneId;
-  var tab = tabbar.querySelector('.tab[data-id="'+paneId+'"]');
-  var nameEl = tab && tab.querySelector('.tab-name');
-  return (nameEl && nameEl.textContent) || s.srv.id;
-}
-
-function createPaneCellDom(paneId){
-  var cellEl = document.createElement('div');
-  cellEl.className = 'pane-cell';
-  cellEl.dataset.paneId = paneId;
-  var headerEl = document.createElement('div');
-  headerEl.className = 'pane-cell-header';
-  var labelEl = document.createElement('span');
-  labelEl.className = 'pane-cell-label';
-  var pickerEl = document.createElement('select');
-  pickerEl.className = 'pane-cell-picker';
-  var closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'pane-cell-close';
-  closeBtn.title = 'pane 닫기';
-  closeBtn.innerHTML = '<svg class="icon" viewBox="0 0 20 20" style="width:10px;height:10px"><line x1="5" y1="5" x2="15" y2="15"></line><line x1="15" y1="5" x2="5" y2="15"></line></svg>';
-  headerEl.appendChild(labelEl);
-  headerEl.appendChild(pickerEl);
-  headerEl.appendChild(closeBtn);
-  var statusEl = document.createElement('div');
-  statusEl.className = 'ssh-connecting';
-  statusEl.textContent = '연결 준비 중...';
-  var hostEl = document.createElement('div');
-  hostEl.className = 'xterm-host';
-  cellEl.appendChild(headerEl);
-  cellEl.appendChild(statusEl);
-  cellEl.appendChild(hostEl);
-
-  populateSessionPicker(pickerEl, paneId);
-  pickerEl.addEventListener('change', function(){
-    var chosen = pickerEl.value;
-    pickerEl.value = '';
-    if(!chosen) return;
-    if(chosen.indexOf('srv:') === 0) replacePaneWithNewSession(paneId, chosen.slice(4));
-    else if(chosen.indexOf('pane:') === 0) moveSessionIntoCell(chosen.slice(5), paneId);
+// 화면 분할은 SSH 전용이 아니라 core/splitview.js(탭 드래그 앤 드롭 스플릿뷰)가 모든 프로토콜에 대해 맡는다.
+// 여기서는 세션 하나(= pane 하나)의 터미널 크기 맞춤만 책임진다.
+function observeSshSize(id){
+  var s = sshSessions[id];
+  if(!s || s.ro || !window.ResizeObserver) return;
+  var raf = 0;
+  s.ro = new ResizeObserver(function(){
+    if(raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(function(){ raf = 0; if(sshSessions[id] && s.hostEl.clientWidth > 0) fitSshSession(id); });
   });
-  // 서버를 등록/삭제한 직후에도 목록이 최신이도록, 열 때마다 다시 채운다(생성 시·세션 변화 시 채우는 것은 그대로 유지).
-  pickerEl.addEventListener('mousedown', function(){ populateSessionPicker(pickerEl, paneId); });
-  closeBtn.addEventListener('click', function(e){ e.stopPropagation(); closePaneCell(paneId); });
-  cellEl.addEventListener('mousedown', function(){ focusedPaneId = paneId; }, true);
-
-  return { cellEl: cellEl, statusEl: statusEl, hostEl: hostEl };
+  s.ro.observe(s.hostEl);
 }
-
-// 자기 자신을 뺀, 지금 떠 있는 모든 SSH 세션이 후보. 세션이 뜨거나 닫힐 때마다 모든 picker를
-// 다시 채워 항상 최신 상태를 보장한다(마우스다운 시점에만 채우면 키보드 접근성·테스트 자동화에서
-// 값이 비어 보이는 문제가 있어, 생성 시 + 주요 상태 변화 시점에 미리 채워둔다).
-function populateSessionPicker(pickerEl, forPaneId){
-  var forTabId = findTabForPane(forPaneId);
-  var options = ['<option value="">— 서버/세션 선택 —</option>'];
-
-  // 1) 등록된 SSH 서버 전부 — 고르면 이 자리에 그 서버의 "새 세션"을 연다. 이미 열려 있는 서버(같은 서버 포함)도 고를 수 있다.
-  var servers = SERVERS.filter(function(srv){ return srv.protocol === 'ssh'; });
-  if(servers.length){
-    options.push('<optgroup label="새 세션 열기">');
-    servers.forEach(function(srv){
-      options.push('<option value="srv:'+escapeHtml(srv.id)+'">'+escapeHtml(srv.id)+'</option>');
-    });
-    options.push('</optgroup>');
-  }
-
-  // 2) 이미 열려 있는 세션 — 다른 탭의 세션을 이 자리로 가져온다(원래 자리에서는 옮겨진다). 같은 탭 안의 다른 pane은
-  //    가져와도 분할이 합쳐질 뿐이라 후보에서 뺀다.
-  var open = Object.keys(sshSessions).filter(function(pid){
-    return pid !== forPaneId && findTabForPane(pid) !== forTabId;
-  });
-  if(open.length){
-    options.push('<optgroup label="열려 있는 세션 가져오기">');
-    open.forEach(function(pid){
-      options.push('<option value="pane:'+escapeHtml(pid)+'">'+escapeHtml(sessionLabel(pid))+'</option>');
-    });
-    options.push('</optgroup>');
-  }
-  pickerEl.innerHTML = options.join('');
-}
-
-// 선택한 서버의 새 SSH 세션을 이 pane 자리에 연다 — 이 pane에 있던 세션은 닫힌다(분할 직후의 빈 로그인 프롬프트가 보통이다).
-function replacePaneWithNewSession(paneId, serverId){
-  var cell = panes.querySelector('.pane-cell[data-pane-id="'+paneId+'"]');
-  var tabId = findTabForPane(paneId);
-  if(!cell || !tabId || !SERVERS.some(function(srv){ return srv.id === serverId; })) return;
-  var statusEl = cell.querySelector('.ssh-connecting');
-  var hostEl = cell.querySelector('.xterm-host');
-  disposeSession(paneId);
-  hostEl.innerHTML = '';
-  statusEl.style.display = '';
-  statusEl.textContent = '연결 준비 중...';
-  startSshSession(paneId, serverId, statusEl, hostEl);
-  updateLayoutChrome(tabId);
-  requestAnimationFrame(function(){
-    fitSshSession(paneId);
-    if(sshSessions[paneId]) sshSessions[paneId].term.focus();
-  });
-}
-
-function refreshAllSessionPickers(){
-  Array.prototype.slice.call(panes.querySelectorAll('.pane-cell')).forEach(function(cell){
-    var pickerEl = cell.querySelector('.pane-cell-picker');
-    if(pickerEl) populateSessionPicker(pickerEl, cell.dataset.paneId);
-  });
-}
-
-function refreshPaneCellHeader(cellEl, paneId){
-  var labelEl = cellEl.querySelector('.pane-cell-label');
-  if(labelEl) labelEl.textContent = sessionLabel(paneId);
-}
-
-function rebuildResizers(tabId){
-  var layout = tabLayouts[tabId];
-  if(!layout) return;
-  var container = panes.querySelector('.pane[data-id="'+tabId+'"] .pane-cells');
-  if(!container) return;
-  Array.prototype.slice.call(container.querySelectorAll('.pane-resizer')).forEach(function(r){ r.remove(); });
-  if(layout.paneIds.length < 2) return;
-  var cells = layout.paneIds.map(function(pid){ return container.querySelector('.pane-cell[data-pane-id="'+pid+'"]'); });
-  for(var i = 0; i < cells.length - 1; i++){
-    var resizer = document.createElement('div');
-    resizer.className = 'pane-resizer ' + layout.orientation;
-    container.insertBefore(resizer, cells[i + 1]);
-    attachResizerDrag(resizer, cells[i], cells[i + 1], layout.orientation, tabId);
-  }
-}
-
-function attachResizerDrag(resizer, beforeEl, afterEl, orientation, tabId){
-  var dragging = false, startPos = 0, startBefore = 0, startAfter = 0;
-  resizer.addEventListener('mousedown', function(e){
-    dragging = true;
-    resizer.classList.add('dragging');
-    startPos = orientation === 'row' ? e.clientX : e.clientY;
-    startBefore = orientation === 'row' ? beforeEl.offsetWidth : beforeEl.offsetHeight;
-    startAfter = orientation === 'row' ? afterEl.offsetWidth : afterEl.offsetHeight;
-    document.body.style.userSelect = 'none';
-    e.preventDefault();
-  });
-  document.addEventListener('mousemove', function(e){
-    if(!dragging) return;
-    var pos = orientation === 'row' ? e.clientX : e.clientY;
-    var delta = pos - startPos;
-    var newBefore = Math.max(60, startBefore + delta);
-    var newAfter = Math.max(60, startAfter - delta);
-    beforeEl.style.flex = '0 0 ' + newBefore + 'px';
-    afterEl.style.flex = '0 0 ' + newAfter + 'px';
-  });
-  document.addEventListener('mouseup', function(){
-    if(!dragging) return;
-    dragging = false;
-    resizer.classList.remove('dragging');
-    document.body.style.userSelect = '';
-    var layout = tabLayouts[tabId];
-    if(layout) layout.paneIds.forEach(function(pid){ if(sshSessions[pid]) fitSshSession(pid); });
-  });
-}
-
-function updateLayoutChrome(tabId){
-  var layout = tabLayouts[tabId];
-  var paneEl = panes.querySelector('.pane[data-id="'+tabId+'"]');
-  if(!layout || !paneEl) return;
-  var container = paneEl.querySelector('.pane-cells');
-  container.classList.toggle('row', layout.orientation === 'row');
-  container.classList.toggle('column', layout.orientation === 'column');
-  container.classList.toggle('has-headers', layout.paneIds.length > 1);
-  var splitControls = paneEl.querySelector('.pane-split-controls');
-  // 분할 후에는 각 pane 헤더가 컨트롤을 맡는다 — 떠 있는 분할 버튼이 마지막 pane의 헤더(닫기 버튼 등)와
-  // 겹치는 걸 막기 위해, 분할 전(pane 1개)에만 보여주고 이후 추가 분할은 단축키(⌘D/⌘⇧D)로 한다.
-  if(splitControls) splitControls.style.display = layout.paneIds.length > 1 ? 'none' : '';
-  layout.paneIds.forEach(function(pid){
-    var cell = container.querySelector('.pane-cell[data-pane-id="'+pid+'"]');
-    if(cell){
-      cell.style.flex = '1 1 0';
-      refreshPaneCellHeader(cell, pid);
-    }
-  });
-  rebuildResizers(tabId);
-  layout.paneIds.forEach(function(pid){ if(sshSessions[pid]) fitSshSession(pid); });
-  refreshAllSessionPickers();
-}
-
-// 탭이 분할돼 있으면 그 안의 모든 pane을, 아니면 탭 자신의 세션 하나만 다시 맞춘다.
-function fitAllPanesInTab(tabId){
-  if(tabLayouts[tabId] && tabLayouts[tabId].paneIds.length > 1){
-    tabLayouts[tabId].paneIds.forEach(function(pid){ if(sshSessions[pid]) fitSshSession(pid); });
-  } else if(sshSessions[tabId]){
-    fitSshSession(tabId);
-  }
-}
-
-function splitPane(tabId, orientation){
-  var layout = tabLayouts[tabId];
-  var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
-  if(!layout || !tab) return;
-  var serverId = tab.dataset.serverId;
-  if(layout.paneIds.length === 1) layout.orientation = orientation;
-  var newPaneId = tabId + '/p' + (++splitSeq);
-  layout.paneIds.push(newPaneId);
-  var dom = createPaneCellDom(newPaneId);
-  panes.querySelector('.pane[data-id="'+tabId+'"] .pane-cells').appendChild(dom.cellEl);
-  startSshSession(newPaneId, serverId, dom.statusEl, dom.hostEl);
-  updateLayoutChrome(tabId);
-}
-
-function closePaneCell(paneId){
-  var tabId = findTabForPane(paneId);
-  if(!tabId) return;
-  var layout = tabLayouts[tabId];
-  disposeSession(paneId);
-  layout.paneIds = layout.paneIds.filter(function(id){ return id !== paneId; });
-  var cell = panes.querySelector('.pane-cell[data-pane-id="'+paneId+'"]');
-  if(cell) cell.remove();
-  if(layout.paneIds.length === 0){
-    closeTabById(tabId, true);
-    return;
-  }
-  if(layout.paneIds.length === 1) layout.orientation = null;
-  updateLayoutChrome(tabId);
-}
-
-// pane 헤더의 세션 선택기로 다른 곳(다른 탭/다른 pane)의 세션을 이 자리로 가져온다.
-// 원래 있던 자리의 세션은 옮겨질 뿐 끊기지 않고, 원래 자리가 비면 자동으로 정리된다(F-803/F-803a).
-function moveSessionIntoCell(sourcePaneId, targetPaneId){
-  if(sourcePaneId === targetPaneId || !sshSessions[sourcePaneId]) return;
-  var srcTabId = findTabForPane(sourcePaneId);
-  var targetTabId = findTabForPane(targetPaneId);
-  if(!srcTabId || !targetTabId) return;
-  var srcLayout = tabLayouts[srcTabId];
-  var targetLayout = tabLayouts[targetTabId];
-  var wasOnlyPane = srcLayout.paneIds.length === 1;
-
-  var srcCell = panes.querySelector('.pane-cell[data-pane-id="'+sourcePaneId+'"]');
-  var targetCellsContainer = panes.querySelector('.pane[data-id="'+targetTabId+'"] .pane-cells');
-  var oldTargetCell = panes.querySelector('.pane-cell[data-pane-id="'+targetPaneId+'"]');
-  if(!srcCell || !targetCellsContainer || !oldTargetCell) return;
-
-  disposeSession(targetPaneId); // 타겟 자리에 있던 세션은 교체되면서 닫힌다
-
-  targetCellsContainer.insertBefore(srcCell, oldTargetCell);
-  oldTargetCell.remove();
-
-  srcLayout.paneIds = srcLayout.paneIds.filter(function(id){ return id !== sourcePaneId; });
-  var idx = targetLayout.paneIds.indexOf(targetPaneId);
-  targetLayout.paneIds[idx] = sourcePaneId;
-
-  if(wasOnlyPane){
-    closeTabById(srcTabId, true);
-  } else {
-    if(srcLayout.paneIds.length === 1) srcLayout.orientation = null;
-    updateLayoutChrome(srcTabId);
-  }
-  updateLayoutChrome(targetTabId);
-  requestAnimationFrame(function(){
-    fitSshSession(sourcePaneId);
-    if(sshSessions[sourcePaneId]) sshSessions[sourcePaneId].term.focus();
-  });
-}
-
-panes.addEventListener('click', function(e){
-  var splitBtn = e.target.closest('.split-btn');
-  if(!splitBtn) return;
-  var paneEl = e.target.closest('.pane-layout');
-  if(!paneEl) return;
-  splitPane(paneEl.dataset.id, splitBtn.dataset.orientation);
-});
-
-// ⌘D/⌘⇧D로 세로/가로 분할(F-801~802), ⌘[/⌘]로 pane 간 포커스 이동(F-804)
-document.addEventListener('keydown', function(e){
-  if(!(e.metaKey || e.ctrlKey)) return;
-  if(isTerminalCtrlKey(e)) return; // 터미널의 Ctrl+D(EOF)·Ctrl+[(ESC)는 셸에 맡긴다
-  if(e.key.toLowerCase() === 'd'){
-    var activeTab = tabbar.querySelector('.tab.active');
-    if(!activeTab || activeTab.dataset.protocol !== 'ssh') return;
-    e.preventDefault();
-    splitPane(activeTab.dataset.id, e.shiftKey ? 'column' : 'row');
-    return;
-  }
-  if(e.key === '[' || e.key === ']'){
-    var activeTabEl = tabbar.querySelector('.tab.active');
-    var tid = activeTabEl && activeTabEl.dataset.id;
-    var layout = tid && tabLayouts[tid];
-    if(!layout || layout.paneIds.length < 2) return;
-    e.preventDefault();
-    var curIdx = focusedPaneId ? layout.paneIds.indexOf(focusedPaneId) : 0;
-    if(curIdx === -1) curIdx = 0;
-    var nextIdx = e.key === ']' ? (curIdx + 1) % layout.paneIds.length : (curIdx - 1 + layout.paneIds.length) % layout.paneIds.length;
-    focusedPaneId = layout.paneIds[nextIdx];
-    Array.prototype.slice.call(panes.querySelectorAll('.pane-cell.focused')).forEach(function(c){ c.classList.remove('focused'); });
-    var cell = panes.querySelector('.pane-cell[data-pane-id="'+focusedPaneId+'"]');
-    if(cell){
-      cell.classList.add('focused');
-      if(sshSessions[focusedPaneId]) sshSessions[focusedPaneId].term.focus();
-    }
-  }
-});
 
 if(hasSshBridge){
   window.onegyeok.ssh.onData(function(id, chunk){
@@ -724,32 +415,17 @@ if(hasSshBridge){
   });
 }
 
-// 창 크기 변경 / 패널 드래그 리사이즈 시 현재 보이는 터미널(들)을 다시 맞춘다.
-window.addEventListener('resize', function(){
-  if(currentInspectedId) fitAllPanesInTab(currentInspectedId);
-});
-if(window.ResizeObserver){
-  new ResizeObserver(function(){
-    if(currentInspectedId) fitAllPanesInTab(currentInspectedId);
-  }).observe(panes);
-}
-
 registerProtocol('ssh', {
   meta: { label:'SSH', icon:'<svg viewBox="0 0 20 20"><polyline points="3 5 8 10 3 15"></polyline><line x1="10" y1="15" x2="17" y2="15"></line></svg>' },
 
   startSession: function(tabId, serverId, el){
     var firstCell = buildSshPaneShell(tabId, el);
     startSshSession(tabId, serverId, firstCell.statusEl, firstCell.hostEl);
-    updateLayoutChrome(tabId);
   },
-  // 분할된 탭은 core/tabs.js의 detachTabLocal()이 애초에 detachLocal을 부르지 않으므로(복수
-  // 세션을 옮기는 복잡도 회피 — ssh.js 상단 detachSshSessionLocal 주석 참고), attachSession은
-  // 항상 분할 전 단일 세션 pane으로 새로 열린다.
   detachLocal: detachSshSessionLocal,
   attachSession: function(tabId, serverId, el){
     var firstCell = buildSshPaneShell(tabId, el);
     attachSshSession(tabId, serverId, firstCell.statusEl, firstCell.hostEl);
-    updateLayoutChrome(tabId);
   },
 
   hasSession: function(tabId){ return !!sshSessions[tabId]; },

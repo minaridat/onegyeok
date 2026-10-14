@@ -163,7 +163,7 @@
       <button class="rail-btn" data-filter="rdp" title="RDP">
         <svg class="icon" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="11" rx="1.4"></rect><line x1="7" y1="17" x2="13" y2="17"></line></svg>
       </button>
-      <button class="rail-btn future" data-filter="vnc" title="VNC · Phase 5 예정">
+      <button class="rail-btn" data-filter="vnc" title="VNC">
         <svg class="icon" viewBox="0 0 20 20"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.3"></circle></svg>
         <span class="badge">P5</span>
       </button>
@@ -184,7 +184,6 @@
     <!-- topbar -->
     <header class="topbar">
       <h1>onegyeok</h1>
-      <span class="mock-tag">컨셉 목업</span>
       <button class="palette-trigger" id="paletteOpenBtn">
         <svg class="icon" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
         서버 검색 / 빠른 연결
@@ -208,12 +207,17 @@
 
     <!-- sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-search">
-        <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
-        <input type="text" placeholder="서버 검색...">
+      <div class="sidebar-top">
+        <div class="sidebar-search">
+          <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
+          <input type="text" placeholder="서버 검색...">
+        </div>
+        <button class="insp-collapse-btn" id="sideCollapseBtn" type="button" title="서버 목록 접기 (⌘B)" aria-label="서버 목록 접기">
+          <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="13 4 7 10 13 16"></polyline></svg>
+        </button>
       </div>
       <button class="sidebar-web-add" id="sidebarWebAddBtn" type="button" hidden>＋ Web 등록 (북마크)</button>
-      <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>⌘⌥←/→</kbd> / <kbd>⌘&lt;/&gt;</kbd> 이전·다음(Win: Ctrl)</span></div>
+      <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>Ctrl</kbd>+<kbd>&lt;/&gt;</kbd> 이전·다음 탭</span><span><kbd>⌘⌥+방향키</kbd> 그룹탭 칸 이동(Win: Ctrl+Alt)</span></div>
       <div class="tree" id="tree"></div>
       <button class="add-group">+ 그룹 추가</button>
     </aside>
@@ -223,6 +227,9 @@
     <!-- main / tabs / terminal -->
     <section class="main">
       <div class="tabbar-row">
+        <button class="tab-open-btn" id="sideOpenBtn" type="button" title="서버 목록 열기 (⌘B)" aria-label="서버 목록 열기">
+          <svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.4"></rect><line x1="7" y1="3.5" x2="7" y2="16.5"></line></svg>
+        </button>
         <button class="tab-scroll-btn" id="tabScrollLeft" title="이전 탭 보기">
           <svg class="icon" viewBox="0 0 20 20"><polyline points="12 4 6 10 12 16"></polyline></svg>
         </button>
@@ -236,6 +243,9 @@
         </button>
         <button class="icon-toggle" id="broadcastToggleBtn" title="동시 입력 모드 — 열린 모든 SSH 탭에 같은 키 입력을 동시에 전송(비밀번호 입력 포함)">
           <svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.3"></circle><path d="M6.2 6.2a5.4 5.4 0 0 0 0 7.6M13.8 6.2a5.4 5.4 0 0 1 0 7.6M3.3 3.3a9.7 9.7 0 0 0 0 13.4M16.7 3.3a9.7 9.7 0 0 1 0 13.4"></path></svg>
+        </button>
+        <button class="tab-open-btn" id="inspOpenBtn" type="button" title="연결 정보 열기 (⌘I)" aria-label="연결 정보 열기">
+          <svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.4"></rect><line x1="13" y1="3.5" x2="13" y2="16.5"></line></svg>
         </button>
       </div>
       <div class="broadcast-banner" id="broadcastBanner">
@@ -265,19 +275,22 @@
 
     <!-- inspector -->
     <aside class="inspector" id="inspector">
-      <div class="insp-collapsed-handle" id="inspHandle" title="연결 정보 펼치기 (⌘I)">
-        <svg class="icon" viewBox="0 0 20 20"><polyline points="13 4 7 10 13 16"></polyline></svg>
-        <span class="insp-handle-label">연결 정보</span>
-      </div>
       <div class="insp-body" id="inspBody">
         <div class="insp-head">
-          <div class="insp-tabs" role="tablist">
-            <button class="insp-tab active" type="button" data-tab="info">연결 정보</button>
-            <button class="insp-tab" type="button" data-tab="memo">메모</button>
-          </div>
-          <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기">
+          <button class="insp-collapse-btn" id="inspCollapseBtn" title="패널 접기 (⌘I)" aria-label="패널 접기">
             <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="7 4 13 10 7 16"></polyline></svg>
           </button>
+          <div class="insp-tabs" role="tablist">
+            <button class="insp-tab active" type="button" data-tab="info">연결 정보</button>
+            <button class="insp-tab insp-tab-memo" type="button" data-tab="memo">
+              <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><path d="M5 2.5h8l3 3v12H5z"></path><polyline points="13 2.5 13 5.5 16 5.5"></polyline><line x1="7.5" y1="9" x2="13.5" y2="9"></line><line x1="7.5" y1="12" x2="13.5" y2="12"></line><line x1="7.5" y1="15" x2="11" y2="15"></line></svg>
+              메모
+            </button>
+            <button class="insp-tab insp-tab-keys" type="button" data-tab="keys">
+              <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><rect x="2.5" y="5" width="15" height="10" rx="1.6"></rect><line x1="5.5" y1="8.5" x2="6.5" y2="8.5"></line><line x1="9.5" y1="8.5" x2="10.5" y2="8.5"></line><line x1="13.5" y1="8.5" x2="14.5" y2="8.5"></line><line x1="6.5" y1="12" x2="13.5" y2="12"></line></svg>
+              단축키
+            </button>
+          </div>
         </div>
 
         <div class="insp-pane active" data-pane="info">
@@ -306,6 +319,10 @@
           </div>
 
           <p class="insp-note">비밀번호는 저장되지 않으며, 앱 종료 시 클라이언트↔서버 연결은 모두 강제 종료됩니다. tmux 등 세션 유지가 필요하면 터미널 안에서 직접 실행해주세요.</p>
+        </div>
+
+        <div class="insp-pane" data-pane="keys">
+          <div class="shortcut-help" id="shortcutHelp"></div>
         </div>
 
         <div class="insp-pane" data-pane="memo">
@@ -348,6 +365,8 @@
 <script src="core/memo.js"></script>
 <script src="core/inspector.js"></script>
 <script src="core/tabs.js"></script>
+<script src="core/splitview.js"></script>
+<script src="core/shortcuts-help.js"></script>
 <script src="core/quick-connect.js"></script>
 <script src="core/manage-table.js"></script>
 <script src="core/edit-modal.js"></script>
