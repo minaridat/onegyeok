@@ -10,8 +10,8 @@ var SHORTCUT_HELP = [
   ]},
   { title: '탭 이동', rows: [
     ['번호로 탭 이동', '⌘ 1–9', 'Ctrl 1–9'],
-    ['이전 / 다음 탭', '⌘ < / ⌘ >', 'Ctrl < / Ctrl >'],
-    ['이전 / 다음 탭 (대체)', '⌃ Tab / ⌃ ⇧ Tab', 'Ctrl Tab / Ctrl Shift Tab'],
+    ['이전 / 다음 탭', '⌃ < / ⌃ >', 'Ctrl < / Ctrl >'],
+    ['이전 / 다음 탭 (대체)', '⌃ Tab / ⌃ ⇧ Tab · ⌘ < / ⌘ >', 'Ctrl Tab / Ctrl Shift Tab'],
     ['이전 / 다음 탭 (일반 탭에서만)', '⌘ ⌥ ← / ⌘ ⌥ →', 'Ctrl Alt ← / Ctrl Alt →'],
   ]},
   { title: '스플릿뷰 (그룹탭)', rows: [
