@@ -561,3 +561,18 @@ body.split-resizing.column,body.split-resizing.column *{cursor:row-resize !impor
 body.split-resizing{user-select:none;}
 .tab,.cell-header,.group-divider{user-select:none;-webkit-user-select:none;}
 body.split-dragging{user-select:none;-webkit-user-select:none;}
+
+/* ---------- 연결 정보 패널: 단축키 탭 ---------- */
+.insp-tab-keys{display:inline-flex;align-items:center;gap:5px;}
+.shortcut-help{display:flex;flex-direction:column;gap:var(--sp-4);padding-bottom:var(--sp-3);}
+.sc-os h4{margin:0 0 var(--sp-2);font-size:var(--fs-sm);display:flex;align-items:center;gap:6px;}
+.sc-cur{font-size:var(--fs-2xs);font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:8px;padding:1px 7px;}
+.sc-group{margin-bottom:var(--sp-3);}
+.sc-title{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;color:var(--text-faint);text-transform:uppercase;margin-bottom:4px;}
+.sc-row{display:flex;flex-direction:column;gap:3px;padding:5px 0;border-bottom:1px solid var(--border);}
+.sc-label{font-size:var(--fs-xs);color:var(--text-muted);}
+.sc-keys{display:flex;flex-wrap:wrap;align-items:center;gap:3px;}
+.sc-keys kbd{font-family:var(--font-mono);font-size:var(--fs-2xs);background:var(--bg-elevated);border:1px solid var(--border);
+  border-bottom-width:2px;border-radius:4px;padding:1px 6px;color:var(--text);}
+.sc-or{color:var(--text-faint);font-size:var(--fs-2xs);margin:0 2px;}
+.sc-text{font-size:var(--fs-2xs);color:var(--text);}
