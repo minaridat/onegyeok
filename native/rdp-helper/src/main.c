@@ -408,7 +408,16 @@ static void* run_connection(void* arg) {
 		exit(1);
 	}
 
+	/* 고정 Sleep으로 돌면 그 사이 소켓을 읽지 않아 수신 버퍼가 차고 서버가 보내기를 멈춘다 — 창을 끌 때처럼 화면 데이터가
+	 * 많으면 처리량이 "버퍼 크기 / 대기 시간"에 묶여 화면이 수 초씩 밀렸다(실제 Windows Server에서 끌기를 멈춘 뒤 3~4초).
+	 * FreeRDP 클라이언트들처럼 이벤트 핸들(소켓 등)을 기다려 데이터가 오면 바로 처리한다. 입력 큐는 이벤트가 없으므로
+	 * 최대 대기 시간(5ms)으로 확인하고, 화면 비교·전송은 비용이 크니 16ms에 한 번만 한다. */
+	uint64_t last_emit = 0;
 	while (!g_shutdown) {
+		HANDLE handles[MAXIMUM_WAIT_OBJECTS] = { 0 };
+		DWORD nhandles = freerdp_get_event_handles(instance->context, handles, ARRAYSIZE(handles));
+		if (nhandles == 0) { log_msg("freerdp_get_event_handles failed"); break; }
+		WaitForMultipleObjects(nhandles, handles, FALSE, 5);
 		if (!freerdp_check_event_handles(instance->context)) break;
 
 		QueueItem* items = queue_drain();
@@ -416,9 +425,11 @@ static void* run_connection(void* arg) {
 		send_pending_resize();
 		send_due_refresh(instance->context);
 
-		maybe_emit_frame(instance->context->gdi);
-
-		Sleep(20);
+		uint64_t now = now_ms();
+		if (now - last_emit >= 16) {
+			maybe_emit_frame(instance->context->gdi);
+			last_emit = now;
+		}
 	}
 
 	send_status("disconnected", NULL);
