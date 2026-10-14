@@ -15,20 +15,26 @@ document.addEventListener('keydown', function(e){
     if(tabs[idx]) activate(tabs[idx].dataset.id);
     return;
   }
-  // ⌘< / ⌘>: macOS는 ⌘를 누르면 e.key가 '<'/'>'가 아니라 ','/'.'로 오는 경우가 많아 e.key만으로는 안 잡힌다 —
-  // 물리 키(e.code: Comma/Period, Shift 동반)도 함께 본다. Alt가 눌린 조합(⌘⌥,)은 제외.
-  var metaOrCtrl = (e.metaKey || e.ctrlKey) && !e.altKey;
-  var isNextKey = metaOrCtrl && (e.key === '>' || (e.shiftKey && e.code === 'Period'));
-  var isPrevKey = metaOrCtrl && (e.key === '<' || (e.shiftKey && e.code === 'Comma'));
-  var altNav = (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey; // 그룹탭이 아닐 때만 여기까지 온다(그룹탭의 칸 이동은 splitview.js가 먼저 가로챔)
-  var next = (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) || (altNav && e.key === 'ArrowRight') || isNextKey;
-  var prev = (e.ctrlKey && e.key === 'Tab' && e.shiftKey) || (altNav && e.key === 'ArrowLeft') || isPrevKey;
-  if(next || prev){
-    e.preventDefault();
-    var list = visibleTabs();
-    if(!list.length) return;
-    var cur = list.findIndex(function(t){ return t.classList.contains('active'); });
-    var to = next ? (cur + 1) % list.length : (cur - 1 + list.length) % list.length;
-    activate(list[to].dataset.id);
-  }
 });
+
+// 이전 / 다음 탭 — macOS·Windows 공통으로 Ctrl+< / Ctrl+>(Shift 유무 무관, 물리 키 , . 기준)을 쓴다. 기존 ⌘< ⌘>, Ctrl+Tab(Shift=이전),
+// 일반 탭에서의 ⌘⌥←/→(Win Ctrl+Alt+←/→)도 그대로 받는다. xterm(터미널)이 키를 먼저 삼키지 않도록 capture 단계에서 처리하고,
+// 그룹탭 칸 이동(splitview.js)이 이미 처리한 키(defaultPrevented)는 건너뛴다.
+document.addEventListener('keydown', function(e){
+  if(e.defaultPrevented) return;
+  var ctrlOnly = e.ctrlKey && !e.metaKey && !e.altKey;
+  var metaOnly = e.metaKey && !e.ctrlKey && !e.altKey;
+  var altNav = (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey;
+  var isNext = (ctrlOnly && (e.code === 'Period' || e.key === '>')) || (metaOnly && (e.key === '>' || (e.shiftKey && e.code === 'Period'))) ||
+    (e.ctrlKey && !e.altKey && e.key === 'Tab' && !e.shiftKey) || (altNav && e.key === 'ArrowRight');
+  var isPrev = (ctrlOnly && (e.code === 'Comma' || e.key === '<')) || (metaOnly && (e.key === '<' || (e.shiftKey && e.code === 'Comma'))) ||
+    (e.ctrlKey && !e.altKey && e.key === 'Tab' && e.shiftKey) || (altNav && e.key === 'ArrowLeft');
+  if(!isNext && !isPrev) return;
+  e.preventDefault();
+  e.stopPropagation();
+  var list = visibleTabs();
+  if(!list.length) return;
+  var cur = list.findIndex(function(t){ return t.classList.contains('active'); });
+  var to = isNext ? (cur + 1) % list.length : (cur - 1 + list.length) % list.length;
+  activate(list[to].dataset.id);
+}, true);
