@@ -518,3 +518,15 @@ if(hasWindowBridge()){
     openHydratedTab(payload.tabId, payload.serverId, payload.protocol, payload.server, payload.handoff);
   });
 }
+
+// 창 제목에 이 창에서 열려 있는 세션 수를 붙인다("onegyeok 6") — 탭을 끌어 여러 창으로 나눠 띄웠을 때 Dock/창 목록/Mission Control에서
+// 창을 구분하기 위함. 스플릿뷰로 합쳐진 탭도 세션 단위로 센다(그룹탭 자체는 세지 않음).
+function updateWindowTitle(){
+  var n = tabbar.querySelectorAll('.tab:not(.group-tab)').length;
+  var title = 'onegyeok ' + n;
+  if(document.title !== title) document.title = title;
+}
+if(window.MutationObserver){
+  new MutationObserver(updateWindowTitle).observe(tabbar, { childList: true });
+}
+updateWindowTitle();
