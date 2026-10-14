@@ -28,6 +28,9 @@ const ADAPTERS = {
         database: params.database || undefined,
         connectTimeout: 10000,
         rowsAsArray: true,
+        // 날짜/시간은 JS Date("Tue Oct 13 2026 …GMT+0900")가 아니라 DB가 주는 그대로(YYYY-MM-DD HH:mm:ss) 보여주고, 4바이트 문자(이모지 등)도 깨지지 않게 utf8mb4로 연결한다.
+        dateStrings: true,
+        charset: 'UTF8MB4_UNICODE_CI',
       });
       return conn;
     },

@@ -4,7 +4,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 각 항목은 **증상 → 원인 → 조치 → 확인 방법** 순서로 적었고, 상태는 ✅ 해결 / 🟡 일부 확인 / 🔲 미해결로 표시한다.
 
 - 대상 빌드: macOS 15 이상, Apple Silicon(arm64) 전용 — 인텔 Mac은 지원하지 않는다.
-- 설치 파일: [Releases](https://github.com/minaridat/onegyeok/releases) (README "설치 및 실행" 참고)
+- 설치 파일: [Releases](https://github.com/minaridat/onegyeok/releases) (README "Install" 참고)
 - 작업 브랜치: `minaridat/mac-build`(1차), `minaridat/QA-mac`(2차) → `minaridat/integration`, `main`에 병합
 
 ## 요약
@@ -37,6 +37,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | 25 | 단축키 | 맥북에서 ⌘< ⌘> 탭 이동이 안 먹음 → Ctrl+< / Ctrl+>(Mac·Win 공통)로 변경 | ✅ |
 | 26 | 단축키 | 탭 닫기 단축키(⌘W / Windows Ctrl+Shift+W, 그룹탭 포함) 추가, Esc 설명 보강 | ✅ |
 | 27 | 창 | 창 제목에 열린 세션 수 표시(onegyeok N) | ✅ |
+| 28 | 문서 | README 개편(다운로드 버튼·기능별 소개·설치 안내·매뉴얼), 개발자 가이드 분리, 다국어(中文·日本語·English) | ✅ |
 | 21 | VNC | 비밀번호 인증이 항상 실패 (OpenSSL `no-module` 누락) | ✅ (Windows 빌드에서 발견) |
 
 ---
@@ -209,6 +210,14 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 - **요구**: 탭을 끌어 여러 창으로 분리했을 때 Dock/창 목록에서 창이 모두 `onegyeok`로 보여 구분이 어려움 → `onegyeok 1` / `onegyeok 6`처럼 세션 수 표시.
 - **조치**: 창 제목을 `onegyeok N`(N = 그 창에 열려 있는 세션 수)으로 갱신한다. 스플릿뷰로 합쳐진 탭도 세션 단위로 세고 그룹탭 자체는 세지 않는다. 탭이 열리고 닫힐 때마다 자동으로 바뀐다(탭이 없으면 `onegyeok 0`).
 - **확인**: 개발 앱에서 창 제목이 0 → 3 → (그룹으로 합쳐도 3) → (그룹 닫기 후 1)로 바뀌는 것을 확인했다.
+
+### 28. README 개편 — ✅
+- **조치**: README를 Orca 스타일(중앙 정렬 헤더·배지·언어 선택·다운로드 버튼·기능별 2단 표)로 다시 썼다. macOS(Apple Silicon)/Windows(x64) **다운로드 버튼**, 맥 **개인정보 보호 및 보안 → "그래도 열기"** 허용 안내를 포함한 간단한 Install, 가독성을 높인 사용 매뉴얼·단축키·FAQ를 담았다. "진행 상태" 절은 삭제했다.
+- **분리**: 소스 실행·설치 파일 직접 빌드(macOS/Windows)·기술 스택·개발 문서는 `docs/DEVELOPER.md`로 옮기고 README에서 링크한다.
+- **다국어**: 기본은 한국어이고 `中文 · 日本語 · English`는 `docs/readme/README.{zh-CN,ja,en}.md`로 전환한다(앱 UI는 한국어라 번역본에 한국어 버튼명을 병기).
+- **이미지**: 실제 앱을 조작하며 녹화한 **움직이는 GIF**(`docs/assets/*.gif` 9개 — 스플릿뷰 드래그·합치기·크기 조절·이름 변경, SSH 접속·입력, 동시 입력, SQL 쿼리, SFTP 업로드, RDP 해상도 추종, Web·북마크, 빠른 연결, 단축키 탭)와 로고(`docs/assets/logo.svg`). 로컬 테스트 서버(SSH·MySQL·SFTP·xrdp·웹 페이지)에 실제로 접속해 촬영했다.
+- **다운로드 버튼 아래 안내**: macOS "그래도 열기"(시스템 설정 → 개인정보 보호 및 보안), Windows SmartScreen "추가 정보 → 실행"을 굵은 글씨로 항상 보이게 넣었다.
+- **함께 고친 것**: SQL 결과의 날짜가 `Tue Oct 13 2026 … GMT+0900` 형태로 나오던 것을 DB 값 그대로(`YYYY-MM-DD HH:mm:ss`)로, MySQL 연결 문자셋을 utf8mb4로 지정(`db-manager.js`).
 
 ---
 
