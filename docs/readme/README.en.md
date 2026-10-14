@@ -268,12 +268,12 @@ Turn on `((•))` at the right of the tab row: a checkbox appears on every open 
 
 | Action | macOS | Windows |
 |---|---|---|
-| Server search / quick connect | `⌘K` | `Ctrl+K` |
+| Server search / quick connect | `⌘K` | `Ctrl+K` *(not while typing in a terminal)* |
 | Collapse / expand server list | `⌘B` | `Ctrl+B` *(not while typing in a terminal)* |
-| Collapse / expand info panel | `⌘I` | `Ctrl+I` |
+| Collapse / expand info panel | `⌘I` | `Ctrl+I` *(not while typing in a terminal)* |
 | Close popups (register/edit server, server management, `⌘K` palette) | `Esc` | `Esc` |
 | Close tab (whole group for a group tab) | `⌘W` | `Ctrl+Shift+W` |
-| Go to tab by number | `⌘1`–`⌘9` | `Ctrl+1`–`Ctrl+9` |
+| Go to tab by number | `⌘1`–`⌘9` | `Ctrl+1`–`Ctrl+9` *(not while typing in a terminal)* |
 | Previous / next tab | `Ctrl+<` / `Ctrl+>` | `Ctrl+<` / `Ctrl+>` |
 | Previous / next tab (alternatives) | `Ctrl+Tab` / `Ctrl+Shift+Tab`, `⌘<` / `⌘>` | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
 | Move between panes of a group tab | `⌘⌥+arrow keys` | `Ctrl+Alt+arrow keys` |
