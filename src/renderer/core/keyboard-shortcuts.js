@@ -10,7 +10,7 @@ function isTerminalCtrlKey(e){
 // 페이지가 소비하지 않은 키만 메뉴로 넘기므로 터미널에서 Ctrl+Shift+W(탭 닫기, app-menu.js)가 셸의 ^W로 새어 버린다.
 // 앱 메뉴가 받아야 하는 조합은 xterm이 처리하지 않게 한다(ssh.js가 attachCustomKeyEventHandler로 붙인다).
 function terminalKeyPassthrough(e){
-  if(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyW') return false;
+  if(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.code === 'KeyW' || e.code === 'KeyT')) return false;
   return true;
 }
 
@@ -54,4 +54,12 @@ document.addEventListener('keydown', function(e){
   var cur = list.findIndex(function(t){ return t.classList.contains('active'); });
   var to = isNext ? (cur + 1) % list.length : (cur - 1 + list.length) % list.length;
   activate(list[to].dataset.id);
+}, true);
+
+// 로컬 터미널 열기 — macOS·Windows 공통 Ctrl+Shift+T. 터미널에 포커스가 있어도 동작하도록 capture 단계에서 처리한다.
+document.addEventListener('keydown', function(e){
+  if(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyT'){
+    e.preventDefault(); e.stopPropagation();
+    if(typeof openLocalTerminal === 'function') openLocalTerminal();
+  }
 }, true);

@@ -22,6 +22,20 @@ contextBridge.exposeInMainWorld('onegyeok', {
   },
 
   pickKeyFile: () => ipcRenderer.invoke('dialog:pick-key-file'),
+  pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
+
+  local: {
+    open: (sessionId, params) => ipcRenderer.invoke('local:open', sessionId, params),
+  },
+
+  sessionLog: {
+    getConfig: () => ipcRenderer.invoke('log:get-config'),
+    setConfig: (cfg) => ipcRenderer.invoke('log:set-config', cfg),
+    list: () => ipcRenderer.invoke('log:list'),
+    read: (id) => ipcRenderer.invoke('log:read', id),
+    openFolder: (id) => ipcRenderer.invoke('log:open-folder', id),
+    sessionFile: (sessionId) => ipcRenderer.invoke('log:session-file', sessionId),
+  },
 
   ssh: {
     connect: (sessionId, params) => ipcRenderer.invoke('ssh:connect', sessionId, params),
@@ -85,6 +99,7 @@ contextBridge.exposeInMainWorld('onegyeok', {
     key: (sessionId, scancode, flags) => ipcRenderer.send('rdp:key', sessionId, scancode, flags),
     resize: (sessionId, width, height) => ipcRenderer.send('rdp:resize', sessionId, width, height),
     frameAck: (sessionId) => ipcRenderer.send('rdp:frame-ack', sessionId),
+    clipSync: (sessionId) => ipcRenderer.send('rdp:clip-sync', sessionId),
     onFrame: (callback) => {
       const listener = (_event, sessionId, rect, buffer) => callback(sessionId, rect, buffer);
       ipcRenderer.on('rdp:frame', listener);

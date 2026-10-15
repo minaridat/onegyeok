@@ -38,6 +38,10 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | 26 | 단축키 | 탭 닫기 단축키(⌘W / Windows Ctrl+Shift+W, 그룹탭 포함) 추가, Esc 설명 보강 | ✅ |
 | 27 | 창 | 창 제목에 열린 세션 수 표시(onegyeok N) | ✅ |
 | 28 | 문서 | README 개편(다운로드 버튼·기능별 소개·설치 안내·매뉴얼), 개발자 가이드 분리, 다국어(中文·日本語·English) | ✅ |
+| 29 | RDP | 클립보드(텍스트) 양방향 복사·붙여넣기 — 맥↔원격(xrdp) 양방향 확인, 한글 포함. 서버별 켜기/끄기, macOS ⌘C/⌘V → 원격 Ctrl+C/V | ✅ (실제 Windows Server는 미확인) |
+| 30 | RDP | 로컬 폴더 마운트(rdpdr+drive) — xrdp 서버가 "remote drive"로 인식하는 것까지 확인(컨테이너에 FUSE가 없어 원격 파일 목록까지는 못 봄) | ✅ (파일 목록은 실제 Windows Server에서 확인 필요) |
+| 31 | 터미널 | 로컬 터미널(사이드바 버튼·Ctrl+Shift+T) — macOS zsh에서 git 실행 확인(개발 앱·패키징 앱 모두). Windows(cmd.exe)는 미확인 | ✅ (Windows 미확인) |
+| 32 | 로그 | 세션 로그 — SSH·로컬 터미널 출력 자동 기록, 비밀번호 미기록, 0600/0700 권한, 목록·열람·검색, 보관 기간·켜기/끄기 | ✅ |
 | 21 | VNC | 비밀번호 인증이 항상 실패 (OpenSSL `no-module` 누락) | ✅ (Windows 빌드에서 발견) |
 
 ---

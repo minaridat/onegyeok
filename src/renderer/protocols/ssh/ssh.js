@@ -173,8 +173,23 @@ var MAX_AUTH_ATTEMPTS = 3;
 
 // 등록 시 사용자명을 비워뒀다면(다른 사용자로 로그인하는 경우 대비) 접속할 때마다
 // "login as:"를 먼저 물어본다 — 이 값은 저장하지 않으므로 매번 다른 사용자로 접속 가능하다.
+// 로컬 터미널(이 PC의 셸) — 인증 없이 바로 PTY를 연다. 상태·출력은 SSH와 같은 ssh:* 이벤트로 들어온다.
+function startLocalShell(id, session){
+  session.state = 'connecting';
+  setSshStatus(id, 'connecting', '');
+  window.onegyeok.local.open(id, { cols: session.term.cols, rows: session.term.rows }).then(function(res){
+    if(!sshSessions[id]) return;
+    if(!res.ok){
+      session.term.writeln('\x1b[31m' + (res.error || '로컬 터미널을 열 수 없습니다') + '\x1b[0m');
+      setSshStatus(id, 'error', res.error);
+      session.handleInput = function(){};
+    }
+  });
+}
+
 function promptAndConnect(id, session){
   var srv = session.srv;
+  if(srv.local){ startLocalShell(id, session); return; }
   session.state = 'prompting';
   session.authAttempts = 0;
   setSshStatus(id, 'prompting', '');
@@ -226,7 +241,7 @@ function finishPrompt(id, session, secretParams){
   session.handleInput = function(){}; // 연결 결과가 오기 전까지 추가 키 입력은 무시
   setSshStatus(id, 'connecting', '');
   var params = {
-    host: srv.host, port: srv.port || 22, username: session.activeUsername,
+    host: srv.host, port: srv.port || 22, username: session.activeUsername, title: srv.name || srv.id,
     authMethod: srv.authMethod, keyFilePath: srv.keyFilePath,
     cols: term.cols, rows: term.rows,
   };
@@ -302,6 +317,7 @@ function startSshSession(tabId, serverId, statusEl, hostEl){
     return;
   }
 
+  if(srv.local){ startLocalShell(tabId, session); return; }
   term.writeln('Connecting to ' + srv.host + ':' + (srv.port || 22) + ' ...');
   promptAndConnect(tabId, session);
 }

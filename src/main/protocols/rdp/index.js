@@ -1,4 +1,6 @@
 const { registerMainProtocol } = require('../../core/protocol-registry');
+const fs = require('node:fs');
+const { clipboard } = require('electron');
 const { MSG, spawnHelper, parseFramePayload } = require('./helper-bridge');
 
 // RDP 연결 — libfreerdp를 직접 링크한 네이티브 헬퍼 프로세스(native/rdp-helper) 기반.
@@ -15,6 +17,10 @@ let savedCtx = null; // wire(ctx)가 저장해둔다 — onSessionWindowChanged�
 // 업데이트라, 탭이 다른 창으로 옮겨질 때(Stage B) 그 사각형 하나만 재전송하면 화면 대부분이
 // 비어 보인다. 매 FRAME마다 이 버퍼의 해당 영역을 덮어써두고, 창 이동 시 전체를 한 번에
 // 보내 새 창이 바로 완전한 화면을 보게 한다.
+// 클립보드 공유 상태 — 원격→로컬로 방금 쓴 텍스트와 로컬→원격으로 마지막에 알린 텍스트를 기억해, 같은 내용을 서로 되돌려
+// 보내는 반복(핑퐁)을 막는다. 클립보드 공유를 끈 세션(enabled=false)은 어느 방향으로도 전송하지 않는다.
+const clipStates = new Map(); // sessionId -> { enabled, last }
+const MAX_CLIP_CHARS = 1024 * 1024; // 한 번에 주고받는 텍스트 상한(1M자)
 const frameCaches = new Map(); // sessionId -> { width, height, buffer(BGRA32) }
 
 function updateFrameCache(sessionId, frame) {
@@ -98,6 +104,21 @@ function queueFrame(sessionId, frame) {
   pumpFrame(sessionId);
 }
 
+// 로컬 클립보드 텍스트가 마지막으로 알린 것과 다르면 헬퍼에 알린다(원격이 붙여넣을 때 이 텍스트를 가져간다).
+async function syncLocalClipboard(sessionId) {
+  const st = clipStates.get(sessionId);
+  const helper = sessions.get(sessionId);
+  if (!st || !st.enabled || !helper) return;
+  let text = '';
+  try { text = await clipboard.readText(); } catch (_e) { return; }
+  if (typeof text !== 'string') return;
+  if (!sessions.get(sessionId) || st !== clipStates.get(sessionId)) return; // 읽는 사이 세션이 끝났을 수 있다
+  if (text.length > MAX_CLIP_CHARS) text = text.slice(0, MAX_CLIP_CHARS);
+  if (text === st.last) return;
+  st.last = text;
+  helper.clipSet(text);
+}
+
 registerMainProtocol('rdp', {
   wire(ctx) {
     savedCtx = ctx;
@@ -128,6 +149,13 @@ registerMainProtocol('rdp', {
                 resolve({ ok: true, width: info.width, height: info.height });
               }
               sendToSession(sessionId, 'rdp:status', { state: 'connected' });
+              syncLocalClipboard(sessionId).catch(() => {});
+            } else if (type === MSG.CLIP_DATA) {
+              const st = clipStates.get(sessionId);
+              if (st && st.enabled) {
+                const text = payload.toString('utf8');
+                if (text && text.length <= MAX_CLIP_CHARS) { st.last = text; Promise.resolve(clipboard.writeText(text)).catch(() => {}); }
+              }
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);
               updateFrameCache(sessionId, frame);
@@ -153,6 +181,7 @@ registerMainProtocol('rdp', {
               if (status.state === 'disconnected' || status.state === 'error') {
                 sessions.delete(sessionId);
                 frameCaches.delete(sessionId);
+    clipStates.delete(sessionId);
                 clearFlow(sessionId);
                 unregisterSession(sessionId);
               }
@@ -169,6 +198,7 @@ registerMainProtocol('rdp', {
           }
           sessions.delete(sessionId);
           frameCaches.delete(sessionId);
+    clipStates.delete(sessionId);
           clearFlow(sessionId);
           unregisterSession(sessionId);
         });
@@ -183,11 +213,20 @@ registerMainProtocol('rdp', {
           }
           sessions.delete(sessionId);
           frameCaches.delete(sessionId);
+    clipStates.delete(sessionId);
           clearFlow(sessionId);
           unregisterSession(sessionId);
         });
 
         sessions.set(sessionId, helper);
+        const clipEnabled = params.clipboard !== false;
+        clipStates.set(sessionId, { enabled: clipEnabled, last: null });
+        // 로컬 폴더 마운트 — 렌더러가 넘긴 경로가 실제 폴더일 때만 헬퍼에 전달한다(이름은 영숫자·한글·-_ 등으로 정리).
+        let driveName, drivePath;
+        if (params.drivePath && typeof params.drivePath === 'string') {
+          try { if (fs.statSync(params.drivePath).isDirectory()) drivePath = params.drivePath; } catch (_e) { /* 없는 경로면 마운트 생략 */ }
+          if (drivePath) driveName = String(params.driveName || 'onegyeok').replace(/[^\p{L}\p{N}_\- ]/gu, '').trim().slice(0, 32) || 'onegyeok';
+        }
         helper.connect({
           host: params.host, port: params.port || 3389, username: params.username,
           password: params.password, domain: params.domain,
@@ -195,6 +234,7 @@ registerMainProtocol('rdp', {
           colorDepth: params.colorDepth || 32,
           security: params.security || 'tls',
           ignoreCertificate: params.ignoreCertificate !== false,
+          clipboard: clipEnabled, driveName, drivePath,
         });
       });
     });
@@ -203,6 +243,7 @@ registerMainProtocol('rdp', {
       const helper = sessions.get(sessionId);
       if (helper) { helper.disconnect(); helper.kill(); sessions.delete(sessionId); }
       frameCaches.delete(sessionId);
+    clipStates.delete(sessionId);
       clearFlow(sessionId);
       unregisterSession(sessionId);
       return { ok: true };
@@ -215,6 +256,7 @@ registerMainProtocol('rdp', {
       f.inFlight = false;
       pumpFrame(sessionId);
     });
+    ipcMain.on('rdp:clip-sync', (_event, sessionId) => { syncLocalClipboard(sessionId).catch(() => {}); });
     ipcMain.on('rdp:mouse', (_event, sessionId, x, y, flags) => {
       const helper = sessions.get(sessionId);
       if (helper) helper.mouse(x, y, flags);
@@ -246,6 +288,7 @@ registerMainProtocol('rdp', {
     const helper = sessions.get(sessionId);
     if (helper) { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); sessions.delete(sessionId); }
     frameCaches.delete(sessionId);
+    clipStates.delete(sessionId);
     clearFlow(sessionId);
   },
 
@@ -253,6 +296,7 @@ registerMainProtocol('rdp', {
     sessions.forEach((helper) => { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); });
     sessions.clear();
     frameCaches.clear();
+    clipStates.clear();
     flows.forEach((f) => { if (f.timer) clearTimeout(f.timer); });
     flows.clear();
   },

@@ -28,6 +28,9 @@
 #include <freerdp/addin.h>
 #include <freerdp/client/channels.h>
 #include <freerdp/channels/disp.h>
+#include <freerdp/client/cliprdr.h>
+#include <freerdp/channels/cliprdr.h>
+#include <winpr/string.h>
 
 #include "framing.h"
 #include "jsonlite.h"
@@ -39,11 +42,13 @@
 #define MSG_KEY 0x04
 #define MSG_UNICODE_KEY 0x05
 #define MSG_RESIZE 0x06
+#define MSG_CLIP_SET 0x07 /* Node -> helper: 로컬 클립보드 텍스트(UTF-8) — 원격 붙여넣기용으로 알린다 */
 /* helper -> Node */
 #define MSG_CONNECTED 0x81
 #define MSG_FRAME 0x82
 #define MSG_STATUS 0x83
 #define MSG_LOG 0x84
+#define MSG_CLIP_DATA 0x86 /* helper -> Node: 원격에서 복사한 텍스트(UTF-8) — 로컬 클립보드에 넣는다 */
 #define MSG_DESKTOP_RESIZED 0x85 /* helper -> Node: {"width":W,"height":H} — 서버가 해상도를 바꿨다 */
 
 static volatile int g_shutdown = 0;
@@ -204,14 +209,176 @@ static void log_msg(const char* fmt, ...) {
 	if (n > 0) fprintf(stderr, "[onegyeok-rdp-helper] %s\n", buf);
 }
 
+/* ---- 클립보드(텍스트) 공유: cliprdr 채널. 로컬→원격은 "형식 목록"만 먼저 알리고 원격이 붙여넣을 때 데이터를 요청하면 응답하는
+ * 지연 전송 방식이고, 원격→로컬은 원격이 형식 목록을 알리면 바로 유니코드 텍스트를 요청해 Node로 넘긴다.
+ * 콜백은 모두 RDP 이벤트 루프를 도는 연결 스레드에서 불리므로, 다른 스레드(stdin)가 넘겨준 로컬 텍스트만 뮤텍스로 보호한다. ---- */
+#define CLIP_CF_UNICODETEXT 13u
+static CliprdrClientContext* g_cliprdr = NULL;
+static volatile int g_clip_ready = 0; /* MonitorReady 이후 */
+static uint8_t* g_local_clip = NULL; /* UTF-16LE + NUL 종결(원격 전송 형식) — g_queue_mutex로 보호 */
+static uint32_t g_local_clip_len = 0;
+static volatile int g_local_clip_dirty = 0;
+
+static UINT clip_send_format_list(void) {
+	if (!g_cliprdr || !g_cliprdr->ClientFormatList) return CHANNEL_RC_OK;
+	CLIPRDR_FORMAT fmt;
+	CLIPRDR_FORMAT_LIST list;
+	memset(&fmt, 0, sizeof(fmt));
+	memset(&list, 0, sizeof(list));
+	pthread_mutex_lock(&g_queue_mutex);
+	int have = g_local_clip && g_local_clip_len > 2;
+	pthread_mutex_unlock(&g_queue_mutex);
+	fmt.formatId = CLIP_CF_UNICODETEXT;
+	fmt.formatName = NULL;
+	list.common.msgType = CB_FORMAT_LIST;
+	log_msg("clip: announce format list (%s)", have ? "text" : "empty");
+	list.numFormats = have ? 1 : 0;
+	list.formats = have ? &fmt : NULL;
+	return g_cliprdr->ClientFormatList(g_cliprdr, &list);
+}
+
+static UINT clip_monitor_ready(CliprdrClientContext* ctx, const CLIPRDR_MONITOR_READY* ready) {
+	(void)ready;
+	CLIPRDR_GENERAL_CAPABILITY_SET general;
+	CLIPRDR_CAPABILITIES caps;
+	memset(&general, 0, sizeof(general));
+	memset(&caps, 0, sizeof(caps));
+	general.capabilitySetType = CB_CAPSTYPE_GENERAL;
+	general.capabilitySetLength = CB_CAPSTYPE_GENERAL_LEN;
+	general.version = CB_CAPS_VERSION_2;
+	general.generalFlags = CB_USE_LONG_FORMAT_NAMES; /* 파일 전송(스트림 파일 클립)은 쓰지 않는다 — 텍스트만 */
+	caps.cCapabilitiesSets = 1;
+	caps.capabilitySets = (CLIPRDR_CAPABILITY_SET*)&general;
+	UINT rc = ctx->ClientCapabilities(ctx, &caps);
+	if (rc != CHANNEL_RC_OK) return rc;
+	g_clip_ready = 1;
+	return clip_send_format_list();
+}
+
+static UINT clip_server_capabilities(CliprdrClientContext* ctx, const CLIPRDR_CAPABILITIES* caps) {
+	(void)ctx; (void)caps;
+	return CHANNEL_RC_OK;
+}
+
+static UINT clip_server_format_list(CliprdrClientContext* ctx, const CLIPRDR_FORMAT_LIST* list) {
+	CLIPRDR_FORMAT_LIST_RESPONSE resp;
+	memset(&resp, 0, sizeof(resp));
+	resp.common.msgType = CB_FORMAT_LIST_RESPONSE;
+	resp.common.msgFlags = CB_RESPONSE_OK;
+	UINT rc = ctx->ClientFormatListResponse(ctx, &resp);
+	if (rc != CHANNEL_RC_OK) return rc;
+	for (UINT32 i = 0; list && i < list->numFormats; i++) {
+		if (list->formats[i].formatId == CLIP_CF_UNICODETEXT) {
+			CLIPRDR_FORMAT_DATA_REQUEST req;
+			memset(&req, 0, sizeof(req));
+			req.common.msgType = CB_FORMAT_DATA_REQUEST;
+			req.requestedFormatId = CLIP_CF_UNICODETEXT;
+			ctx->lastRequestedFormatId = CLIP_CF_UNICODETEXT;
+			return ctx->ClientFormatDataRequest(ctx, &req);
+		}
+	}
+	return CHANNEL_RC_OK; /* 텍스트가 아니면(이미지·파일 등) 무시 */
+}
+
+static UINT clip_server_format_list_response(CliprdrClientContext* ctx, const CLIPRDR_FORMAT_LIST_RESPONSE* resp) {
+	(void)ctx; (void)resp;
+	return CHANNEL_RC_OK;
+}
+
+static UINT clip_server_format_data_request(CliprdrClientContext* ctx, const CLIPRDR_FORMAT_DATA_REQUEST* req) {
+	CLIPRDR_FORMAT_DATA_RESPONSE resp;
+	memset(&resp, 0, sizeof(resp));
+	resp.common.msgType = CB_FORMAT_DATA_RESPONSE;
+	uint8_t* copy = NULL;
+	uint32_t len = 0;
+	if (req->requestedFormatId == CLIP_CF_UNICODETEXT) {
+		pthread_mutex_lock(&g_queue_mutex);
+		if (g_local_clip && g_local_clip_len > 0) {
+			copy = malloc(g_local_clip_len);
+			if (copy) { memcpy(copy, g_local_clip, g_local_clip_len); len = g_local_clip_len; }
+		}
+		pthread_mutex_unlock(&g_queue_mutex);
+	}
+	if (copy) {
+		resp.common.msgFlags = CB_RESPONSE_OK;
+		resp.common.dataLen = len;
+		resp.requestedFormatData = copy;
+	} else {
+		resp.common.msgFlags = CB_RESPONSE_FAIL;
+	}
+	log_msg("clip: server requested format %u -> %s (%u bytes)", (unsigned)req->requestedFormatId, copy ? "ok" : "fail", (unsigned)len);
+	UINT rc = ctx->ClientFormatDataResponse(ctx, &resp);
+	free(copy);
+	return rc;
+}
+
+static UINT clip_server_format_data_response(CliprdrClientContext* ctx, const CLIPRDR_FORMAT_DATA_RESPONSE* resp) {
+	(void)ctx;
+	if (!(resp->common.msgFlags & CB_RESPONSE_OK) || !resp->requestedFormatData || resp->common.dataLen < 2) return CHANNEL_RC_OK;
+	size_t units = resp->common.dataLen / 2;
+	const WCHAR* w = (const WCHAR*)resp->requestedFormatData;
+	while (units > 0 && w[units - 1] == 0) units--; /* 끝의 NUL 제거 */
+	if (units == 0) return CHANNEL_RC_OK;
+	size_t out_len = 0;
+	char* utf8 = ConvertWCharNToUtf8Alloc(w, units, &out_len);
+	if (utf8) {
+		frame_write(STDOUT_FILENO, MSG_CLIP_DATA, (const uint8_t*)utf8, (uint32_t)out_len);
+		free(utf8);
+	}
+	return CHANNEL_RC_OK;
+}
+
+/* Node가 보낸 UTF-8 텍스트를 UTF-16(+NUL)로 바꿔 저장하고 "바뀌었다"는 표시만 해 둔다(stdin 스레드). */
+static void clip_set_local(const uint8_t* utf8, uint32_t len) {
+	size_t wlen = 0;
+	WCHAR* w = len ? ConvertUtf8NToWCharAlloc((const char*)utf8, len, &wlen) : NULL;
+	uint8_t* bytes = NULL;
+	uint32_t blen = 0;
+	if (w) {
+		blen = (uint32_t)((wlen + 1) * 2);
+		bytes = calloc(1, blen);
+		if (bytes) memcpy(bytes, w, wlen * 2); else blen = 0;
+		free(w);
+	}
+	pthread_mutex_lock(&g_queue_mutex);
+	free(g_local_clip);
+	g_local_clip = bytes;
+	g_local_clip_len = blen;
+	g_local_clip_dirty = 1;
+	pthread_mutex_unlock(&g_queue_mutex);
+}
+
+static void clip_send_if_dirty(void) {
+	if (!g_clip_ready || !g_local_clip_dirty) return;
+	g_local_clip_dirty = 0;
+	clip_send_format_list();
+}
+
+static void on_channel_connected_clip(const ChannelConnectedEventArgs* e) {
+	if (!e || !e->name || strcmp(e->name, "cliprdr") != 0) return;
+	g_cliprdr = (CliprdrClientContext*)e->pInterface;
+	g_cliprdr->MonitorReady = clip_monitor_ready;
+	g_cliprdr->ServerCapabilities = clip_server_capabilities;
+	g_cliprdr->ServerFormatList = clip_server_format_list;
+	g_cliprdr->ServerFormatListResponse = clip_server_format_list_response;
+	g_cliprdr->ServerFormatDataRequest = clip_server_format_data_request;
+	g_cliprdr->ServerFormatDataResponse = clip_server_format_data_response;
+}
+
+static void on_channel_disconnected_clip(const ChannelDisconnectedEventArgs* e) {
+	if (e && e->name && strcmp(e->name, "cliprdr") == 0) { g_cliprdr = NULL; g_clip_ready = 0; }
+}
+
 static void on_channel_connected(void* ctx, const ChannelConnectedEventArgs* e) {
 	(void)ctx;
 	if (e && e->name) log_msg("channel connected: %s", e->name);
+	on_channel_connected_clip(e);
 	if (e && e->name && strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0) g_disp = (DispClientContext*)e->pInterface;
 }
 
 static void on_channel_disconnected(void* ctx, const ChannelDisconnectedEventArgs* e) {
 	(void)ctx;
+	on_channel_disconnected_clip(e);
 	if (e && e->name && strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0) g_disp = NULL;
 }
 
@@ -294,10 +461,16 @@ static BOOL my_pre_connect(freerdp* instance) {
 	freerdp_settings_set_bool(settings, FreeRDP_NetworkAutoDetect, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_SupportHeartbeatPdu, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_SupportMultitransport, FALSE);
-	freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_AudioCapture, FALSE);
-	freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, FALSE);
+	freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, g_params.clipboard ? TRUE : FALSE);
+	/* 로컬 폴더 마운트: rdpdr(장치 리디렉션) 채널에 "drive" 장치를 하나 등록한다. 서버에는 "<이름> on <PC이름>" 드라이브로 보인다. */
+	if (g_params.driveName && g_params.driveName[0] && g_params.drivePath && g_params.drivePath[0]) {
+		const char* drive_args[] = { "drive", g_params.driveName, g_params.drivePath };
+		if (!freerdp_client_add_device_channel(settings, 3, drive_args)) log_msg("drive redirection setup failed");
+	} else {
+		freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
+	}
 	freerdp_settings_set_bool(settings, FreeRDP_SupportGraphicsPipeline, FALSE);
 	PubSub_SubscribeChannelConnected(instance->context->pubSub, on_channel_connected);
 	PubSub_SubscribeChannelDisconnected(instance->context->pubSub, on_channel_disconnected);
@@ -423,6 +596,7 @@ static void* run_connection(void* arg) {
 		QueueItem* items = queue_drain();
 		if (items) dispatch_input(instance->context->input, items);
 		send_pending_resize();
+		clip_send_if_dirty();
 		send_due_refresh(instance->context);
 
 		uint64_t now = now_ms();
@@ -485,6 +659,10 @@ int main(void) {
 			case MSG_KEY:
 			case MSG_UNICODE_KEY:
 				if (f.payload_len > 0) queue_push(f.type, f.payload, (uint8_t)f.payload_len);
+				free(f.payload);
+				break;
+			case MSG_CLIP_SET:
+				clip_set_local(f.payload, f.payload_len);
 				free(f.payload);
 				break;
 			case MSG_RESIZE:

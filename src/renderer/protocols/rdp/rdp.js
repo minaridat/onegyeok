@@ -80,6 +80,14 @@ function buildRdpPaneDom(el){
         '<div class="rdp-connect-title"></div>' +
         '<label class="rdp-f-username-row" style="display:none">사용자명<input type="text" class="rdp-f-username" autocomplete="off"></label>' +
         '<label>비밀번호<input type="password" class="rdp-f-password" autocomplete="off"></label>' +
+        '<div class="rdp-opts">' +
+          '<label class="rdp-opt-check"><input type="checkbox" class="rdp-f-clipboard" checked> 클립보드 공유 (복사·붙여넣기)</label>' +
+          '<div class="rdp-drive-row">' +
+            '<button type="button" class="rdp-drive-pick">로컬 폴더 마운트…</button>' +
+            '<span class="rdp-drive-path" title="">선택 안 함</span>' +
+            '<button type="button" class="rdp-drive-clear" title="마운트 해제" style="display:none">×</button>' +
+          '</div>' +
+        '</div>' +
         '<div class="rdp-connect-error"></div>' +
         '<button type="button" class="rdp-connect-btn">접속</button>' +
       '</div>' +
@@ -98,6 +106,10 @@ function buildRdpPaneDom(el){
     usernameRow: el.querySelector('.rdp-f-username-row'),
     usernameInput: el.querySelector('.rdp-f-username'),
     passwordInput: el.querySelector('.rdp-f-password'),
+    clipboardCheck: el.querySelector('.rdp-f-clipboard'),
+    drivePick: el.querySelector('.rdp-drive-pick'),
+    drivePathEl: el.querySelector('.rdp-drive-path'),
+    driveClear: el.querySelector('.rdp-drive-clear'),
     connectError: el.querySelector('.rdp-connect-error'),
     connectBtn: el.querySelector('.rdp-connect-btn'),
     meta: el.querySelector('.rdp-meta'),
@@ -107,6 +119,37 @@ function buildRdpPaneDom(el){
     displayWrap: el.querySelector('.rdp-display-wrap'),
     canvas: el.querySelector('.rdp-canvas'),
   };
+}
+
+// 접속 옵션(클립보드 공유 여부, 마운트할 로컬 폴더)은 비밀이 아니므로 서버별로 기억한다. 비밀번호는 기존처럼 저장하지 않는다.
+function rdpOptsKey(srv){ return 'onegyeok.rdp.opts.' + (srv && srv.id); }
+function loadRdpOpts(srv){
+  try { return JSON.parse(localStorage.getItem(rdpOptsKey(srv)) || '{}') || {}; } catch(_e){ return {}; }
+}
+function saveRdpOpts(srv, opts){
+  try { localStorage.setItem(rdpOptsKey(srv), JSON.stringify(opts)); } catch(_e){ /* 저장 불가여도 접속에는 영향 없음 */ }
+}
+function renderRdpDriveOpt(dom, folder){
+  dom.drivePathEl.textContent = folder ? folder : '선택 안 함';
+  dom.drivePathEl.title = folder || '';
+  dom.driveClear.style.display = folder ? '' : 'none';
+  dom.drivePick.classList.toggle('on', !!folder);
+}
+function wireRdpOptions(tabId, dom, srv){
+  var opts = loadRdpOpts(srv);
+  dom.clipboardCheck.checked = opts.clipboard !== false;
+  var state = { folder: opts.folder || '' };
+  rdpSessions[tabId].driveFolder = state;
+  renderRdpDriveOpt(dom, state.folder);
+  function persist(){ saveRdpOpts(srv, { clipboard: dom.clipboardCheck.checked, folder: state.folder }); }
+  dom.clipboardCheck.addEventListener('change', persist);
+  dom.drivePick.addEventListener('click', function(){
+    if(!window.onegyeok || !window.onegyeok.pickFolder) return;
+    window.onegyeok.pickFolder().then(function(res){
+      if(res && !res.canceled && res.folderPath){ state.folder = res.folderPath; renderRdpDriveOpt(dom, state.folder); persist(); }
+    });
+  });
+  dom.driveClear.addEventListener('click', function(){ state.folder = ''; renderRdpDriveOpt(dom, ''); persist(); });
 }
 
 function showRdpConnectForm(tabId){
@@ -178,7 +221,28 @@ function setupRdpInput(tabId){
     e.preventDefault();
   });
 
+  function syncClip(){ if(hasRdpBridge && rdpSessions[tabId] && rdpSessions[tabId].clipboardOn) window.onegyeok.rdp.clipSync(tabId); }
+  // 원격 창이 앞으로 나오는(캔버스 포커스) 순간과 붙여넣기 직전에 로컬 클립보드를 원격에 알린다.
+  canvas.addEventListener('focus', syncClip);
+  var IS_MAC = /Mac/i.test(navigator.platform || '');
+  // 맥에서는 ⌘C/⌘V 같은 복사·붙여넣기 단축키를 원격(Windows)의 Ctrl+키로 바꿔 보낸다. ⌘(Meta) 자체는 Windows 키로
+  // 전달하지 않는다 — 그대로 보내면 ⌘ 뗄 때 원격 시작 메뉴가 열린다.
+  var MAC_CTRL_COMBO = { KeyC:1, KeyV:1, KeyX:1, KeyA:1, KeyZ:1, KeyY:1, KeyF:1, KeyS:1 };
   function sendKey(e, release){
+    if(IS_MAC && (e.code === 'MetaLeft' || e.code === 'MetaRight')){ e.preventDefault(); return; }
+    if(IS_MAC && e.metaKey && MAC_CTRL_COMBO[e.code] && !e.ctrlKey && !e.altKey){
+      if(!release){
+        if(e.code === 'KeyV') syncClip();
+        var kc = SCANCODE_MAP[e.code];
+        window.onegyeok.rdp.key(tabId, 0x1D, 0);
+        window.onegyeok.rdp.key(tabId, kc, 0);
+        window.onegyeok.rdp.key(tabId, kc, KBD_FLAGS_RELEASE);
+        window.onegyeok.rdp.key(tabId, 0x1D, KBD_FLAGS_RELEASE);
+      }
+      e.preventDefault();
+      return;
+    }
+    if(!release && (e.ctrlKey && e.code === 'KeyV')) syncClip();
     var scancode = SCANCODE_MAP[e.code];
     if(scancode == null) return; // 매핑 없는 키(미디어 키 등)는 무시 — 알려진 한계
     var flags = (EXTENDED_CODES[e.code] ? KBD_FLAGS_EXTENDED : 0) | (release ? KBD_FLAGS_RELEASE : 0);
@@ -303,6 +367,10 @@ function attemptRdpConnect(tabId){
     // v1은 등록 폼에 보안협상/인증서 설정 UI가 없다 — 이전 guacd 구현(ignore-cert:true)과 동일하게
     // TLS만 쓰고 인증서 검증은 건너뛴다(도메인/NLA는 향후 설정 UI 추가 시 확장).
     security: 'tls', ignoreCertificate: true,
+    clipboard: s.dom.clipboardCheck.checked,
+    // 원격에 보일 드라이브 이름은 폴더 이름을 쓴다(서버에는 "폴더이름 on PC이름"으로 표시된다).
+    drivePath: s.driveFolder && s.driveFolder.folder || undefined,
+    driveName: s.driveFolder && s.driveFolder.folder ? s.driveFolder.folder.split(/[\\/]/).filter(Boolean).pop() : undefined,
   }).then(function(res){
     if(!rdpSessions[tabId]) return;
     if(!res.ok){
@@ -319,7 +387,8 @@ function attemptRdpConnect(tabId){
     s.dom.connectBtn.disabled = false;
     s.dom.connectBtn.textContent = '접속';
     s.el.classList.add('connected');
-    s.dom.meta.textContent = srv.host + ':' + (srv.port || 3389);
+    s.dom.meta.textContent = srv.host + ':' + (srv.port || 3389) + (s.dom.clipboardCheck.checked ? '' : ' · 클립보드 꺼짐') + (s.driveFolder && s.driveFolder.folder ? ' · 폴더 마운트' : '');
+    s.clipboardOn = s.dom.clipboardCheck.checked;
     setRdpStatus(tabId, 'connected', '');
     setupRdpInput(tabId);
     s.requestedSize = w + 'x' + h;
@@ -380,7 +449,7 @@ function attachRdpSession(tabId, serverId, el){
   dom.titleEl.textContent = srv.host + ':' + (srv.port || 3389);
   dom.meta.textContent = srv.host + ':' + (srv.port || 3389);
 
-  var session = { state: 'connecting', srv: srv, el: el, dom: dom, ctx: dom.canvas.getContext('2d') };
+  var session = { state: 'connecting', srv: srv, el: el, dom: dom, ctx: dom.canvas.getContext('2d'), clipboardOn: loadRdpOpts(srv).clipboard !== false };
   rdpSessions[tabId] = session;
 
   wireRdpToolbarButtons(tabId, dom, el);
@@ -402,6 +471,7 @@ function startRdpSession(tabId, serverId, el){
   rdpSessions[tabId] = session;
 
   wireRdpToolbarButtons(tabId, dom, el);
+  wireRdpOptions(tabId, dom, srv);
 
   if(!hasRdpBridge){
     dom.connectError.textContent = 'RDP 연결 기능을 사용할 수 없습니다 (preload 브리지 없음)';

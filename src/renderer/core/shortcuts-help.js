@@ -8,6 +8,7 @@ var SHORTCUT_HELP = [
     ['연결 정보 패널 접기 / 펼치기', '⌘ I', 'Ctrl I'],
     ['팝업 닫기 (서버 등록·수정, 서버 관리, ⌘K 검색창)', 'Esc', 'Esc'],
     ['탭 닫기 (그룹탭이면 그룹 전체)', '⌘ W', 'Ctrl Shift W'],
+    ['로컬 터미널 열기 (이 PC의 셸 — git 등)', 'Ctrl Shift T', 'Ctrl Shift T'],
   ]},
   { title: '탭 이동', rows: [
     ['번호로 탭 이동', '⌘ 1–9', 'Ctrl 1–9'],

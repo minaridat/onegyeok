@@ -48,16 +48,17 @@ if [ ! -f "$PREFIX/lib/libssl.a" ] || [ ! -f "$OPENSSL_STAMP" ]; then
   touch "$OPENSSL_STAMP"
 fi
 
-# 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc + disp만 켜고 나머지는 끈다(정적 링크 크기·의존성 최소화).
+# 클라이언트 채널은 동적 해상도(drdynvc+disp)·클립보드(cliprdr)·로컬 드라이브 마운트(rdpdr+drive, FreeRDP가 rdpdr에 함께 요구하는 rdpsnd 가짜 장치 포함)만 켜고 나머지는 끈다(정적 링크 크기·의존성 최소화).
 FREERDP_CHANNEL_FLAGS=""
-for ch in AINPUT AUDIN CLIPRDR DRIVE ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPDR RDPEAR RDPECAM \
-          RDPEI RDPEMSC RDPEWA RDPGFX RDPSND REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR; do
+for ch in AINPUT AUDIN ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPEAR RDPECAM \
+          RDPEI RDPEMSC RDPEWA RDPGFX REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR; do
   FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_${ch}=OFF"
 done
-FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_DRDYNVC=ON -DCHANNEL_DISP=ON"
+FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_DRDYNVC=ON -DCHANNEL_DISP=ON -DCHANNEL_CLIPRDR=ON -DCHANNEL_RDPDR=ON -DCHANNEL_DRIVE=ON -DCHANNEL_RDPSND=ON"
 
 echo "== FreeRDP $FREERDP_TAG"
-if [ ! -f "$PREFIX/lib/libfreerdp3.a" ]; then
+FREERDP_STAMP="$PREFIX/.freerdp-channels-clip-drive-v2" # 채널 구성이 바뀌면 이 이름을 바꿔 FreeRDP를 다시 빌드하게 한다
+if [ ! -f "$PREFIX/lib/libfreerdp3.a" ] || [ ! -f "$FREERDP_STAMP" ]; then
   fetch https://github.com/FreeRDP/FreeRDP "$FREERDP_TAG" freerdp
   # 패치: 화면 크기 변경(재활성화) 직후 xrdp는 finalization(동기화 PDU)이 끝나기 전에 화면 업데이트를 먼저 보내는데,
   # FreeRDP 3.32.1의 update_recv()는 상태가 ACTIVE 미만이면 연결을 끊어버린다 — 클라이언트가 자기 finalization
@@ -88,6 +89,7 @@ PYEOF
     $FREERDP_CHANNEL_FLAGS -DWITH_INTERNAL_MD4=ON -DWITH_INTERNAL_RC4=ON
   cmake --build "$WORK/freerdp-build" -j"$JOBS"
   cmake --install "$WORK/freerdp-build"
+  touch "$FREERDP_STAMP"
 fi
 
 echo "== libvncclient $LIBVNC_TAG"

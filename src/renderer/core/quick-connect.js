@@ -258,7 +258,7 @@ function updateQcAddrBar(tabId){
   if(!qcAddrBarEl) return;
   var tab = tabId ? tabbar.querySelector('.tab[data-id="' + tabId + '"]') : null;
   var srv = tab ? SERVERS.find(function(s){ return s.id === tab.dataset.serverId; }) : null;
-  var show = !!(srv && srv.temp && srv.protocol !== 'web');
+  var show = !!(srv && srv.temp && !srv.local && srv.protocol !== 'web');
   if(qcAddrBarEl.hidden === !show && (!show || qcAddrBarEl.dataset.tab === tabId)) return;
   qcAddrBarEl.hidden = !show;
   if(show){

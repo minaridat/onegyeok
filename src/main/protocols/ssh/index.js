@@ -1,4 +1,6 @@
 const sshManager = require('../../ssh-manager');
+const localTerminal = require('../../local-terminal');
+const sessionLog = require('../../core/session-log');
 const { registerMainProtocol } = require('../../core/protocol-registry');
 
 let savedCtx = null; // wire(ctx)가 저장해둔다 — onSessionWindowChanged는 wire() 밖이라 클로저로 못 받음
@@ -15,11 +17,18 @@ registerMainProtocol('ssh', {
       // 실제 접속이 성사되기 전에 미리 등록한다.
       registerSessionWindow(sessionId, windowForEvent(event), 'ssh');
       try {
+        let logStarted = false;
         await sshManager.connect(
           sessionId,
           params,
-          (chunk) => { sendToSession(sessionId, 'ssh:data', chunk); },
+          (chunk) => { sessionLog.append(sessionId, chunk); sendToSession(sessionId, 'ssh:data', chunk); },
           (status) => {
+            // 셸이 열린 시점(connected)부터 화면 출력을 기록한다 — 접속 중 비밀번호 입력 단계는 렌더러 안에서만 처리돼 로그에 없다.
+            if (status.state === 'connected' && !logStarted) {
+              logStarted = true;
+              sessionLog.start(sessionId, { title: params.title || params.host, detail: 'SSH ' + params.username + '@' + params.host + ':' + (params.port || 22) });
+            }
+            if (status.state === 'disconnected' || status.state === 'error') sessionLog.stop(sessionId, status.state === 'error' ? '오류: ' + (status.message || '') : '연결 종료');
             sendToSession(sessionId, 'ssh:status', status);
             if (status.state === 'disconnected' || status.state === 'error') unregisterSession(sessionId);
           }
@@ -30,9 +39,33 @@ registerMainProtocol('ssh', {
       }
     });
 
-    ipcMain.on('ssh:input', (_event, sessionId, data) => { sshManager.write(sessionId, data); });
-    ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { sshManager.resize(sessionId, cols, rows); });
-    ipcMain.handle('ssh:disconnect', (_event, sessionId) => { sshManager.disconnect(sessionId); unregisterSession(sessionId); return { ok: true }; });
+    // 로컬 터미널(이 PC의 셸)도 같은 ssh:* 이벤트/입력 채널을 쓴다 — 렌더러의 SSH 터미널 화면·동시 입력·스플릿뷰를 그대로 재사용하기 위해서다.
+    ipcMain.handle('local:open', (event, sessionId, params) => {
+      registerSessionWindow(sessionId, windowForEvent(event), 'ssh');
+      try {
+        const info = localTerminal.open(
+          sessionId,
+          params || {},
+          (data) => { sessionLog.append(sessionId, data); sendToSession(sessionId, 'ssh:data', data); },
+          (status) => {
+            if (status.state === 'disconnected') sessionLog.stop(sessionId, '셸 종료');
+            sendToSession(sessionId, 'ssh:status', status);
+            if (status.state === 'disconnected') unregisterSession(sessionId);
+          }
+        );
+        sessionLog.start(sessionId, { title: '로컬 터미널', detail: info.shell + ' · ' + info.cwd });
+        return { ok: true, shell: info.shell };
+      } catch (err) {
+        unregisterSession(sessionId);
+        return { ok: false, error: '로컬 터미널을 열 수 없습니다: ' + err.message };
+      }
+    });
+    ipcMain.on('ssh:input', (_event, sessionId, data) => { if (localTerminal.has(sessionId)) localTerminal.write(sessionId, data); else sshManager.write(sessionId, data); });
+    ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { if (localTerminal.has(sessionId)) localTerminal.resize(sessionId, cols, rows); else sshManager.resize(sessionId, cols, rows); });
+    ipcMain.handle('ssh:disconnect', (_event, sessionId) => {
+      localTerminal.close(sessionId); sshManager.disconnect(sessionId); sessionLog.stop(sessionId, '연결 종료'); unregisterSession(sessionId);
+      return { ok: true };
+    });
   },
 
   // 탭이 다른 창으로 옮겨질 때(Stage B, window-manager.js) 마지막 상태를 즉시 재전송 — 그래야
@@ -43,10 +76,14 @@ registerMainProtocol('ssh', {
   },
 
   disconnectSession(sessionId) {
+    localTerminal.close(sessionId);
     sshManager.disconnect(sessionId);
+    sessionLog.stop(sessionId, '연결 종료');
   },
 
   disconnectAll() {
+    localTerminal.closeAll();
     sshManager.disconnectAll();
+    sessionLog.stopAll('앱 종료');
   },
 });

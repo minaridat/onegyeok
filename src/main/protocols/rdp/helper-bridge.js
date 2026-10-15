@@ -14,10 +14,12 @@ const MSG = {
   KEY: 0x04,
   UNICODE_KEY: 0x05,
   RESIZE: 0x06,
+  CLIP_SET: 0x07, // 로컬 클립보드 텍스트(UTF-8) — 원격 붙여넣기용으로 알림
   CONNECTED: 0x81,
   FRAME: 0x82,
   STATUS: 0x83,
   LOG: 0x84,
+  CLIP_DATA: 0x86, // 원격에서 복사한 텍스트(UTF-8)
   DESKTOP_RESIZED: 0x85, // 서버가 해상도를 바꿨다({width,height}) — 동적 해상도(화면 크기 조절)
 };
 
@@ -101,6 +103,7 @@ function spawnHelper(onEvent, onLog) {
       p.writeUInt16LE(unicode, 0); p.writeUInt8(flags, 2);
       writeFrame(child, MSG.UNICODE_KEY, p);
     },
+    clipSet(text) { writeFrame(child, MSG.CLIP_SET, Buffer.from(text, 'utf8')); },
     resize(width, height) {
       const p = Buffer.alloc(4);
       p.writeUInt16LE(width, 0); p.writeUInt16LE(height, 2);

@@ -175,6 +175,9 @@ The **Shortcuts** (단축키) tab of the right-hand panel lists every macOS and 
 
 **Also:**
 
+- **Local terminal** — the sidebar **로컬 터미널** button (or `Ctrl+Shift+T`) opens this PC's shell (macOS: login shell, Windows: `cmd.exe`) in the same view as SSH. Run `git` and other local commands without leaving the app; split view and broadcast input work too.
+- **Session logs** — everything printed on screen in SSH and local terminals (including the commands you typed) is recorded to a file automatically, one timestamp per line. Browse and search it in the **Session logs** (세션 로그) tab of the right panel, and choose retention (30 days–1 year) or turn logging off. Logs cannot be edited or deleted in the app, expire automatically, and never contain passwords because they are not shown on screen.
+- **RDP clipboard and folder mount** — in the connect form, turn on **Clipboard sharing** (text copy/paste both ways) and pick **Mount local folder…** to attach a folder of this PC as a drive in the remote session. On macOS, `⌘C`/`⌘V` are sent as `Ctrl+C`/`Ctrl+V` to the remote.
 - **No stored passwords** — passwords and key passphrases live in memory for one connection only (built for ISMS audits).
 - **Encrypted server list** — hosts, groups and notes are encrypted with the OS keychain and survive restarts.
 - **Many sessions per server** — clicking a server again always opens a new tab and a new connection.
@@ -226,7 +229,7 @@ To run from source or build the installers yourself, see the **[Developer guide]
 | **Top bar** | Server search / quick connect (⌘K) · close tab · info-panel toggle · Server management (서버 관리) · Register server (서버 등록) |
 | **Server list** | Servers grouped in a tree. Collapse with `‹` (⌘B) — the whole strip disappears and a small button at the left of the tab row brings it back |
 | **Tab row** | Open session tabs. `((•))` on the right toggles broadcast input; the small button next to it reopens a collapsed info panel |
-| **Info panel** | Three tabs: Info (연결 정보) · Notes (메모) · Shortcuts (단축키). Collapse with `›` (⌘I) |
+| **Info panel** | Four tabs: Info (연결 정보) · Notes (메모) · Shortcuts (단축키) · Session logs (세션 로그). Collapse with `›` (⌘I) |
 
 <a id="connect"></a>
 
@@ -237,7 +240,7 @@ To run from source or build the installers yourself, see the **[Developer guide]
 | **SSH** | Type at the `login as:` / `password:` prompts in the terminal (password shows as `*`). Up to 3 retries on failure, `Ctrl+C` cancels. Use the tab's ↻ to reconnect | Key auth, jump host, **Open as SFTP**, broadcast input |
 | **SQL** | Enter (user and) password in the connect form | MySQL/MariaDB · PostgreSQL · MS SQL, run with `⌘/Ctrl+Enter` (selection only if you select), result table |
 | **SFTP / FTP / FTPS** | Enter user and password | Dual panes, drag or button upload/download, compare & sync, batch rename, scheduled transfer, queue, SHA-256 verify. Plain FTP shows a warning first |
-| **RDP / VNC** | Enter (user and) password in the connect form | Toolbar: 1:1 ↔ fit-to-window · full screen · disconnect. RDP follows window/pane size with the resolution |
+| **RDP / VNC** | Enter (user and) password in the connect form | Toolbar: 1:1 ↔ fit-to-window · full screen · disconnect. RDP follows window/pane size with the resolution, plus **clipboard sharing · local folder mount** (connect form) |
 | **Web** | Register the URL as a server (or quick connect) | Editable address bar (Enter to go, Esc to revert), back/reload, `↗` open in default browser, `☆` bookmark. Self-signed certificates are blocked by default; allow per tab with "continue on this tab only" |
 
 <a id="quick-connect"></a>
@@ -278,6 +281,7 @@ Turn on `((•))` at the right of the tab row: a checkbox appears on every open 
 | Collapse / expand info panel | `⌘I` | `Ctrl+I` *(not while typing in a terminal)* |
 | Close popups (register/edit server, server management, `⌘K` palette) | `Esc` | `Esc` |
 | Close tab (whole group for a group tab) | `⌘W` | `Ctrl+Shift+W` |
+| Open a local terminal (this PC's shell) | `Ctrl+Shift+T` | `Ctrl+Shift+T` |
 | Go to tab by number | `⌘1`–`⌘9` | `Ctrl+1`–`Ctrl+9` *(not while typing in a terminal)* |
 | Previous / next tab | `Ctrl+<` / `Ctrl+>` | `Ctrl+<` / `Ctrl+>` |
 | Previous / next tab (alternatives) | `Ctrl+Tab` / `Ctrl+Shift+Tab`, `⌘<` / `⌘>` | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
@@ -329,4 +333,5 @@ Delete `~/Library/Application Support/onegyeok` (Windows: `%APPDATA%\onegyeok`) 
 - Passwords and key passphrases are never stored in any form.
 - The server list and notes are encrypted via Electron `safeStorage` on top of the OS credential store (macOS Keychain / Windows DPAPI).
 - Web console cookies live in per-tab in-memory partitions and never reach disk; there is no credential autofill.
-- Quitting the app ends every SSH/SQL/RDP/VNC/SFTP connection without exception.
+- Quitting the app ends every SSH/SQL/RDP/VNC/SFTP connection and local terminal without exception.
+- Session logs only record what is printed on screen (no keystrokes, no passwords), are stored as owner-only files (0600), and are read-only in the app.

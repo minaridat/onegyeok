@@ -26,6 +26,17 @@
 .rdp-connect-box input{font:inherit;font-size:var(--fs-sm);padding:7px 9px;border-radius:7px;border:1px solid var(--border);
   background:var(--bg);color:var(--text);}
 .rdp-connect-box input:focus{outline:none;border-color:var(--accent);}
+.rdp-opts{display:flex;flex-direction:column;gap:8px;margin-top:2px;}
+.rdp-connect-box .rdp-opt-check{flex-direction:row;align-items:center;gap:7px;cursor:pointer;}
+.rdp-connect-box .rdp-opt-check input{width:auto;padding:0;margin:0;}
+.rdp-drive-row{display:flex;align-items:center;gap:6px;min-width:0;}
+.rdp-drive-pick{flex:none;font:inherit;font-size:var(--fs-xs);padding:4px 9px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text);cursor:pointer;}
+.rdp-drive-pick:hover{background:var(--hover,rgba(255,255,255,.08));}
+.rdp-drive-pick.on{border-color:var(--accent);color:var(--accent);}
+.rdp-drive-path{flex:1;min-width:0;font-size:var(--fs-xs);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;}
+.rdp-drive-clear{flex:none;border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px;}
+.rdp-drive-clear:hover{color:var(--danger);}
 .rdp-connect-error{color:var(--danger);font-size:var(--fs-xs);min-height:1em;}
 .rdp-connect-btn{margin-top:4px;padding:8px;border-radius:7px;border:none;background:var(--accent);
   color:var(--accent-contrast);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}

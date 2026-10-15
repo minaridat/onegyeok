@@ -61,15 +61,16 @@ if (-not (Test-Path "$Prefix\lib\zlibstatic.lib")) {
 $ZlibCMake = @("-DZLIB_INCLUDE_DIR=$PrefixFwd/include", "-DZLIB_LIBRARY=$PrefixFwd/lib/zlibstatic.lib")
 $OpenSSLCMake = @("-DOPENSSL_ROOT_DIR=$PrefixFwd", '-DOPENSSL_USE_STATIC_LIBS=ON', '-DOPENSSL_MSVC_STATIC_RT=ON')
 
-# 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc + disp만 켜고 나머지는 끈다(macOS와 동일).
+# 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc+disp·클립보드(cliprdr)·로컬 드라이브 마운트(rdpdr+drive, FreeRDP가 rdpdr에 함께 요구하는 rdpsnd 가짜 장치 포함)만 켜고 나머지는 끈다(macOS와 동일).
 $channelFlags = @()
-foreach ($ch in 'AINPUT AUDIN CLIPRDR DRIVE ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPDR RDPEAR RDPECAM RDPEI RDPEMSC RDPEWA RDPGFX RDPSND REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR'.Split(' ')) {
+foreach ($ch in 'AINPUT AUDIN ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPEAR RDPECAM RDPEI RDPEMSC RDPEWA RDPGFX REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR'.Split(' ')) {
   $channelFlags += "-DCHANNEL_$ch=OFF"
 }
-$channelFlags += '-DCHANNEL_DRDYNVC=ON', '-DCHANNEL_DISP=ON'
+$channelFlags += '-DCHANNEL_DRDYNVC=ON', '-DCHANNEL_DISP=ON', '-DCHANNEL_CLIPRDR=ON', '-DCHANNEL_RDPDR=ON', '-DCHANNEL_DRIVE=ON', '-DCHANNEL_RDPSND=ON'
 
 Write-Host "== FreeRDP $FREERDP_TAG"
-if (-not (Test-Path "$Prefix\lib\freerdp3.lib")) {
+$freerdpStamp = "$Prefix\.freerdp-channels-clip-drive-v2" # 채널 구성이 바뀌면 이 이름을 바꿔 FreeRDP를 다시 빌드하게 한다
+if (-not ((Test-Path "$Prefix\lib\freerdp3.lib") -and (Test-Path $freerdpStamp))) {
   Get-Source https://github.com/FreeRDP/FreeRDP $FREERDP_TAG freerdp
   # 패치(macOS와 동일): 화면 크기 변경(재활성화) 직후 서버가 finalization이 끝나기 전에 화면 업데이트를 먼저 보내면
   # FreeRDP 3.32.1의 update_recv()가 연결을 끊는다 — CLIENT_SYNC 이후라면 업데이트를 받아들이도록 이 한 곳만 완화한다.
@@ -113,6 +114,7 @@ if (-not (Test-Path "$Prefix\lib\freerdp3.lib")) {
     '-DWITH_INTERNAL_MD4=ON', '-DWITH_INTERNAL_RC4=ON') + $channelFlags)
   Invoke-Native cmake @('--build', "$Work\freerdp-build", '-j', $Jobs)
   Invoke-Native cmake @('--install', "$Work\freerdp-build")
+  New-Item -ItemType File -Force $freerdpStamp | Out-Null
 }
 
 Write-Host "== libvncclient $LIBVNC_TAG"

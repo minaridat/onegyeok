@@ -117,3 +117,11 @@ macOS의 `scripts/mac/build-native-deps.sh`를 참고해 `scripts/win/build-nati
 - 릴리스: Windows 설치 파일은 GitHub Releases에 **macOS dmg와 같은 릴리스**에 `onegyeok-x64.exe` 등으로 추가하고, README의 설치 안내에 Windows 항목(다운로드 링크, SmartScreen 안내)을 추가한다.
 - macOS 빌드 설정·스크립트(`scripts/mac`, `build.mac`)는 수정하지 않는다. `extraResources` 변경은 macOS 빌드에 영향이 없는지 `npm run dist:mac`로 확인(가능한 경우).
 - 외부 서비스로 소스·설치 파일을 올리거나 인증서를 새로 발급하는 등 되돌리기 어려운 작업은 사용자에게 먼저 확인한다.
+
+
+## 7. 추가 기능 반영 시 Windows에서 해야 할 일 (RDP 클립보드·드라이브 마운트, 로컬 터미널, 세션 로그)
+
+1. **FreeRDP 다시 빌드** — `scripts/win/build-native-deps.ps1`이 이제 채널 `cliprdr`, `rdpdr`, `drive`, `rdpsnd`(rdpdr가 가짜 소리 장치를 함께 요구)를 켠다. 스크립트가 스탬프 파일(`.freerdp-channels-clip-drive-v2`)로 재빌드 여부를 판단하므로 그냥 다시 실행하면 FreeRDP가 다시 빌드된다.
+2. **RDP 헬퍼 다시 빌드·링크** — `native/rdp-helper/src/main.c`에 cliprdr/rdpdr 코드가 들어갔다. `ConvertUtf8NToWCharAlloc`, `ConvertWCharNToUtf8Alloc`(winpr string.h)을 쓴다. 링크 오류가 나면 rdpsnd/drive 채널이 쓰는 Windows 시스템 라이브러리(`winmm`, `shlwapi` 등)를 `native/rdp-helper/CMakeLists.txt`(또는 `scripts/win/build-native.ps1`)의 링크 목록에 추가한다. macOS에서는 `CoreServices`·`AudioToolbox`·`CoreAudio`·`AVFoundation` 프레임워크를 추가해야 했다.
+3. **node-pty** — 로컬 터미널용(`npm install`로 설치, 미리 빌드된 `prebuilds/win32-x64`를 쓰므로 컴파일러 불필요). `package.json`의 `asarUnpack`/`files` 설정이 이미 되어 있다. 설치 후 `npm run dist:win` 결과의 `resources/app.asar.unpacked/node_modules/node-pty/prebuilds/win32-x64/`에 `pty.node`, `conpty.node`, `conpty/`(OpenConsole.exe 등)가 있는지 확인한다.
+4. **검증**: ① 로컬 터미널(Ctrl+Shift+T)에서 `cmd.exe`가 뜨고 `git --version`이 나오는지(Git for Windows가 PATH에 있어야 함), ② RDP 접속 폼에서 클립보드 공유로 양방향 복사·붙여넣기(Windows Server ↔ 로컬), ③ "로컬 폴더 마운트…"로 고른 폴더가 원격 탐색기의 "<폴더명> on <PC이름>" 드라이브로 보이고 파일을 열 수 있는지, ④ 세션 로그 탭에 SSH/로컬 터미널 기록이 쌓이는지.

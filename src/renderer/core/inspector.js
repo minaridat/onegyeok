@@ -7,7 +7,8 @@ function inspectorFor(tabId){
   currentInspectedServerId = serverId;
   var inspectedTab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   var proto = (inspectedTab && inspectedTab.dataset.protocol) || row.dataset.protocol;
-  document.getElementById('openSftpBtn').style.display = row.dataset.protocol === 'ssh' ? '' : 'none';
+  var inspSrv = SERVERS.find(function(s){ return s.id === serverId; });
+  document.getElementById('openSftpBtn').style.display = (row.dataset.protocol === 'ssh' && !(inspSrv && inspSrv.local)) ? '' : 'none';
   var tab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   var tabNameEl = tab && tab.querySelector('.tab-name');
   document.getElementById('i-name').textContent = (tabNameEl && tabNameEl.textContent) || serverId;

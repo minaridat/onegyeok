@@ -216,6 +216,10 @@
           <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="13 4 7 10 13 16"></polyline></svg>
         </button>
       </div>
+      <button class="sidebar-local-term" id="localTermBtn" type="button" title="이 PC의 터미널 열기 (Ctrl Shift T)">
+        <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><rect x="2.5" y="3.5" width="15" height="13" rx="1.8"></rect><polyline points="6 8 9 10.5 6 13"></polyline><line x1="10.5" y1="13" x2="14" y2="13"></line></svg>
+        로컬 터미널 <span class="sidebar-local-hint">git 등 이 PC 명령어</span>
+      </button>
       <button class="sidebar-web-add" id="sidebarWebAddBtn" type="button" hidden>＋ Web 등록 (북마크)</button>
       <div class="tab-hint"><span><kbd>⌘1‑9</kbd> 탭 이동</span><span><kbd>Ctrl</kbd>+<kbd>&lt;/&gt;</kbd> 이전·다음 탭</span><span><kbd>⌘⌥+방향키</kbd> 그룹탭 칸 이동(Win: Ctrl+Alt)</span></div>
       <div class="tree" id="tree"></div>
@@ -290,6 +294,10 @@
               <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><rect x="2.5" y="5" width="15" height="10" rx="1.6"></rect><line x1="5.5" y1="8.5" x2="6.5" y2="8.5"></line><line x1="9.5" y1="8.5" x2="10.5" y2="8.5"></line><line x1="13.5" y1="8.5" x2="14.5" y2="8.5"></line><line x1="6.5" y1="12" x2="13.5" y2="12"></line></svg>
               단축키
             </button>
+            <button class="insp-tab insp-tab-logs" type="button" data-tab="logs">
+              <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><rect x="3.5" y="2.5" width="13" height="15" rx="1.6"></rect><line x1="6.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="6.5" y1="9.5" x2="13.5" y2="9.5"></line><line x1="6.5" y1="12.5" x2="10.5" y2="12.5"></line></svg>
+              세션 로그
+            </button>
           </div>
         </div>
 
@@ -325,6 +333,23 @@
           <div class="shortcut-help" id="shortcutHelp"></div>
         </div>
 
+        <div class="insp-pane" data-pane="logs">
+          <div class="slog">
+            <p class="slog-desc">SSH·로컬 터미널에서 화면에 나온 모든 출력(입력한 명령어 포함)을 파일로 자동 기록합니다. 감사·문제 해결용이라 앱에서는 열람만 가능하고, 보관 기간이 지나면 자동 삭제됩니다. 비밀번호는 화면에 표시되지 않아 기록되지 않습니다.</p>
+            <label class="slog-opt"><input type="checkbox" id="slogEnabled"> 세션 로그 자동 기록</label>
+            <label class="slog-opt">보관 기간
+              <select id="slogRetention"><option value="30">30일</option><option value="90">90일</option><option value="180">180일</option><option value="365">1년</option></select>
+            </label>
+            <div class="slog-actions">
+              <button class="insp-btn" id="slogCurrentBtn" type="button">이 탭 로그 보기</button>
+              <button class="insp-btn" id="slogFolderBtn" type="button">로그 폴더 열기</button>
+              <button class="insp-btn" id="slogRefreshBtn" type="button">새로고침</button>
+            </div>
+            <div class="slog-path" id="slogDir"></div>
+            <div class="slog-list" id="slogList"></div>
+          </div>
+        </div>
+
         <div class="insp-pane" data-pane="memo">
           <div class="insp-memo">
             <div class="insp-memo-head">
@@ -352,6 +377,18 @@
     </footer>
   </div>
 
+<div class="slog-backdrop" id="slogViewBackdrop" hidden>
+  <div class="slog-view" role="dialog" aria-label="세션 로그">
+    <div class="slog-view-head">
+      <span class="slog-view-title" id="slogViewTitle"></span>
+      <input type="text" id="slogViewSearch" placeholder="검색 (포함된 줄만 표시)">
+      <button class="insp-btn" id="slogViewFolder" type="button">폴더에서 보기</button>
+      <button class="insp-btn" id="slogViewClose" type="button">닫기</button>
+    </div>
+    <div class="slog-view-note" id="slogViewNote"></div>
+    <pre class="slog-view-body" id="slogViewBody"></pre>
+  </div>
+</div>
 <script src="vendor/xterm.js"></script>
 <script src="vendor/addon-fit.js"></script>
 
@@ -372,6 +409,8 @@
 <script src="core/edit-modal.js"></script>
 <script src="core/command-palette.js"></script>
 <script src="core/keyboard-shortcuts.js"></script>
+<script src="core/local-terminal.js"></script>
+<script src="core/session-log-ui.js"></script>
 <script src="core/inspector-toggle.js"></script>
 
 <script src="protocols/ssh/ssh.js"></script>

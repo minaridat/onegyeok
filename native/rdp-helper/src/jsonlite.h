@@ -18,6 +18,9 @@ typedef struct {
 	int colorDepth;
 	char* security; /* "tls" | "nla" | "rdp" */
 	int ignoreCertificate; /* 0/1 */
+	int clipboard; /* 1이면 클립보드(텍스트) 공유 채널을 연다 */
+	char* driveName; /* 원격에 보일 드라이브 이름 — NULL이면 드라이브 마운트 안 함 */
+	char* drivePath; /* 마운트할 로컬 폴더 경로 */
 } ConnectParams;
 
 /* Parses payload (NOT necessarily NUL-terminated; exactly `len` bytes) into *out.

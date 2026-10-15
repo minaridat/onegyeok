@@ -15,6 +15,18 @@ function wire(ctx) {
     });
     return { canceled: result.canceled, filePath: result.filePaths[0] || null };
   });
+
+  // RDP 로컬 폴더 마운트용 폴더 선택
+  ipcMain.handle('dialog:pick-folder', async () => {
+    const win = getMainWindow();
+    if (!win) return { canceled: true };
+    const result = await dialog.showOpenDialog(win, {
+      title: '원격에 연결할 로컬 폴더 선택',
+      defaultPath: app.getPath('home'),
+      properties: ['openDirectory'],
+    });
+    return { canceled: result.canceled, folderPath: result.filePaths[0] || null };
+  });
 }
 
 module.exports = { wire };

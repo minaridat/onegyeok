@@ -4,6 +4,7 @@ const windowRegistry = require('./core/window-registry');
 const windowManager = require('./core/window-manager');
 const dialogCore = require('./core/dialog');
 const memoStore = require('./core/memo-store');
+const sessionLogCore = require('./core/session-log');
 const serverStore = require('./core/server-store');
 const { installAppMenu } = require('./core/app-menu');
 
@@ -43,6 +44,7 @@ ipcMain.handle('ping', () => 'pong');
 
 wireAll(ctx);
 dialogCore.wire(ctx);
+sessionLogCore.wire();
 memoStore.wire(ctx);
 serverStore.wire(ctx);
 
