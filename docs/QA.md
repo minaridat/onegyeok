@@ -38,6 +38,11 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | 26 | 단축키 | 탭 닫기 단축키(⌘W / Windows Ctrl+Shift+W, 그룹탭 포함) 추가, Esc 설명 보강 | ✅ |
 | 27 | 창 | 창 제목에 열린 세션 수 표시(onegyeok N) | ✅ |
 | 28 | 문서 | README 개편(다운로드 버튼·기능별 소개·설치 안내·매뉴얼), 개발자 가이드 분리, 다국어(中文·日本語·English) | ✅ |
+| 29 | RDP | macOS: 클립보드(텍스트) 양방향 — 패키징 앱+xrdp에서 맥→원격·원격→맥(한글 포함) 확인. **Electron 44 macOS의 `clipboard.readText()`는 Promise를 돌려줘** `text.replace` 호출이 터지던 것을 `await`로 수정(Windows 문자열 반환과 둘 다 지원) | ✅ (실제 Windows Server는 미확인) |
+| 30 | RDP | macOS: 로컬 폴더(드라이브) 공유 — xrdp 서버가 "remote drive"로 인식하는 것까지 확인(테스트 서버에 FUSE가 없어 원격 파일 목록은 못 봄) | ✅ (파일 목록은 Windows Server에서 확인 필요) |
+| 31 | 터미널 | macOS: 로컬 터미널(레일 버튼, zsh·bash) — 패키징 앱에서 `git --version` 확인. `app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/`에 `pty.node`·`spawn-helper`(실행 권한) 생성 확인 | ✅ |
+| 32 | 로그 | macOS: 세션 로그 — zsh·bash에서 명령이 겹치지 않고(`git --version`, 백스페이스 포함) 한 줄로 남는지 확인. 입력 줄 다시 그리기(커서 이동·지우기)를 줄 편집으로 반영하도록 `session-log.js`를 고쳐 줄마다 `[시각]`을 붙이고 파일 0600·폴더 0700으로 변경. ConPTY식 커서 위치 지정 출력은 흉내 입력으로만 확인(실제 Windows 미확인) | ✅ (Windows PowerShell·cmd는 확인 필요) |
+| 33 | 빌드 | `scripts/mac/build-native-deps.sh`에 cliprdr·rdpdr·drive·rdpsnd 채널 추가(구성이 바뀌면 FreeRDP만 자동 재빌드), 헬퍼 링크에 macOS 프레임워크(CoreServices·AudioToolbox·CoreAudio·AVFoundation) 추가, `npm install` 후 spawn-helper 실행 권한 부여(`scripts/fix-node-pty.js`), dmg에 다른 OS용 node-pty 바이너리 제외 | ✅ |
 | 21 | VNC | 비밀번호 인증이 항상 실패 (OpenSSL `no-module` 누락) | ✅ (Windows 빌드에서 발견) |
 
 ---
@@ -273,6 +278,8 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | W13 | 로컬 터미널(cmd · PowerShell · Git Bash · WSL) + git | ✅ | 개발 앱에서 셸 목록 감지, cmd에서 `git --version`, Git Bash(`TERM=xterm-256color`) 확인 |
 | W14 | 터미널 `Ctrl+C`(선택 시 복사 / 아니면 취소) · `Ctrl+V` 붙여넣기 | 🟡 | 로컬 터미널: `ping -t` 중 `Ctrl+C`로 취소, 선택 후 `Ctrl+C`는 선택 글자만 복사하고 셸에 ^C 안 감, `Ctrl+V`의 paste 이벤트가 셸 입력으로 들어감. SSH도 같은 처리. 실제 OS 클립보드로는 수동 확인 필요(W11과 같은 이유) |
 | W15 | 터미널 세션 로그 | ✅ | 테스트용 SSH 서버·로컬 cmd로 확인: 세션마다 파일 생성, 명령·출력 기록, 색상 코드 제거, 비밀번호 미기록 |
+| W16 | 설치 파일에 git 포함(MinGit) | ✅ | 시스템 git 경로를 PATH에서 모두 뺀 상태로 패키징 앱 실행 → cmd에서 `where git`이 `resources\git\cmd\git.exe`, `git --version` 2.56.0, `git ls-remote https://…`(HTTPS) 동작 |
+| W17 | 세션 로그 — macOS 쪽 줄 편집 방식(#32)의 Windows 확인 | ✅ | 실제 ConPTY(cmd·PowerShell·Git Bash)에서 출력 줄이 사라지던 것과 창 크기 변경 뒤 명령이 떨어진 줄로 남던 것을 고침(아래). 8줄 터미널 스크롤, 명령 반쯤 친 상태의 크기 변경, 한글 입력, 패키징 앱에서 확인 |
 
 ### W8. Windows에서 앱 단축키가 터미널 Ctrl 키와 충돌 — 🟡 수정, 수동 확인 필요
 
@@ -328,10 +335,26 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
   - 헬퍼는 채널이 빌드에 들어 있는지 실행 중에 확인해, 없는 빌드에서는 그 기능만 끄고 접속한다. **macOS 배포 빌드(`scripts/mac/build-native-deps.sh`)는 아직 채널을 drdynvc+disp만 넣으므로 맥에서 쓰려면 그 스크립트에 `-DCHANNEL_CLIPRDR=ON -DCHANNEL_RDPDR=ON -DCHANNEL_DRIVE=ON -DCHANNEL_RDPSND=ON`을 넣어 다시 빌드해야 한다**(지시서 규칙상 맥 스크립트는 수정하지 않음). 헬퍼 소스는 `clipboard.c`가 늘어 `Makefile`·`CMakeLists.txt`에 추가했다.
   - 실제 서버 확인 중 같은 계정의 연결이 끊긴 세션이 두 개 있어 "다시 연결할 세션 선택" 창이 떴다(첫 번째 세션 선택). 테스트로 연 탐색기 창은 닫아 원래 상태로 돌려 두었다. 드라이브 채널이 FreeRDP 로그에 `drive_map_windows_err: Error code not found: 87`을 남기지만 동작에는 영향 없음.
 - **로컬 터미널 (W13)** — 레일 맨 아래 **로컬 터미널** 버튼 → 이 PC의 셸 고르기(PowerShell, PowerShell 7, cmd, Git Bash, WSL 중 있는 것 / macOS는 zsh·bash). `node-pty`(ConPTY)로 진짜 콘솔을 만들어 xterm에 잇는다. node-pty 1.1.0은 Windows·macOS용 미리 빌드된 바이너리(N-API)를 포함해 Electron용 재컴파일이 필요 없다. 패키징 시 `asarUnpack`으로 꺼내 둔다. 고른 셸은 "빠른 연결" 그룹에 남아 다시 열 수 있다.
-  - git은 Git for Windows가 설치돼 있어야 한다(설치 파일에 git을 넣지 않음). 없으면 셸 고르기 화면에 설치 안내가 뜬다.
+  - git은 W16부터 설치 파일에 들어 있다(아래). Git Bash는 Git for Windows를 설치했을 때만 보인다.
 - **터미널 복사/붙여넣기 (W14)** — Windows Terminal·WSL 창과 같게: `Ctrl+C`는 선택한 글자가 있으면 복사(선택 해제), 없으면 그대로 ^C. `Ctrl+V`는 붙여넣기(xterm이 ^V를 보내지 않고 브라우저 기본 붙여넣기 → 여러 줄은 bracketed paste). `Ctrl+Shift+C/V`도 같은 동작. macOS는 ⌘C/⌘V가 있어 바꾸지 않았다. SSH·로컬 터미널 공통(`keyboard-shortcuts.js` `terminalKeyPassthrough`).
 - **세션 로그 (W15)** — SSH·로컬 터미널의 출력을 세션마다 `<userData>/session-logs/YYYY-MM-DD/HHMMSS_서버이름.log`로 자동 저장(`src/main/core/session-log.js`). 입력한 명령은 셸이 되돌려 찍으므로 같이 남고, 화면에 안 나오는 입력(비밀번호 등)은 남지 않는다(키 입력 자체는 기록하지 않음). 색상·커서 이동 코드는 지우고, ConPTY처럼 커서 이동으로 줄을 바꾸는 출력은 줄바꿈으로 바꾸며, 빈 줄은 한 줄로 줄인다. 메뉴 **도구 › 터미널 세션 로그 기록**(기본 켬, `settings.json`에 저장) / **도구 › 세션 로그 폴더 열기**. 오래된 로그 자동 삭제는 없다.
 - **테스트 방법**: 개발 앱을 CDP로 조작(셸 실행·키 입력·버퍼 확인), 테스트용 SSH 서버(ssh2 Server, 127.0.0.1)로 SSH 경로와 로그 확인. 이 PC는 콘솔 세션이 잠겨 있어 OS 클립보드를 쓸 수 없어(`Set-Clipboard`도 실패) 실제 클립보드 왕복은 확인하지 못했다.
+
+### W16. 설치 파일에 git 포함
+요청: git을 설치 파일에 같이 넣기.
+
+- Git for Windows가 앱에 넣어 배포하라고 내는 **MinGit**(git과 필요한 ssh·curl, Git Bash 없음)을 넣었다. PortableGit(Git Bash 포함)은 설치 후 300MB 이상이라 뺐다. 설치 파일이 약 125MB에서 155MB로 커졌다.
+- `scripts/win/fetch-mingit.ps1`: 버전(2.56.0.2)과 SHA256을 고정해 받아 `build/win-git/mingit`에 푼다. 해시가 다르면 멈춘다. `build-native.ps1`(= `npm run build:native:win`)이 마지막에 부른다. `package.json` `build.win.extraResources`가 이것을 `resources/git`으로 넣는다(맥 빌드에는 안 들어감).
+- 로컬 터미널(`src/main/protocols/local/index.js`)은 셸을 띄울 때 `resources/git/cmd`를 PATH **맨 뒤**에 붙인다. PC에 직접 설치한 git이 있으면 그쪽이 먼저 잡힌다. 개발 실행에서는 `build/win-git/mingit`을 쓴다. Windows 환경 변수 키가 `Path`로 들어 있어 같은 키에 붙인다(새 `PATH` 키를 만들면 둘이 겹친다).
+- **빌드 설정 문제를 같이 고침**: macOS 쪽이 `build.win.files`·`build.mac.files`에 제외 패턴만 넣었는데, electron-builder는 제외만 있는 목록이면 "프로젝트 전체에서 이것만 빼기"로 받아들여 `dist/`·`native/` 등이 app.asar에 들어갔다(설치 파일 422MB). `win.files`에 `src/**/*`·`package.json`과 공통 제외 패턴을 함께 적어 원래대로(app.asar 50MB) 돌렸다. **`mac.files`도 같은 상태라 맥 dmg도 커졌을 수 있다**(맥 설정은 지시서 규칙상 수정하지 않음).
+
+### W17. 세션 로그 — Windows ConPTY 확인과 수정
+macOS 쪽이 세션 로그를 "현재 줄을 메모리에 두고 커서 이동·지우기를 반영한 뒤 쓰는" 방식으로 바꾸면서 Windows는 흉내 입력으로만 확인했다(#32). node-pty로 실제 cmd·PowerShell·Git Bash를 띄워 사람처럼 한 글자씩 치고(오타·백스페이스 포함) 로그를 비교했다.
+
+- **출력 줄이 사라짐**: cmd에서 `echo`·`cd` 결과가, PowerShell에서 `Get-Location` 결과가 로그에 없었다. ConPTY는 출력 뒤 빈 줄을 건너뛸 때 `\n` 다음 "행;1 H"로 프롬프트를 그리는데, `\n` 뒤에 현재 행을 잊고 있어 같은 행으로 보고 프롬프트가 방금 찍은 출력 줄을 덮어썼다. → `\n`마다 행을 하나 내리고(터미널 높이에서 멈춤 — 스크롤), 높이는 `open({rows})`·`sessionLog.resize()`로 SSH·로컬 터미널이 알려 준다.
+- **창 크기 변경 뒤 명령이 떨어진 줄로 남음**: ConPTY는 크기 변경 때 `CSI 8;행;열 t` 뒤에 화면 전체를 다시 그리고 커서를 프롬프트 끝으로 되돌린다. 이것을 그대로 쓰면 화면 내용이 한 번 더 남고, 되돌아간 프롬프트 뒤의 명령이 `                    where git`처럼 따로 남았다. → 그 조각이 끝날 때까지는 행마다 내용만 기억하고, 커서가 돌아간 행이 하던 줄과 같으면 이어 쓴다. 크기 변경이 출력 도중에 끼면(앱이 셸을 띄우자마자 칸 크기를 맞춤) 다시 그린 화면에만 있는 줄을 기록한다. 이전 버전에서 남던 "크기 변경 때 배너 두 번" 문제도 함께 없어졌다.
+- 한글 같은 전각 글자는 터미널에서 두 칸이라 한 칸 더 잡아 커서 열 위치가 맞게 했다.
+- 확인: cmd·PowerShell·Git Bash 기본, 8줄 터미널에서 스크롤된 뒤 프롬프트, 크기 변경 여러 번(명령 반쯤 친 상태 포함), 셸 시작 직후 크기 변경, 흉내 SSH(readline 백스페이스·한글 지우기), 패키징 앱(cmd)에서 모두 명령·출력이 한 줄씩 빠짐없이 남음.
 
 ### 릴리스 기록
 
@@ -342,6 +365,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | v0.1.14 (재교체) | RDP 딜레이 수정(W10) 포함 재빌드, sha256 `6f8ee8c6…47a432` | 맥 dmg는 그대로(이 수정 미포함 — 맥은 main을 받아 헬퍼까지 다시 빌드해야 함) |
 | v0.1.15 | v0.1.14 재교체본과 같은 파일 | 맥 쪽에서 만든 릴리스(맥 dmg에 RDP 딜레이 수정 반영) |
 | v0.1.16 | main d8ac240 기준 빌드(W11~W15: RDP 클립보드·폴더 공유, 로컬 터미널, 터미널 복붙, 세션 로그), sha256 `c516c110…c7f43aba` | 새 릴리스. `releases/latest` 링크가 깨지지 않게 맥 dmg는 v0.1.15 파일(sha256 `6cc0f520…6a2f70`)을 그대로 함께 올림. 이 기능은 맥 dmg에 아직 없음 |
+| v0.1.17 | main 기준 빌드(W16 git 포함, W17 세션 로그 수정, macOS 쪽 #29~#33 병합분 포함), sha256 `09d3df81…3ce4478c`, 154592658바이트 | 맥 dmg는 v0.1.16과 같은 v0.1.15 파일(맥 쪽에서 새 dmg를 올리면 교체) |
 
 ### 참고
 
