@@ -1,4 +1,5 @@
 const sshManager = require('../../ssh-manager');
+const sessionLog = require('../../core/session-log');
 const { registerMainProtocol } = require('../../core/protocol-registry');
 
 let savedCtx = null; // wire(ctx)가 저장해둔다 — onSessionWindowChanged는 wire() 밖이라 클로저로 못 받음
@@ -18,10 +19,12 @@ registerMainProtocol('ssh', {
         await sshManager.connect(
           sessionId,
           params,
-          (chunk) => { sendToSession(sessionId, 'ssh:data', chunk); },
+          (chunk) => { sendToSession(sessionId, 'ssh:data', chunk); sessionLog.write(sessionId, chunk); },
           (status) => {
             sendToSession(sessionId, 'ssh:status', status);
-            if (status.state === 'disconnected' || status.state === 'error') unregisterSession(sessionId);
+            // 세션 로그(core/session-log.js): 인증을 통과해 셸이 열린 뒤의 출력만 기록한다.
+            if (status.state === 'connected') sessionLog.open(sessionId, { protocol: 'ssh', name: params.serverName, host: params.host, username: params.username });
+            if (status.state === 'disconnected' || status.state === 'error') { sessionLog.close(sessionId); unregisterSession(sessionId); }
           }
         );
         return { ok: true };
@@ -32,7 +35,7 @@ registerMainProtocol('ssh', {
 
     ipcMain.on('ssh:input', (_event, sessionId, data) => { sshManager.write(sessionId, data); });
     ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { sshManager.resize(sessionId, cols, rows); });
-    ipcMain.handle('ssh:disconnect', (_event, sessionId) => { sshManager.disconnect(sessionId); unregisterSession(sessionId); return { ok: true }; });
+    ipcMain.handle('ssh:disconnect', (_event, sessionId) => { sshManager.disconnect(sessionId); sessionLog.close(sessionId); unregisterSession(sessionId); return { ok: true }; });
   },
 
   // 탭이 다른 창으로 옮겨질 때(Stage B, window-manager.js) 마지막 상태를 즉시 재전송 — 그래야
@@ -44,9 +47,11 @@ registerMainProtocol('ssh', {
 
   disconnectSession(sessionId) {
     sshManager.disconnect(sessionId);
+    sessionLog.close(sessionId);
   },
 
   disconnectAll() {
     sshManager.disconnectAll();
+    sessionLog.closeAll();
   },
 });

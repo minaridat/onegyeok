@@ -15,6 +15,7 @@ require('./protocols/rdp');
 require('./protocols/vnc');
 require('./protocols/sftp');
 require('./protocols/web');
+require('./protocols/local');
 
 let mainWindow = null; // 앱의 첫 창(= 일반 종료 로직이 기준으로 삼는 "주 창")
 let isQuitting = false; // before-quit 경로와 window-manager의 "보조 창 닫힘" 세션 정리가 겹치지 않게 함

@@ -28,7 +28,10 @@
 #include <freerdp/addin.h>
 #include <freerdp/client/channels.h>
 #include <freerdp/channels/disp.h>
+#include <freerdp/channels/cliprdr.h>
+#include <freerdp/channels/rdpdr.h>
 
+#include "clipboard.h"
 #include "framing.h"
 #include "jsonlite.h"
 
@@ -39,6 +42,7 @@
 #define MSG_KEY 0x04
 #define MSG_UNICODE_KEY 0x05
 #define MSG_RESIZE 0x06
+#define MSG_CLIPBOARD 0x07 /* Node -> helper: 로컬 클립보드 텍스트(UTF-8). helper -> Node 방향은 clipboard.c의 0x86 */
 /* helper -> Node */
 #define MSG_CONNECTED 0x81
 #define MSG_FRAME 0x82
@@ -208,11 +212,25 @@ static void on_channel_connected(void* ctx, const ChannelConnectedEventArgs* e) 
 	(void)ctx;
 	if (e && e->name) log_msg("channel connected: %s", e->name);
 	if (e && e->name && strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0) g_disp = (DispClientContext*)e->pInterface;
+	if (e && e->name && strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0 && e->pInterface)
+		clip_attach((CliprdrClientContext*)e->pInterface);
 }
 
 static void on_channel_disconnected(void* ctx, const ChannelDisconnectedEventArgs* e) {
 	(void)ctx;
 	if (e && e->name && strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0) g_disp = NULL;
+	if (e && e->name && strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) clip_detach();
+}
+
+/* 채널이 이 빌드에 들어 있는지 — FreeRDP 의존성을 빌드할 때 켠 채널만 쓸 수 있다(scripts/win/build-native-deps.ps1). 없는 채널을
+ * 켜면 freerdp_client_load_addins가 실패해 접속 자체가 막히므로, 없으면 그 기능만 끄고 접속한다. */
+static BOOL have_static_channel(const char* name) {
+	return freerdp_load_channel_addin_entry(name, NULL, NULL, FREERDP_ADDIN_CHANNEL_STATIC | FREERDP_ADDIN_CHANNEL_ENTRYEX) != NULL ||
+	       freerdp_load_channel_addin_entry(name, NULL, NULL, FREERDP_ADDIN_CHANNEL_STATIC) != NULL;
+}
+
+static BOOL have_device_channel(const char* name) {
+	return freerdp_load_channel_addin_entry(name, NULL, NULL, FREERDP_ADDIN_CHANNEL_DEVICE) != NULL;
 }
 
 static BOOL my_desktop_resize(rdpContext* context) {
@@ -289,16 +307,37 @@ static BOOL my_pre_connect(freerdp* instance) {
 	freerdp_settings_set_bool(settings, FreeRDP_SupportDynamicChannels, TRUE);
 	freerdp_settings_set_bool(settings, FreeRDP_SupportDisplayControl, TRUE);
 	freerdp_settings_set_bool(settings, FreeRDP_DynamicResolutionUpdate, TRUE);
-	/* 아래 RDP8 기능들은 켜져 있으면 FreeRDP가 rdpdr(장치 리디렉션) 채널을 강제로 요구하는데, 이 헬퍼는 해당 채널을
-	 * 빌드에 넣지 않았으므로 끈다 — 안 끄면 freerdp_client_load_addins가 rdpdr 로드 실패로 접속 자체가 막힌다. */
+	/* 아래 RDP8 기능들은 켜져 있으면 FreeRDP가 rdpdr(장치 리디렉션) 채널을 강제로 요구한다 — rdpdr이 없는 빌드에서
+	 * freerdp_client_load_addins가 실패해 접속 자체가 막히지 않도록 끈다(드라이브 공유는 아래에서 채널이 있을 때만 켠다). */
 	freerdp_settings_set_bool(settings, FreeRDP_NetworkAutoDetect, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_SupportHeartbeatPdu, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_SupportMultitransport, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_AudioCapture, FALSE);
-	freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, FALSE);
 	freerdp_settings_set_bool(settings, FreeRDP_SupportGraphicsPipeline, FALSE);
+
+	/* 클립보드 공유(텍스트) — clipboard.c */
+	BOOL clip = g_params.clipboard && have_static_channel(CLIPRDR_SVC_CHANNEL_NAME);
+	if (g_params.clipboard && !clip) log_msg("cliprdr channel not built in; clipboard sharing disabled");
+	freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, clip);
+
+	/* 로컬 폴더 공유 — 원격의 탐색기에 "\\tsclient\<이름>"(내 PC의 리디렉션된 드라이브)으로 보인다. rdpdr을 켜면 FreeRDP가
+	 * rdpsnd(sys:fake)도 함께 불러오므로 셋 다 있어야 한다. */
+	if (g_params.drivePath && g_params.drivePath[0]) {
+		if (have_static_channel(RDPDR_SVC_CHANNEL_NAME) && have_static_channel("rdpsnd") && have_device_channel("drive")) {
+			const char* name = (g_params.driveName && g_params.driveName[0]) ? g_params.driveName : "onegyeok";
+			const char* dev[] = { "drive", name, g_params.drivePath };
+			if (freerdp_client_add_device_channel(settings, 3, dev)) {
+				freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, TRUE);
+				log_msg("drive redirection: %s", name);
+			} else {
+				log_msg("drive redirection setup failed");
+			}
+		} else {
+			log_msg("rdpdr/drive channel not built in; drive redirection disabled");
+		}
+	}
 	PubSub_SubscribeChannelConnected(instance->context->pubSub, on_channel_connected);
 	PubSub_SubscribeChannelDisconnected(instance->context->pubSub, on_channel_disconnected);
 	/* 채널 로드는 여기서 하지 않는다 — FreeRDP가 PreConnect 직후 채널 객체를 새로 만들어 바꿔치기(utils_reload_channels)하므로
@@ -424,6 +463,7 @@ static void* run_connection(void* arg) {
 		if (items) dispatch_input(instance->context->input, items);
 		send_pending_resize();
 		send_due_refresh(instance->context);
+		clip_poll();
 
 		uint64_t now = now_ms();
 		if (now - last_emit >= 16) {
@@ -485,6 +525,10 @@ int main(void) {
 			case MSG_KEY:
 			case MSG_UNICODE_KEY:
 				if (f.payload_len > 0) queue_push(f.type, f.payload, (uint8_t)f.payload_len);
+				free(f.payload);
+				break;
+			case MSG_CLIPBOARD:
+				clip_set_local_text(f.payload, f.payload_len);
 				free(f.payload);
 				break;
 			case MSG_RESIZE:

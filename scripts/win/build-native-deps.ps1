@@ -61,12 +61,22 @@ if (-not (Test-Path "$Prefix\lib\zlibstatic.lib")) {
 $ZlibCMake = @("-DZLIB_INCLUDE_DIR=$PrefixFwd/include", "-DZLIB_LIBRARY=$PrefixFwd/lib/zlibstatic.lib")
 $OpenSSLCMake = @("-DOPENSSL_ROOT_DIR=$PrefixFwd", '-DOPENSSL_USE_STATIC_LIBS=ON', '-DOPENSSL_MSVC_STATIC_RT=ON')
 
-# 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc + disp만 켜고 나머지는 끈다(macOS와 동일).
+# 클라이언트 채널: 동적 해상도(화면 크기 조절)용 drdynvc + disp, 클립보드 공유용 cliprdr, 로컬 폴더(드라이브) 공유용 rdpdr + drive(+ rdpsnd)만 켜고
+# 나머지는 끈다. 헬퍼는 채널이 빌드에 들어 있는지 실행 중에 확인하므로, 이 채널이 없는 빌드(현재 macOS)에서도 접속은 된다.
 $channelFlags = @()
-foreach ($ch in 'AINPUT AUDIN CLIPRDR DRIVE ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPDR RDPEAR RDPECAM RDPEI RDPEMSC RDPEWA RDPGFX RDPSND REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR'.Split(' ')) {
+foreach ($ch in 'AINPUT AUDIN ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPEAR RDPECAM RDPEI RDPEMSC RDPEWA RDPGFX REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR'.Split(' ')) {
   $channelFlags += "-DCHANNEL_$ch=OFF"
 }
-$channelFlags += '-DCHANNEL_DRDYNVC=ON', '-DCHANNEL_DISP=ON'
+$channelFlags += '-DCHANNEL_DRDYNVC=ON', '-DCHANNEL_DISP=ON', '-DCHANNEL_CLIPRDR=ON', '-DCHANNEL_RDPDR=ON', '-DCHANNEL_DRIVE=ON',
+  '-DCHANNEL_RDPSND=ON' # rdpdr을 켜면 FreeRDP가 rdpsnd(sys:fake)를 함께 불러오므로 같이 빌드해야 접속이 막히지 않는다
+# 채널 구성이 바뀌면 이미 설치된 FreeRDP를 다시 빌드한다(구성을 prefix에 기록해 비교).
+$channelStamp = "$Prefix\freerdp-channels.txt"
+$channelKey = ($channelFlags -join ' ')
+if ((Test-Path "$Prefix\lib\freerdp3.lib") -and (-not (Test-Path $channelStamp) -or (Get-Content $channelStamp -Raw).Trim() -ne $channelKey)) {
+  Write-Host '   FreeRDP 채널 구성 변경 → 다시 빌드'
+  Remove-Item "$Prefix\lib\freerdp3.lib" -Force
+  if (Test-Path "$Work\freerdp-build") { Remove-Item "$Work\freerdp-build" -Recurse -Force }
+}
 
 Write-Host "== FreeRDP $FREERDP_TAG"
 if (-not (Test-Path "$Prefix\lib\freerdp3.lib")) {
@@ -113,6 +123,7 @@ if (-not (Test-Path "$Prefix\lib\freerdp3.lib")) {
     '-DWITH_INTERNAL_MD4=ON', '-DWITH_INTERNAL_RC4=ON') + $channelFlags)
   Invoke-Native cmake @('--build', "$Work\freerdp-build", '-j', $Jobs)
   Invoke-Native cmake @('--install', "$Work\freerdp-build")
+  Set-Content -Path $channelStamp -Value $channelKey -Encoding ascii
 }
 
 Write-Host "== libvncclient $LIBVNC_TAG"

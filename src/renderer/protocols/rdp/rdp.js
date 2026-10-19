@@ -303,6 +303,7 @@ function attemptRdpConnect(tabId){
     // v1은 등록 폼에 보안협상/인증서 설정 UI가 없다 — 이전 guacd 구현(ignore-cert:true)과 동일하게
     // TLS만 쓰고 인증서 검증은 건너뛴다(도메인/NLA는 향후 설정 UI 추가 시 확장).
     security: 'tls', ignoreCertificate: true,
+    clipboard: srv.rdpClipboard !== false, drivePath: srv.rdpDrivePath || null,
   }).then(function(res){
     if(!rdpSessions[tabId]) return;
     if(!res.ok){
@@ -455,6 +456,28 @@ registerProtocol('rdp', {
   },
 
   registration: {
+    // 클립보드 공유는 기본으로 켜 둔다(mstsc와 같음). 로컬 폴더 공유는 고른 폴더 하나만 원격에 보이며, 비우면 공유하지 않는다.
+    renderExtra: function(container, existingServer){
+      container.innerHTML =
+        '<label class="edit-check"><input type="checkbox" id="f-rdp-clipboard"> 클립보드 공유 (텍스트 복사·붙여넣기)</label>' +
+        '<label>공유할 로컬 폴더 (원격에서 \\\\tsclient\\폴더이름으로 열림, 비우면 공유 안 함)' +
+          '<div class="edit-filepick"><input type="text" id="f-rdp-drive" placeholder="찾아보기로 고르거나 경로 입력"><button type="button" class="insp-btn" id="pickRdpDriveBtn">찾아보기</button></div>' +
+        '</label>';
+      document.getElementById('f-rdp-clipboard').checked = !existingServer || existingServer.rdpClipboard !== false;
+      document.getElementById('f-rdp-drive').value = (existingServer && existingServer.rdpDrivePath) || '';
+      document.getElementById('pickRdpDriveBtn').addEventListener('click', function(){
+        if(!window.onegyeok || !window.onegyeok.pickFolder) return;
+        window.onegyeok.pickFolder().then(function(res){
+          if(res && !res.canceled && res.folderPath) document.getElementById('f-rdp-drive').value = res.folderPath;
+        });
+      });
+    },
+    collectExtra: function(){
+      return {
+        rdpClipboard: document.getElementById('f-rdp-clipboard').checked,
+        rdpDrivePath: document.getElementById('f-rdp-drive').value.trim() || null,
+      };
+    },
     defaultPortPlaceholder: function(){ return '3389'; },
   },
 });
