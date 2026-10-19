@@ -109,22 +109,24 @@ let lastLocalText = null;
 
 function toRemoteText(text) { return text.replace(/\r?\n/g, '\r\n'); }
 
-function pollClipboard() {
+// Electron 44(macOS)의 clipboard.readText()는 Promise를 돌려주고 Windows는 문자열을 돌려줘서, 둘 다 받도록 항상 await한다.
+async function pollClipboard() {
   let text;
-  try { text = clipboard.readText(); } catch (_e) { return; }
-  if (text === lastLocalText) return;
+  try { text = await clipboard.readText(); } catch (_e) { return; }
+  if (typeof text !== 'string' || text === lastLocalText) return;
   lastLocalText = text;
   clipboardSessions.forEach((id) => { const h = sessions.get(id); if (h) h.clipboard(toRemoteText(text)); });
 }
 
-function startClipboardSync(sessionId) {
+async function startClipboardSync(sessionId) {
   clipboardSessions.add(sessionId);
-  const helper = sessions.get(sessionId);
+  if (!clipboardTimer) clipboardTimer = setInterval(() => { pollClipboard().catch(() => {}); }, CLIPBOARD_POLL_MS);
   let text = '';
-  try { text = clipboard.readText(); } catch (_e) { /* 읽을 수 없으면 빈 클립보드로 시작 */ }
-  if (helper) helper.clipboard(toRemoteText(text));
+  try { text = await clipboard.readText(); } catch (_e) { /* 읽을 수 없으면 빈 클립보드로 시작 */ }
+  if (typeof text !== 'string') text = '';
+  const helper = sessions.get(sessionId);
+  if (helper && clipboardSessions.has(sessionId)) helper.clipboard(toRemoteText(text));
   if (lastLocalText === null) lastLocalText = text;
-  if (!clipboardTimer) clipboardTimer = setInterval(pollClipboard, CLIPBOARD_POLL_MS);
 }
 
 function stopClipboardSync(sessionId) {
@@ -136,8 +138,8 @@ function onRemoteClipboard(sessionId, payload) {
   if (!clipboardSessions.has(sessionId)) return;
   let text = payload.toString('utf8');
   if (process.platform !== 'win32') text = text.replace(/\r\n/g, '\n');
-  try { clipboard.writeText(text); } catch (_e) { return; }
-  lastLocalText = text; // 원격에서 온 것 — 다시 보내지 않는다
+  lastLocalText = text; // 원격에서 온 것 — 다시 보내지 않는다(쓰기가 비동기여도 다음 폴링 전에 먼저 기록해 둔다)
+  try { Promise.resolve(clipboard.writeText(text)).catch(() => {}); } catch (_e) { return; }
   // 다른 RDP 세션들에도 새 로컬 클립보드로 알린다(보낸 세션 자신은 이미 갖고 있다).
   clipboardSessions.forEach((id) => { if (id !== sessionId) { const h = sessions.get(id); if (h) h.clipboard(toRemoteText(text)); } });
 }
@@ -185,7 +187,7 @@ registerMainProtocol('rdp', {
                 clearTimeout(timeoutTimer);
                 resolve({ ok: true, width: info.width, height: info.height });
               }
-              if (params.clipboard) startClipboardSync(sessionId);
+              if (params.clipboard) startClipboardSync(sessionId).catch(() => {});
               sendToSession(sessionId, 'rdp:status', { state: 'connected' });
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);

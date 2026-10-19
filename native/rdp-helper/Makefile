@@ -7,7 +7,7 @@ ifdef DEPS_PREFIX
   MIN_MACOS ?= 15.0
   PKGCONFIG := PKG_CONFIG_LIBDIR=$(DEPS_PREFIX)/lib/pkgconfig pkg-config --static
   CFLAGS += -arch arm64 -mmacosx-version-min=$(MIN_MACOS)
-  LDFLAGS += -arch arm64 -mmacosx-version-min=$(MIN_MACOS) -framework Foundation -framework CoreFoundation -framework Security
+  LDFLAGS += -arch arm64 -mmacosx-version-min=$(MIN_MACOS) -framework Foundation -framework CoreFoundation -framework CoreServices -framework AudioToolbox -framework CoreAudio -framework AVFoundation -framework Security
 else
   PKGCONFIG := pkg-config
 endif

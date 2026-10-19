@@ -235,7 +235,7 @@ MySQL / MariaDB · PostgreSQL · MS SQL Server에 접속해 쿼리를 실행하�
 | 프로토콜 | 접속 방법 | 주요 기능 |
 |---|---|---|
 | **SSH** | 터미널에 `login as:` / `password:`가 뜨면 입력(비밀번호는 `*`). 실패 시 최대 3회 재입력, `Ctrl+C` 취소. 끊기면 탭의 ↻로 재연결 | Key 인증, 점프 호스트, **SFTP로 열기**, 동시 입력, 세션 로그 |
-| **로컬 터미널** | 레일의 로컬 터미널 버튼 → 셸(PowerShell · cmd · Git Bash · WSL / macOS zsh · bash) 선택. 종료되면 ↻로 새로 시작 | 이 PC의 `git` 등 로컬 명령, 세션 로그. Git Bash는 Git for Windows가 설치돼 있을 때 보입니다 |
+| **로컬 터미널** | 레일의 로컬 터미널 버튼 → 셸(PowerShell · cmd · Git Bash · WSL / macOS zsh · bash) 선택. 종료되면 ↻로 새로 시작 | 이 PC의 `git` 등 로컬 명령, 세션 로그. Windows 설치 파일에 git이 들어 있어 따로 설치하지 않아도 cmd·PowerShell에서 `git`을 씁니다(직접 설치한 git이 있으면 그쪽을 씀). Git Bash는 Git for Windows를 설치했을 때 보입니다 |
 | **SQL** | 접속 폼에 (사용자명·)비밀번호 입력 | MySQL/MariaDB·PostgreSQL·MS SQL, `⌘/Ctrl+Enter` 실행(선택 영역만 실행 가능), 결과 표 |
 | **SFTP / FTP / FTPS** | 사용자명·비밀번호 입력 | 듀얼 패널, 드래그/버튼 업·다운로드(**선택 업로드 ➜** 파랑 · **➜ 선택 다운로드** 빨강), 비교·동기화, 일괄 이름 변경, 예약 전송, 전송 큐, SHA-256 검증. 평문 FTP는 접속 전 경고 |
 | **RDP / VNC** | 접속 폼에 (사용자명·)비밀번호 입력 | 툴바: 실제 크기 ↔ 창에 맞춤 · 전체화면 · 연결 종료. RDP는 창/칸 크기에 맞춰 해상도 자동 변경, 텍스트 복사·붙여넣기 공유(서버 등록의 **클립보드 공유**, 기본 켬), **공유할 로컬 폴더**를 지정하면 원격 탐색기의 `내 PC`에 `\\tsclient\폴더이름`으로 나타남 |
