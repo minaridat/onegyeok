@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('onegyeok', {
   },
 
   pickKeyFile: () => ipcRenderer.invoke('dialog:pick-key-file'),
+  pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
 
   ssh: {
     connect: (sessionId, params) => ipcRenderer.invoke('ssh:connect', sessionId, params),
@@ -38,6 +39,25 @@ contextBridge.exposeInMainWorld('onegyeok', {
       const listener = (_event, sessionId, status) => callback(sessionId, status);
       ipcRenderer.on('ssh:status', listener);
       return () => ipcRenderer.removeListener('ssh:status', listener);
+    },
+  },
+
+  // 로컬 터미널(cmd/PowerShell/Git Bash/WSL, macOS zsh·bash) — src/main/protocols/local
+  local: {
+    shells: () => ipcRenderer.invoke('local:shells'),
+    spawn: (sessionId, params) => ipcRenderer.invoke('local:spawn', sessionId, params),
+    input: (sessionId, data) => ipcRenderer.send('local:input', sessionId, data),
+    resize: (sessionId, cols, rows) => ipcRenderer.send('local:resize', sessionId, cols, rows),
+    kill: (sessionId) => ipcRenderer.invoke('local:kill', sessionId),
+    onData: (callback) => {
+      const listener = (_event, sessionId, chunk) => callback(sessionId, chunk);
+      ipcRenderer.on('local:data', listener);
+      return () => ipcRenderer.removeListener('local:data', listener);
+    },
+    onStatus: (callback) => {
+      const listener = (_event, sessionId, status) => callback(sessionId, status);
+      ipcRenderer.on('local:status', listener);
+      return () => ipcRenderer.removeListener('local:status', listener);
     },
   },
 

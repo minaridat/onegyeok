@@ -9,8 +9,28 @@ function isTerminalCtrlKey(e){
 // xterm은 처리한 키를 preventDefault한다. macOS는 메뉴 가속키가 페이지보다 먼저 받지만, Windows/Linux의 Electron은
 // 페이지가 소비하지 않은 키만 메뉴로 넘기므로 터미널에서 Ctrl+Shift+W(탭 닫기, app-menu.js)가 셸의 ^W로 새어 버린다.
 // 앱 메뉴가 받아야 하는 조합은 xterm이 처리하지 않게 한다(ssh.js가 attachCustomKeyEventHandler로 붙인다).
-function terminalKeyPassthrough(e){
+//
+// 복사/붙여넣기(Windows/Linux): Windows Terminal·WSL 창처럼 Ctrl+C는 선택한 글자가 있으면 복사, 없으면 그대로 ^C(작업 취소)로
+// 보내고, Ctrl+V는 붙여넣기다. Ctrl+Shift+C/V도 같은 동작이다. ^V(다음 글자를 그대로 입력)가 필요하면 Ctrl+Shift+V가 아니라
+// 셸 설정으로 다른 키에 묶어야 한다 — 일반 사용자는 붙여넣기를 기대한다. macOS는 ⌘C/⌘V가 따로 있어 Ctrl은 건드리지 않는다.
+var isMacPlatform = /Mac/i.test(navigator.platform || navigator.userAgent || '');
+function terminalKeyPassthrough(e, term){
   if(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyW') return false;
+  if(!isMacPlatform && term && e.ctrlKey && !e.altKey && !e.metaKey){
+    if(e.code === 'KeyC' && (e.shiftKey || term.hasSelection())){
+      // 선택이 없을 때의 Ctrl+Shift+C는 아무것도 하지 않는다(^C를 보내지 않음).
+      if(e.type === 'keydown' && term.hasSelection()){
+        var text = term.getSelection();
+        if(navigator.clipboard) navigator.clipboard.writeText(text).catch(function(){});
+        term.clearSelection();
+      }
+      e.preventDefault();
+      return false;
+    }
+    // false를 돌려주면 xterm이 ^V를 보내지 않고 브라우저 기본 붙여넣기가 일어나며, xterm이 그 paste 이벤트를 받아 입력으로 보낸다
+    // (여러 줄은 bracketed paste로 감싸 준다).
+    if(e.code === 'KeyV') return false;
+  }
   return true;
 }
 

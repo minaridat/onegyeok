@@ -3,7 +3,9 @@
 //  - macOS: ⌘W
 //  - Windows/Linux: Ctrl+Shift+W  (Ctrl+W는 터미널 셸의 "단어 지우기"라서 앱이 가로채지 않는다)
 // 메뉴 가속키는 터미널(xterm)에 포커스가 있어도 먼저 처리된다.
-const { app, Menu, BrowserWindow } = require('electron');
+const fs = require('node:fs');
+const { app, Menu, BrowserWindow, shell } = require('electron');
+const sessionLog = require('./session-log');
 
 function sendCloseTab() {
   const win = BrowserWindow.getFocusedWindow();
@@ -46,6 +48,21 @@ function buildAppMenu() {
       { role: 'togglefullscreen' },
       // 개발 중에만 새로고침/개발자 도구(패키지된 앱에서 새로고침하면 열려 있는 화면 상태가 사라진다)
       ...(app.isPackaged ? [] : [{ type: 'separator' }, { role: 'reload' }, { role: 'toggleDevTools' }]),
+    ],
+  });
+  template.push({
+    label: '도구',
+    submenu: [
+      // 터미널 세션 로그(core/session-log.js) — 바꾸면 다음에 여는 세션부터 적용된다.
+      { label: '터미널 세션 로그 기록', type: 'checkbox', checked: sessionLog.isEnabled(), click: (item) => sessionLog.setEnabled(item.checked) },
+      {
+        label: '세션 로그 폴더 열기',
+        click: () => {
+          const dir = sessionLog.logDir();
+          fs.mkdirSync(dir, { recursive: true });
+          shell.openPath(dir);
+        },
+      },
     ],
   });
   template.push({

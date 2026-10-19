@@ -27,6 +27,11 @@ var SHORTCUT_HELP = [
     ['Web 주소 이동 / 되돌리기', 'Enter / Esc', 'Enter / Esc'],
     ['SSH 접속 프롬프트 취소', 'Ctrl C', 'Ctrl C'],
   ]},
+  { title: '터미널 (SSH · 로컬 터미널)', rows: [
+    ['복사 (글자를 선택했을 때)', '⌘ C', 'Ctrl C / Ctrl Shift C'],
+    ['붙여넣기', '⌘ V', 'Ctrl V / Ctrl Shift V'],
+    ['실행 중인 명령 취소 (선택이 없을 때)', 'Ctrl C', 'Ctrl C'],
+  ]},
 ];
 
 function shortcutKeysHtml(spec){

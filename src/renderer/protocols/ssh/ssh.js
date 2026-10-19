@@ -229,6 +229,7 @@ function finishPrompt(id, session, secretParams){
     host: srv.host, port: srv.port || 22, username: session.activeUsername,
     authMethod: srv.authMethod, keyFilePath: srv.keyFilePath,
     cols: term.cols, rows: term.rows,
+    serverName: srv.name, // 세션 로그 파일 이름용
   };
   if(secretParams.password !== undefined) params.password = secretParams.password;
   if(secretParams.passphrase !== undefined) params.passphrase = secretParams.passphrase;
@@ -278,7 +279,7 @@ function startSshSession(tabId, serverId, statusEl, hostEl){
   var fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(hostEl);
-  term.attachCustomKeyEventHandler(terminalKeyPassthrough);
+  term.attachCustomKeyEventHandler(function(e){ return terminalKeyPassthrough(e, term); });
 
   var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'prompting', handleInput: null, srv: srv, authAttempts: 0, activeUsername: null };
   sshSessions[tabId] = session;
@@ -346,7 +347,7 @@ function attachSshSession(tabId, serverId, statusEl, hostEl){
   var fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(hostEl);
-  term.attachCustomKeyEventHandler(terminalKeyPassthrough);
+  term.attachCustomKeyEventHandler(function(e){ return terminalKeyPassthrough(e, term); });
 
   var session = { term: term, fitAddon: fitAddon, statusEl: statusEl, hostEl: hostEl, state: 'connecting', handleInput: function(){}, srv: srv, authAttempts: 0, activeUsername: srv.username || null };
   sshSessions[tabId] = session;
