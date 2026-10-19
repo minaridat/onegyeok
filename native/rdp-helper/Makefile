@@ -15,10 +15,10 @@ endif
 CFLAGS += -std=c11 -Wall -Wextra -g -O2 $(shell $(PKGCONFIG) --cflags $(PKGS))
 LDFLAGS += $(shell $(PKGCONFIG) --libs $(PKGS)) -lpthread
 
-SRCS := src/main.c src/framing.c src/jsonlite.c
+SRCS := src/main.c src/clipboard.c src/framing.c src/jsonlite.c
 BIN := onegyeok-rdp-helper
 
-$(BIN): $(SRCS) src/framing.h src/jsonlite.h
+$(BIN): $(SRCS) src/clipboard.h src/framing.h src/jsonlite.h
 	$(CC) $(CFLAGS) -o $(BIN) $(SRCS) $(LDFLAGS)
 
 clean:

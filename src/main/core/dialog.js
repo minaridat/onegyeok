@@ -15,6 +15,14 @@ function wire(ctx) {
     });
     return { canceled: result.canceled, filePath: result.filePaths[0] || null };
   });
+
+  // RDP 로컬 폴더 공유 대상 선택
+  ipcMain.handle('dialog:pick-folder', async () => {
+    const win = getMainWindow();
+    if (!win) return { canceled: true };
+    const result = await dialog.showOpenDialog(win, { title: '공유할 폴더 선택', properties: ['openDirectory'] });
+    return { canceled: result.canceled, folderPath: result.filePaths[0] || null };
+  });
 }
 
 module.exports = { wire };
