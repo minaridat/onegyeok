@@ -10,7 +10,8 @@
     "build:native:mac": "bash scripts/mac/build-native-deps.sh && make -C native/rdp-helper clean && make -C native/vnc-helper clean && make -C native/rdp-helper DEPS_PREFIX=$PWD/build/mac-deps/prefix && make -C native/vnc-helper DEPS_PREFIX=$PWD/build/mac-deps/prefix",
     "dist:mac": "npm run build:native:mac && electron-builder --mac dmg --arm64",
     "build:native:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/win/build-native.ps1",
-    "dist:win": "npm run build:native:win && electron-builder --win nsis --x64"
+    "dist:win": "npm run build:native:win && electron-builder --win nsis --x64",
+    "postinstall": "node scripts/fix-node-pty.js"
   },
   "license": "UNLICENSED",
   "devDependencies": {
@@ -36,7 +37,9 @@
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/node-pty/{deps,src,third_party,scripts}/**",
+      "!node_modules/node-pty/prebuilds/*/*.pdb"
     ],
     "extraResources": [
       {
@@ -68,7 +71,11 @@
       "category": "public.app-category.developer-tools",
       "minimumSystemVersion": "15.0",
       "identity": "-",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "files": [
+        "!node_modules/node-pty/prebuilds/win32-*/**",
+        "!node_modules/node-pty/prebuilds/darwin-x64/**"
+      ]
     },
     "win": {
       "target": [
@@ -78,6 +85,10 @@
             "x64"
           ]
         }
+      ],
+      "files": [
+        "!node_modules/node-pty/prebuilds/darwin-*/**",
+        "!node_modules/node-pty/prebuilds/win32-arm64/**"
       ]
     },
     "nsis": {

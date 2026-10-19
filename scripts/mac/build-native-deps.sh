@@ -48,13 +48,20 @@ if [ ! -f "$PREFIX/lib/libssl.a" ] || [ ! -f "$OPENSSL_STAMP" ]; then
   touch "$OPENSSL_STAMP"
 fi
 
-# 클라이언트 채널은 동적 해상도(화면 크기 조절)에 필요한 drdynvc + disp만 켜고 나머지는 끈다(정적 링크 크기·의존성 최소화).
+# 클라이언트 채널은 동적 해상도(drdynvc+disp)·클립보드(cliprdr)·로컬 폴더 공유(rdpdr+drive)만 켜고 나머지는 끈다(정적 링크 크기·의존성 최소화).
 FREERDP_CHANNEL_FLAGS=""
-for ch in AINPUT AUDIN CLIPRDR DRIVE ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPDR RDPEAR RDPECAM \
-          RDPEI RDPEMSC RDPEWA RDPGFX RDPSND REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR; do
+for ch in AINPUT AUDIN ECHO ENCOMSP GEOMETRY LOCATION PARALLEL PRINTER RAIL RDP2TCP RDPEAR RDPECAM \
+          RDPEI RDPEMSC RDPEWA RDPGFX REMDESK SERIAL SMARTCARD SSHAGENT TELEMETRY TSMF URBDRC VIDEO GFXREDIR; do
   FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_${ch}=OFF"
 done
-FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_DRDYNVC=ON -DCHANNEL_DISP=ON"
+FREERDP_CHANNEL_FLAGS="$FREERDP_CHANNEL_FLAGS -DCHANNEL_DRDYNVC=ON -DCHANNEL_DISP=ON -DCHANNEL_CLIPRDR=ON -DCHANNEL_RDPDR=ON -DCHANNEL_DRIVE=ON -DCHANNEL_RDPSND=ON" # rdpdr을 켜면 FreeRDP가 rdpsnd(sys:fake)를 함께 불러오므로 같이 빌드해야 접속이 막히지 않는다(소리 재생은 하지 않음)
+# 채널 구성이 바뀌면 이미 설치된 FreeRDP를 다시 빌드한다(구성을 prefix에 기록해 비교 — Windows 스크립트와 같은 방식).
+CHANNEL_STAMP="$PREFIX/freerdp-channels.txt"
+if [ -f "$PREFIX/lib/libfreerdp3.a" ] && { [ ! -f "$CHANNEL_STAMP" ] || [ "$(cat "$CHANNEL_STAMP")" != "$FREERDP_CHANNEL_FLAGS" ]; }; then
+  echo "   FreeRDP 채널 구성 변경 → 다시 빌드"
+  rm -f "$PREFIX/lib/libfreerdp3.a"
+  rm -rf "$WORK/freerdp-build"
+fi
 
 echo "== FreeRDP $FREERDP_TAG"
 if [ ! -f "$PREFIX/lib/libfreerdp3.a" ]; then
@@ -88,6 +95,7 @@ PYEOF
     $FREERDP_CHANNEL_FLAGS -DWITH_INTERNAL_MD4=ON -DWITH_INTERNAL_RC4=ON
   cmake --build "$WORK/freerdp-build" -j"$JOBS"
   cmake --install "$WORK/freerdp-build"
+  printf %s "$FREERDP_CHANNEL_FLAGS" > "$CHANNEL_STAMP"
 fi
 
 echo "== libvncclient $LIBVNC_TAG"
