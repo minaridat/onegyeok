@@ -141,6 +141,7 @@ document.getElementById('editSaveBtn').addEventListener('click', function(){
     s.authMethod = extra.authMethod || 'password'; s.keyFilePath = extra.keyFilePath || null;
     s.jump = extra.jump || null; s.sqlEngine = extra.sqlEngine || null; s.database = extra.database || '';
     s.fileProtocol = extra.fileProtocol || null;
+    s.rdpClipboard = extra.rdpClipboard; s.rdpDrivePath = extra.rdpDrivePath || null;
     s.auth = authLabel(s);
     if(oldId !== name) propagateIdRename(oldId, name);
   } else {
@@ -150,6 +151,7 @@ document.getElementById('editSaveBtn').addEventListener('click', function(){
       authMethod: extra.authMethod || 'password', keyFilePath: extra.keyFilePath || null,
       jump: extra.jump || null, sqlEngine: extra.sqlEngine || null, database: extra.database || '',
       fileProtocol: extra.fileProtocol || null,
+      rdpClipboard: extra.rdpClipboard, rdpDrivePath: extra.rdpDrivePath || null,
       status: 'off', since: '연결 안 됨'
     };
     newServer.auth = authLabel(newServer);

@@ -139,6 +139,9 @@ int jsonlite_parse_connect(const char* payload, size_t len, ConnectParams* out) 
 	out->height = get_int_field(buf, end, "height", 768, &ok, 0);
 	out->colorDepth = get_int_field(buf, end, "colorDepth", 32, &ok, 0);
 	out->ignoreCertificate = get_bool_field(buf, end, "ignoreCertificate", 0);
+	out->clipboard = get_bool_field(buf, end, "clipboard", 0);
+	out->drivePath = get_string_field(buf, end, "drivePath", 0, &ok);
+	out->driveName = get_string_field(buf, end, "driveName", 0, &ok);
 
 	if (!ok) {
 		connect_params_free(out);
@@ -153,6 +156,8 @@ void connect_params_free(ConnectParams* p) {
 	free(p->password);
 	free(p->domain);
 	free(p->security);
+	free(p->drivePath);
+	free(p->driveName);
 	memset(p, 0, sizeof(*p));
 }
 

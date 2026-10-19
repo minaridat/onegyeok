@@ -14,11 +14,13 @@ const MSG = {
   KEY: 0x04,
   UNICODE_KEY: 0x05,
   RESIZE: 0x06,
+  CLIPBOARD: 0x07, // 로컬 클립보드 텍스트(UTF-8) → 헬퍼가 서버에 알린다(cliprdr)
   CONNECTED: 0x81,
   FRAME: 0x82,
   STATUS: 0x83,
   LOG: 0x84,
   DESKTOP_RESIZED: 0x85, // 서버가 해상도를 바꿨다({width,height}) — 동적 해상도(화면 크기 조절)
+  CLIPBOARD_REMOTE: 0x86, // 원격 클립보드 텍스트(UTF-8)
 };
 
 function resolveHelperPath() {
@@ -106,6 +108,7 @@ function spawnHelper(onEvent, onLog) {
       p.writeUInt16LE(width, 0); p.writeUInt16LE(height, 2);
       writeFrame(child, MSG.RESIZE, p);
     },
+    clipboard(text) { writeFrame(child, MSG.CLIPBOARD, Buffer.from(text, 'utf8')); },
     kill() {
       try { child.kill(); } catch (_e) { /* noop */ }
     },

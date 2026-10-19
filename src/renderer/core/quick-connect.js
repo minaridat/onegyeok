@@ -195,6 +195,14 @@ function renderQuickConnect(filter){
   if(!quickConnectEl) return;
   quickConnectEl.hidden = true;
   quickConnectEl.innerHTML = '';
+  // 주소 입력 폼이 맞지 않는 프로토콜(로컬 터미널 등)은 자기 화면을 직접 그린다.
+  var protoDef = getProtocol(filter);
+  if(protoDef && protoDef.renderQuickLaunch){
+    protoDef.renderQuickLaunch(quickConnectEl);
+    quickConnectEl.addEventListener('click', quickRecentClick);
+    quickConnectEl.hidden = false;
+    return;
+  }
   if(!QUICK_FORMS[filter]) return;
   quickConnectEl.innerHTML = quickFormHtml(filter);
   var f = quickConnectEl.querySelector('form');
@@ -258,7 +266,7 @@ function updateQcAddrBar(tabId){
   if(!qcAddrBarEl) return;
   var tab = tabId ? tabbar.querySelector('.tab[data-id="' + tabId + '"]') : null;
   var srv = tab ? SERVERS.find(function(s){ return s.id === tab.dataset.serverId; }) : null;
-  var show = !!(srv && srv.temp && srv.protocol !== 'web');
+  var show = !!(srv && srv.temp && srv.protocol !== 'web' && srv.protocol !== 'local');
   if(qcAddrBarEl.hidden === !show && (!show || qcAddrBarEl.dataset.tab === tabId)) return;
   qcAddrBarEl.hidden = !show;
   if(show){

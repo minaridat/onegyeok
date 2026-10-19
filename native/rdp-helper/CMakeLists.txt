@@ -22,7 +22,7 @@ find_package(WinPR CONFIG REQUIRED)        # lib/cmake/WinPR3/
 find_package(FreeRDP CONFIG REQUIRED)
 find_package(FreeRDP-Client CONFIG REQUIRED)
 
-add_executable(onegyeok-rdp-helper src/main.c src/framing.c src/jsonlite.c)
+add_executable(onegyeok-rdp-helper src/main.c src/clipboard.c src/framing.c src/jsonlite.c)
 target_link_libraries(onegyeok-rdp-helper PRIVATE freerdp-client freerdp winpr)
 if(WIN32)
 	# FreeRDP/WinPR 헤더는 Windows에서 *_EXPORTS가 없으면 무조건 dllimport로 선언한다(정적 링크용 분기가 없음).

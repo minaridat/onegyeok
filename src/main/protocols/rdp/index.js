@@ -1,3 +1,4 @@
+const { clipboard } = require('electron');
 const { registerMainProtocol } = require('../../core/protocol-registry');
 const { MSG, spawnHelper, parseFramePayload } = require('./helper-bridge');
 
@@ -98,6 +99,63 @@ function queueFrame(sessionId, frame) {
   pumpFrame(sessionId);
 }
 
+// 클립보드 공유(텍스트) — 헬퍼의 cliprdr 채널과 로컬 클립보드를 잇는다. Electron에는 클립보드 변경 이벤트가 없어서 공유를 켠
+// 세션이 있는 동안만 주기적으로 읽어 바뀌었을 때 헬퍼로 보낸다. 원격에서 받아 로컬에 쓴 텍스트는 다시 원격으로 돌려보내지 않는다.
+// Windows 클립보드는 줄바꿈이 CRLF라 원격으로는 CRLF로 보내고, macOS에서는 받은 텍스트를 LF로 바꿔 쓴다.
+const CLIPBOARD_POLL_MS = 700;
+const clipboardSessions = new Set(); // 공유를 켠 sessionId
+let clipboardTimer = null;
+let lastLocalText = null;
+
+function toRemoteText(text) { return text.replace(/\r?\n/g, '\r\n'); }
+
+function pollClipboard() {
+  let text;
+  try { text = clipboard.readText(); } catch (_e) { return; }
+  if (text === lastLocalText) return;
+  lastLocalText = text;
+  clipboardSessions.forEach((id) => { const h = sessions.get(id); if (h) h.clipboard(toRemoteText(text)); });
+}
+
+function startClipboardSync(sessionId) {
+  clipboardSessions.add(sessionId);
+  const helper = sessions.get(sessionId);
+  let text = '';
+  try { text = clipboard.readText(); } catch (_e) { /* 읽을 수 없으면 빈 클립보드로 시작 */ }
+  if (helper) helper.clipboard(toRemoteText(text));
+  if (lastLocalText === null) lastLocalText = text;
+  if (!clipboardTimer) clipboardTimer = setInterval(pollClipboard, CLIPBOARD_POLL_MS);
+}
+
+function stopClipboardSync(sessionId) {
+  clipboardSessions.delete(sessionId);
+  if (!clipboardSessions.size && clipboardTimer) { clearInterval(clipboardTimer); clipboardTimer = null; lastLocalText = null; }
+}
+
+function onRemoteClipboard(sessionId, payload) {
+  if (!clipboardSessions.has(sessionId)) return;
+  let text = payload.toString('utf8');
+  if (process.platform !== 'win32') text = text.replace(/\r\n/g, '\n');
+  try { clipboard.writeText(text); } catch (_e) { return; }
+  lastLocalText = text; // 원격에서 온 것 — 다시 보내지 않는다
+  // 다른 RDP 세션들에도 새 로컬 클립보드로 알린다(보낸 세션 자신은 이미 갖고 있다).
+  clipboardSessions.forEach((id) => { if (id !== sessionId) { const h = sessions.get(id); if (h) h.clipboard(toRemoteText(text)); } });
+}
+
+// 세션이 끝날 때 정리할 것들(캐시·흐름 제어·클립보드).
+function forgetSession(sessionId) {
+  frameCaches.delete(sessionId);
+  clearFlow(sessionId);
+  stopClipboardSync(sessionId);
+}
+
+// 원격에 \\tsclient\<이름>으로 보일 공유 이름 — 폴더 이름에서 영문·숫자만 남긴다(RDP 장치 이름은 ASCII만 확실히 통한다).
+function driveNameFor(drivePath) {
+  const base = String(drivePath).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+  const ascii = base.replace(/[^A-Za-z0-9_-]/g, '');
+  return ascii || 'onegyeok';
+}
+
 registerMainProtocol('rdp', {
   wire(ctx) {
     savedCtx = ctx;
@@ -127,11 +185,14 @@ registerMainProtocol('rdp', {
                 clearTimeout(timeoutTimer);
                 resolve({ ok: true, width: info.width, height: info.height });
               }
+              if (params.clipboard) startClipboardSync(sessionId);
               sendToSession(sessionId, 'rdp:status', { state: 'connected' });
             } else if (type === MSG.FRAME) {
               const frame = parseFramePayload(payload);
               updateFrameCache(sessionId, frame);
               queueFrame(sessionId, frame);
+            } else if (type === MSG.CLIPBOARD_REMOTE) {
+              onRemoteClipboard(sessionId, payload);
             } else if (type === MSG.DESKTOP_RESIZED) {
               let size = null;
               try { size = JSON.parse(payload.toString('utf8')); } catch (_e) { /* 무시 */ }
@@ -152,8 +213,7 @@ registerMainProtocol('rdp', {
               sendToSession(sessionId, 'rdp:status', status);
               if (status.state === 'disconnected' || status.state === 'error') {
                 sessions.delete(sessionId);
-                frameCaches.delete(sessionId);
-                clearFlow(sessionId);
+                forgetSession(sessionId);
                 unregisterSession(sessionId);
               }
             }
@@ -168,8 +228,7 @@ registerMainProtocol('rdp', {
             resolve({ ok: false, error: 'RDP 헬퍼 프로세스가 비정상 종료되었습니다', kind: 'other' });
           }
           sessions.delete(sessionId);
-          frameCaches.delete(sessionId);
-          clearFlow(sessionId);
+          forgetSession(sessionId);
           unregisterSession(sessionId);
         });
         helper.child.on('error', (err) => {
@@ -182,8 +241,7 @@ registerMainProtocol('rdp', {
             resolve({ ok: false, error: 'RDP 헬퍼 프로세스를 시작할 수 없습니다: ' + err.message + hint, kind: 'other' });
           }
           sessions.delete(sessionId);
-          frameCaches.delete(sessionId);
-          clearFlow(sessionId);
+          forgetSession(sessionId);
           unregisterSession(sessionId);
         });
 
@@ -195,6 +253,9 @@ registerMainProtocol('rdp', {
           colorDepth: params.colorDepth || 32,
           security: params.security || 'tls',
           ignoreCertificate: params.ignoreCertificate !== false,
+          clipboard: !!params.clipboard,
+          drivePath: params.drivePath || undefined,
+          driveName: params.drivePath ? driveNameFor(params.drivePath) : undefined,
         });
       });
     });
@@ -202,8 +263,7 @@ registerMainProtocol('rdp', {
     ipcMain.handle('rdp:disconnect', (_event, sessionId) => {
       const helper = sessions.get(sessionId);
       if (helper) { helper.disconnect(); helper.kill(); sessions.delete(sessionId); }
-      frameCaches.delete(sessionId);
-      clearFlow(sessionId);
+      forgetSession(sessionId);
       unregisterSession(sessionId);
       return { ok: true };
     });
@@ -245,8 +305,7 @@ registerMainProtocol('rdp', {
   disconnectSession(sessionId) {
     const helper = sessions.get(sessionId);
     if (helper) { try { helper.disconnect(); } catch (_e) { /* noop */ } helper.kill(); sessions.delete(sessionId); }
-    frameCaches.delete(sessionId);
-    clearFlow(sessionId);
+    forgetSession(sessionId);
   },
 
   disconnectAll() {
@@ -255,5 +314,6 @@ registerMainProtocol('rdp', {
     frameCaches.clear();
     flows.forEach((f) => { if (f.timer) clearTimeout(f.timer); });
     flows.clear();
+    clipboardSessions.forEach((id) => stopClipboardSync(id));
   },
 });

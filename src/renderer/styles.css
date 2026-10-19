@@ -438,6 +438,8 @@
   .edit-filepick{display:flex;gap:6px;}
   .edit-filepick input{flex:1;}
   .edit-filepick button{flex:none;white-space:nowrap;}
+  .edit-body label.edit-check{flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--text);font-size:var(--fs-sm);}
+  .edit-body label.edit-check input{padding:0;margin:0;}
   .edit-note{font-size:var(--fs-2xs);color:var(--text-faint);margin:0;}
   .edit-error{font-size:var(--fs-2xs);color:var(--danger);margin:0;min-height:14px;}
   .edit-footer{display:flex;align-items:center;gap:8px;padding:var(--sp-4);border-top:1px solid var(--border);}
