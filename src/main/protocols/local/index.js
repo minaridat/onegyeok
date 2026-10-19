@@ -106,7 +106,7 @@ registerMainProtocol('local', {
         return { ok: false, error: '셸을 시작할 수 없습니다: ' + err.message };
       }
       sessions.set(sessionId, p);
-      sessionLog.open(sessionId, { protocol: 'local', name: params.serverName || shell.label, host: os.hostname() });
+      sessionLog.open(sessionId, { protocol: 'local', name: params.serverName || shell.label, host: os.hostname(), rows: params.rows || 24 });
       p.onData((data) => {
         sendToSession(sessionId, 'local:data', data);
         sessionLog.write(sessionId, data);
@@ -131,6 +131,7 @@ registerMainProtocol('local', {
       // 크기가 같으면 넘긴다 — ConPTY는 resize마다 화면 전체를 다시 그려 보내 같은 내용이 세션 로그에 두 번 남는다.
       if (!p || !(cols > 0 && rows > 0) || (p.cols === cols && p.rows === rows)) return;
       try { p.resize(cols, rows); } catch (_e) { /* 종료 직후 */ }
+      sessionLog.resize(sessionId, rows);
     });
     ipcMain.handle('local:kill', (_event, sessionId) => {
       stopSession(sessionId);

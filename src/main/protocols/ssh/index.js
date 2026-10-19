@@ -23,7 +23,7 @@ registerMainProtocol('ssh', {
           (status) => {
             sendToSession(sessionId, 'ssh:status', status);
             // 세션 로그(core/session-log.js): 인증을 통과해 셸이 열린 뒤의 출력만 기록한다.
-            if (status.state === 'connected') sessionLog.open(sessionId, { protocol: 'ssh', name: params.serverName, host: params.host, username: params.username });
+            if (status.state === 'connected') sessionLog.open(sessionId, { protocol: 'ssh', name: params.serverName, host: params.host, username: params.username, rows: params.rows });
             if (status.state === 'disconnected' || status.state === 'error') { sessionLog.close(sessionId); unregisterSession(sessionId); }
           }
         );
@@ -34,7 +34,7 @@ registerMainProtocol('ssh', {
     });
 
     ipcMain.on('ssh:input', (_event, sessionId, data) => { sshManager.write(sessionId, data); });
-    ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { sshManager.resize(sessionId, cols, rows); });
+    ipcMain.on('ssh:resize', (_event, sessionId, cols, rows) => { sshManager.resize(sessionId, cols, rows); sessionLog.resize(sessionId, rows); });
     ipcMain.handle('ssh:disconnect', (_event, sessionId) => { sshManager.disconnect(sessionId); sessionLog.close(sessionId); unregisterSession(sessionId); return { ok: true }; });
   },
 
