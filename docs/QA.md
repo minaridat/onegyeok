@@ -238,7 +238,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 
 | 항목 | 상태 | 내용 |
 |---|---|---|
-| 의존성 정적 빌드 | ✅ | `scripts/win/build-native-deps.ps1` — OpenSSL 3.5.9 / zlib 1.3.1 / FreeRDP 3.32.1(drdynvc+disp만) / LibVNCServer 0.9.15, 모두 `/MT` |
+| 의존성 정적 빌드 | ✅ | `scripts/win/build-native-deps.ps1` — OpenSSL 3.5.9 / zlib 1.3.1 / FreeRDP 3.32.1(drdynvc+disp, W11·W12부터 cliprdr+rdpdr+drive+rdpsnd 추가) / LibVNCServer 0.9.15, 모두 `/MT` |
 | 헬퍼 빌드 | ✅ | `scripts/win/build-native.ps1` → `onegyeok-rdp-helper.exe`(7.7MB), `onegyeok-vnc-helper.exe`(5.1MB) |
 | DLL 의존성 | ✅ | `dumpbin /dependents`: 두 헬퍼 모두 Windows 시스템 DLL만(WS2_32, CRYPT32, ADVAPI32, USER32, KERNEL32, ncrypt, credui 등). VC 런타임 DLL 없음 |
 | 설치 파일 | ✅ | `npx electron-builder --win nsis --x64` → `dist/onegyeok-0.1.0-x64.exe`(116MB), 헬퍼 2개가 `resources/native/*-helper/`에 포함 |
@@ -268,6 +268,11 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | W8 | Windows 단축키 충돌 | 🟡 | 수정함(터미널 포커스 시 Ctrl 단축키 미처리). 앱에서 수동 확인 필요 |
 | W9 | 터미널에서 탭 닫기 `Ctrl+Shift+W`(QA 26번) | 🟡 | xterm이 키를 소비하면 Windows에서는 메뉴 가속키로 넘어가지 않아 셸에 ^W가 들어갈 수 있어, xterm이 이 조합을 처리하지 않게 함(`terminalKeyPassthrough`). 실제 키 입력은 수동 확인 필요 |
 | W10 | RDP 화면 딜레이(폴더·창을 끌 때 못 쓸 정도로 느림) | ✅ | 실제 Windows Server(사내 개발 서버)에서 탐색기 창 끌기: 끌기를 멈춘 뒤 앱 화면이 따라오기까지 4.0초 → 0.08초. 원인 4가지 수정(아래) |
+| W11 | RDP 클립보드(로컬 PC ↔ 원격) | ✅ | 헬퍼 단독으로 실제 서버에서 로컬→원격 붙여넣기, 원격 복사→로컬 수신 확인. 앱의 로컬 클립보드 연동은 이 PC 콘솔이 잠겨 있어(OS 클립보드 접근 불가) 수동 확인 필요 |
+| W12 | RDP 드라이브(로컬 폴더) 공유 | ✅ | 실제 서버 탐색기 `내 PC`에 `EDUCO의 onegyeokTest`로 나타나고 `\\tsclient\onegyeoktest`에서 공유 폴더의 파일이 보임 |
+| W13 | 로컬 터미널(cmd · PowerShell · Git Bash · WSL) + git | ✅ | 개발 앱에서 셸 목록 감지, cmd에서 `git --version`, Git Bash(`TERM=xterm-256color`) 확인 |
+| W14 | 터미널 `Ctrl+C`(선택 시 복사 / 아니면 취소) · `Ctrl+V` 붙여넣기 | 🟡 | 로컬 터미널: `ping -t` 중 `Ctrl+C`로 취소, 선택 후 `Ctrl+C`는 선택 글자만 복사하고 셸에 ^C 안 감, `Ctrl+V`의 paste 이벤트가 셸 입력으로 들어감. SSH도 같은 처리. 실제 OS 클립보드로는 수동 확인 필요(W11과 같은 이유) |
+| W15 | 터미널 세션 로그 | ✅ | 테스트용 SSH 서버·로컬 cmd로 확인: 세션마다 파일 생성, 명령·출력 기록, 색상 코드 제거, 비밀번호 미기록 |
 
 ### W8. Windows에서 앱 단축키가 터미널 Ctrl 키와 충돌 — 🟡 수정, 수동 확인 필요
 
@@ -312,6 +317,21 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
   끄는 동안 서버가 보내는 화면은 초당 30~38장, 한 장 약 2MB(창 영역). 같은 서버를 Windows 기본 원격 데스크톱(mstsc)으로 쓰면 빠른 것은, mstsc는 그래픽 파이프라인(H.264 등)을 써서 데이터가 훨씬 적기 때문이다(이 헬퍼는 rdpgfx 채널을 빌드에 넣지 않아 비트맵 갱신을 쓴다 — 개선 후보).
 - **가짜 헬퍼 벤치**: 실제 RDP 서버가 이 PC에 없어(Docker·WSL 없음), 프로토콜을 흉내 내는 가짜 헬퍼(1920×1080 전체 화면을 20ms마다 전송, 첫 픽셀에 전송 시각)를 개발 앱에 붙여 화면에 보이는 픽셀의 시각으로 표시 지연을 쟀다. 수정 전 중앙값 257ms·초당 4.3장 → 수정 후 62ms·30장(최악 조건: 매 프레임 전체 화면 변경). 실제 헬퍼는 서버 없는 주소로 기동·오류 보고만 재확인.
 - **macOS**: 원인 1·2는 공용 코드라 dmg도 다시 빌드하면 같이 좋아진다(헬퍼 C 코드 변경은 Windows 전용 `#ifdef`라 macOS 헬퍼 재빌드는 불필요).
+
+### W11~W15. RDP 클립보드·드라이브, 로컬 터미널, 터미널 복사/붙여넣기, 세션 로그
+
+요청: (1) RDP 복사·붙여넣기(로컬 PC와)가 안 됨 (2) RDP 드라이브 마운트가 빠짐 (3) 로컬 cmd에서 git (4) Windows SSH 터미널에서 WSL 창처럼 Ctrl+C/V로 복사·붙여넣기 하면서 Ctrl+C 취소도 쓰기 (5) 세션 로그 자동 기록.
+
+- **RDP 클립보드·드라이브 (W11·W12)** — FreeRDP를 `cliprdr`(클립보드), `rdpdr`+`drive`(드라이브) 채널을 넣어 다시 빌드했다. rdpdr을 켜면 FreeRDP가 `rdpsnd`(sys:fake)도 같이 불러와서 rdpsnd도 빌드에 넣었다(소리 재생은 켜지 않음). 채널 구성이 바뀌면 `build-native-deps.ps1`이 FreeRDP만 다시 빌드한다.
+  - 헬퍼(`native/rdp-helper/src/clipboard.c`): 텍스트만 주고받는다. 로컬→원격은 앱이 로컬 클립보드가 바뀔 때마다(0.7초 간격 확인) 헬퍼로 보내고, 서버가 붙여넣을 때 요청하면 UTF-16으로 준다. 원격→로컬은 서버가 새 클립보드를 알리면 바로 받아 로컬 클립보드에 쓴다(받은 것을 다시 돌려보내지 않음). 파일 복사·붙여넣기는 다루지 않는다 — 파일은 드라이브 공유로 옮긴다.
+  - 드라이브: 서버 등록(RDP)의 **공유할 로컬 폴더**를 지정하면 원격에 `\\tsclient\폴더이름`(영문·숫자만, 없으면 onegyeok)으로 보인다. 비우면 공유하지 않는다. **클립보드 공유**는 체크박스(기본 켬). 둘 다 서버마다 끌 수 있다(보안 정책상 막아야 하는 서버용).
+  - 헬퍼는 채널이 빌드에 들어 있는지 실행 중에 확인해, 없는 빌드에서는 그 기능만 끄고 접속한다. **macOS 배포 빌드(`scripts/mac/build-native-deps.sh`)는 아직 채널을 drdynvc+disp만 넣으므로 맥에서 쓰려면 그 스크립트에 `-DCHANNEL_CLIPRDR=ON -DCHANNEL_RDPDR=ON -DCHANNEL_DRIVE=ON -DCHANNEL_RDPSND=ON`을 넣어 다시 빌드해야 한다**(지시서 규칙상 맥 스크립트는 수정하지 않음). 헬퍼 소스는 `clipboard.c`가 늘어 `Makefile`·`CMakeLists.txt`에 추가했다.
+  - 실제 서버 확인 중 같은 계정의 연결이 끊긴 세션이 두 개 있어 "다시 연결할 세션 선택" 창이 떴다(첫 번째 세션 선택). 테스트로 연 탐색기 창은 닫아 원래 상태로 돌려 두었다. 드라이브 채널이 FreeRDP 로그에 `drive_map_windows_err: Error code not found: 87`을 남기지만 동작에는 영향 없음.
+- **로컬 터미널 (W13)** — 레일 맨 아래 **로컬 터미널** 버튼 → 이 PC의 셸 고르기(PowerShell, PowerShell 7, cmd, Git Bash, WSL 중 있는 것 / macOS는 zsh·bash). `node-pty`(ConPTY)로 진짜 콘솔을 만들어 xterm에 잇는다. node-pty 1.1.0은 Windows·macOS용 미리 빌드된 바이너리(N-API)를 포함해 Electron용 재컴파일이 필요 없다. 패키징 시 `asarUnpack`으로 꺼내 둔다. 고른 셸은 "빠른 연결" 그룹에 남아 다시 열 수 있다.
+  - git은 Git for Windows가 설치돼 있어야 한다(설치 파일에 git을 넣지 않음). 없으면 셸 고르기 화면에 설치 안내가 뜬다.
+- **터미널 복사/붙여넣기 (W14)** — Windows Terminal·WSL 창과 같게: `Ctrl+C`는 선택한 글자가 있으면 복사(선택 해제), 없으면 그대로 ^C. `Ctrl+V`는 붙여넣기(xterm이 ^V를 보내지 않고 브라우저 기본 붙여넣기 → 여러 줄은 bracketed paste). `Ctrl+Shift+C/V`도 같은 동작. macOS는 ⌘C/⌘V가 있어 바꾸지 않았다. SSH·로컬 터미널 공통(`keyboard-shortcuts.js` `terminalKeyPassthrough`).
+- **세션 로그 (W15)** — SSH·로컬 터미널의 출력을 세션마다 `<userData>/session-logs/YYYY-MM-DD/HHMMSS_서버이름.log`로 자동 저장(`src/main/core/session-log.js`). 입력한 명령은 셸이 되돌려 찍으므로 같이 남고, 화면에 안 나오는 입력(비밀번호 등)은 남지 않는다(키 입력 자체는 기록하지 않음). 색상·커서 이동 코드는 지우고, ConPTY처럼 커서 이동으로 줄을 바꾸는 출력은 줄바꿈으로 바꾸며, 빈 줄은 한 줄로 줄인다. 메뉴 **도구 › 터미널 세션 로그 기록**(기본 켬, `settings.json`에 저장) / **도구 › 세션 로그 폴더 열기**. 오래된 로그 자동 삭제는 없다.
+- **테스트 방법**: 개발 앱을 CDP로 조작(셸 실행·키 입력·버퍼 확인), 테스트용 SSH 서버(ssh2 Server, 127.0.0.1)로 SSH 경로와 로그 확인. 이 PC는 콘솔 세션이 잠겨 있어 OS 클립보드를 쓸 수 없어(`Set-Clipboard`도 실패) 실제 클립보드 왕복은 확인하지 못했다.
 
 ### 릴리스 기록
 
