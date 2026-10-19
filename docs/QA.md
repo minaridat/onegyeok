@@ -41,7 +41,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | 29 | RDP | macOS: 클립보드(텍스트) 양방향 — 패키징 앱+xrdp에서 맥→원격·원격→맥(한글 포함) 확인. **Electron 44 macOS의 `clipboard.readText()`는 Promise를 돌려줘** `text.replace` 호출이 터지던 것을 `await`로 수정(Windows 문자열 반환과 둘 다 지원) | ✅ (실제 Windows Server는 미확인) |
 | 30 | RDP | macOS: 로컬 폴더(드라이브) 공유 — xrdp 서버가 "remote drive"로 인식하는 것까지 확인(테스트 서버에 FUSE가 없어 원격 파일 목록은 못 봄) | ✅ (파일 목록은 Windows Server에서 확인 필요) |
 | 31 | 터미널 | macOS: 로컬 터미널(레일 버튼, zsh·bash) — 패키징 앱에서 `git --version` 확인. `app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/`에 `pty.node`·`spawn-helper`(실행 권한) 생성 확인 | ✅ |
-| 32 | 로그 | macOS: 세션 로그 파일 생성·기록 확인(`~/Library/Application Support/onegyeok/session-logs/날짜/시각_이름.log`). 메뉴 항목(기록 켜기/끄기·폴더 열기)은 코드 확인만, **zsh는 입력 줄을 다시 그려서 명령이 "ggit --version"처럼 겹쳐 남고 프롬프트 여백이 길게 남는다(개선 후보)**, 파일 권한이 0644 | 🟡 |
+| 32 | 로그 | macOS: 세션 로그 — zsh·bash에서 명령이 겹치지 않고(`git --version`, 백스페이스 포함) 한 줄로 남는지 확인. 입력 줄 다시 그리기(커서 이동·지우기)를 줄 편집으로 반영하도록 `session-log.js`를 고쳐 줄마다 `[시각]`을 붙이고 파일 0600·폴더 0700으로 변경. ConPTY식 커서 위치 지정 출력은 흉내 입력으로만 확인(실제 Windows 미확인) | ✅ (Windows PowerShell·cmd는 확인 필요) |
 | 33 | 빌드 | `scripts/mac/build-native-deps.sh`에 cliprdr·rdpdr·drive·rdpsnd 채널 추가(구성이 바뀌면 FreeRDP만 자동 재빌드), 헬퍼 링크에 macOS 프레임워크(CoreServices·AudioToolbox·CoreAudio·AVFoundation) 추가, `npm install` 후 spawn-helper 실행 권한 부여(`scripts/fix-node-pty.js`), dmg에 다른 OS용 node-pty 바이너리 제외 | ✅ |
 | 21 | VNC | 비밀번호 인증이 항상 실패 (OpenSSL `no-module` 누락) | ✅ (Windows 빌드에서 발견) |
 
