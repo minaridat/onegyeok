@@ -5,6 +5,7 @@ function inspectorFor(tabId){
   if(currentInspectedServerId && currentInspectedServerId !== serverId) flushMemoSave();
   currentInspectedId = tabId;
   currentInspectedServerId = serverId;
+  if(typeof restorePanelState === 'function') restorePanelState(tabId);
   var inspectedTab = tabbar.querySelector('.tab[data-id="'+tabId+'"]');
   var proto = (inspectedTab && inspectedTab.dataset.protocol) || row.dataset.protocol;
   document.getElementById('openSftpBtn').style.display = row.dataset.protocol === 'ssh' ? '' : 'none';

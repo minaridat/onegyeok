@@ -166,6 +166,7 @@ function recordActive(id){
   var tab = tabbar.querySelector('.tab[data-id="'+id+'"]');
   if(!tab) return;
   lastActiveByFilter['all'] = id;
+  if(tab.dataset.serverId && typeof lastActiveByServer !== 'undefined') lastActiveByServer[tab.dataset.serverId] = id;
   if(tab.classList.contains('group-tab') && groups[id]){
     splitLeaves(groups[id].root).forEach(function(m){ var mt = splitTabEl(m); if(mt) lastActiveByFilter[mt.dataset.protocol] = id; });
     return;
@@ -186,7 +187,8 @@ function activate(id){
     if(match) activeTab = t;
   });
   panes.querySelectorAll('.pane').forEach(function(p){ p.classList.toggle('active', p.dataset.id === id); });
-  tree.querySelectorAll('.server').forEach(function(s){ s.classList.toggle('selected', s.dataset.id === id); });
+  var activeServerId = serverIdForTab(id);
+  tree.querySelectorAll('.server').forEach(function(s){ s.classList.toggle('selected', s.dataset.id === activeServerId); });
   inspectorFor(id);
   recordActive(id);
   if(activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
@@ -261,6 +263,7 @@ function removeTabDom(tabId){
   var pane = panes.querySelector('.pane[data-id="'+tabId+'"]');
   tab.remove();
   if(pane) pane.remove();
+  if(typeof tabPanelState !== 'undefined') delete tabPanelState[tabId];
   renumberTabs();
   if(wasActive){
     var remaining = visibleTabs()[0];

@@ -34,5 +34,5 @@ paletteBackdrop.addEventListener('click', function(e){ if(e.target === paletteBa
 paletteInput.addEventListener('input', function(){ renderPalette(paletteInput.value); });
 paletteList.addEventListener('click', function(e){
   var item = e.target.closest('.palette-item[data-id]');
-  if(item){ selectServer(item.dataset.id); closePalette(); }
+  if(item){ openOrFocusServer(item.dataset.id); closePalette(); }
 });

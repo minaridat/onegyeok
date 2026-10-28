@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 렌더러(웹 UI)에 노출하는 API는 여기서 화이트리스트 방식으로만 추가한다.
 //
@@ -75,6 +75,8 @@ contextBridge.exposeInMainWorld('onegyeok', {
   files: {
     connect: (id, params) => ipcRenderer.invoke('files:connect', id, params),
     localList: (directory) => ipcRenderer.invoke('files:local-list', directory),
+    // 탐색기에서 끌어다 놓은 File 객체의 실제 로컬 경로(샌드박스 렌더러는 File.path를 못 씀)
+    pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch (_e) { return ''; } },
     list: (id, directory) => ipcRenderer.invoke('files:list', id, directory),
     operation: (id, action, target, value) => ipcRenderer.invoke('files:operation', id, action, target, value),
     preview: (id, params) => ipcRenderer.invoke('files:preview', id, params),

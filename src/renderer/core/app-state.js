@@ -89,8 +89,67 @@ tree.addEventListener('click', function(e){
   var del = e.target.closest('.server-del');
   if(del){ e.stopPropagation(); removeQuickServer(del.closest('.server').dataset.id); return; }
   var row = e.target.closest('.server');
-  if(row){ selectServer(row.dataset.id); }
+  if(row){ openOrFocusServer(row.dataset.id); }
 });
+
+// ---- 서버 클릭 = 이미 열린 세션이 있으면 그 세션으로 이동, 없을 때만 새 연결 ----
+function tabsOfServer(serverId){
+  return Array.prototype.filter.call(tabbar.querySelectorAll('.tab[data-server-id="'+serverId+'"]'), function(t){
+    return !t.classList.contains('group-tab');
+  });
+}
+function openOrFocusServer(serverId){
+  var row = tree.querySelector('.server[data-id="'+serverId+'"]');
+  if(!row) return;
+  var tabs = tabsOfServer(serverId);
+  if(!tabs.length){ selectServer(serverId); return; }
+  // 현재 보고 있는 탭이 이 서버 것이면 그대로 둔다. 아니면 마지막으로 보던 탭(없으면 가장 최근에 연 탭)으로 이동.
+  var proto = row.dataset.protocol;
+  var cur = tabs.filter(function(t){ return t.classList.contains('active'); })[0];
+  var target = cur || tabs.filter(function(t){ return t.dataset.id === lastActiveByServer[serverId]; })[0]
+    || tabs.filter(function(t){ return t.dataset.protocol === proto; }).pop() || tabs[tabs.length - 1];
+  if(currentFilter !== 'all' && currentFilter !== target.dataset.protocol) applyFilter(target.dataset.protocol);
+  activate(target.dataset.id);
+}
+var lastActiveByServer = {};
+
+// ---- 서버 우클릭 미니 메뉴: 새 연결 / 이 서버의 모든 연결 닫기 ----
+var treeMenuEl = null;
+function hideTreeMenu(){ if(treeMenuEl){ treeMenuEl.remove(); treeMenuEl = null; } }
+tree.addEventListener('contextmenu', function(e){
+  var row = e.target.closest('.server');
+  if(!row) return;
+  e.preventDefault();
+  hideTreeMenu();
+  var serverId = row.dataset.id;
+  var open = tabsOfServer(serverId);
+  treeMenuEl = document.createElement('div');
+  treeMenuEl.className = 'tree-menu';
+  var items = [
+    { label: '새 연결', run: function(){ selectServer(serverId); } },
+    { label: open.length ? '모든 연결 닫기 (' + open.length + ')' : '모든 연결 닫기', disabled: !open.length, danger: true, run: function(){
+      if(open.length > 1 && !confirm('"' + serverId + '" 서버의 연결 ' + open.length + '개를 모두 닫을까요?')) return;
+      open.map(function(t){ return t.dataset.id; }).forEach(function(id){ closeTabById(id); });
+    } }
+  ];
+  items.forEach(function(it){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label;
+    b.disabled = !!it.disabled;
+    if(it.danger) b.classList.add('danger');
+    b.onclick = function(){ hideTreeMenu(); it.run(); };
+    treeMenuEl.appendChild(b);
+  });
+  document.body.appendChild(treeMenuEl);
+  var w = treeMenuEl.offsetWidth, h = treeMenuEl.offsetHeight;
+  treeMenuEl.style.left = Math.min(e.clientX, window.innerWidth - w - 4) + 'px';
+  treeMenuEl.style.top = Math.min(e.clientY, window.innerHeight - h - 4) + 'px';
+});
+document.addEventListener('mousedown', function(e){ if(treeMenuEl && !treeMenuEl.contains(e.target)) hideTreeMenu(); });
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') hideTreeMenu(); });
+window.addEventListener('blur', hideTreeMenu);
+tree.addEventListener('scroll', hideTreeMenu);
 
 // ---- 사이드바 서버 드래그로 순서 변경 (같은 그룹 안에서만) ----
 var dragServerId = null;

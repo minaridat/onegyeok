@@ -1,5 +1,4 @@
 /* 로컬 터미널 — 터미널 화면은 ssh.css의 .ssh-pane 스타일을 그대로 쓴다 */
-.proto-chip.proto-local{color:#6f8a2c;background:rgba(111,138,44,.14);}
 .placeholder-pane.proto-local .ph-icon{background:rgba(111,138,44,.14);color:#6f8a2c;}
 .local-shells{display:flex;flex-wrap:wrap;gap:8px;}
 .local-shells .local-shell-btn{flex:none;}
