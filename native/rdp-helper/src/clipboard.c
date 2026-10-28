@@ -33,7 +33,7 @@
 
 #define FILE_GROUP_NAME "FileGroupDescriptorW"
 #define FILE_GROUP_FORMAT_ID 0xC0F1 /* 우리가 서버에 알릴 때 쓰는 등록 형식 번호 */
-#define FILES_MAX_BYTES (200ULL * 1024 * 1024)
+#define FILES_MAX_BYTES (5ULL * 1024 * 1024 * 1024)
 #define FILES_MAX_COUNT 2000
 #define FILES_CHUNK 262144
 #define DESC_SIZE 592 /* sizeof(FILEDESCRIPTORW) */
