@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('onegyeok', {
   },
 
   pickKeyFile: () => ipcRenderer.invoke('dialog:pick-key-file'),
-  pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
+  pickFolder: (opts) => ipcRenderer.invoke('dialog:pick-folder', opts),
 
   ssh: {
     connect: (sessionId, params) => ipcRenderer.invoke('ssh:connect', sessionId, params),

@@ -56,8 +56,17 @@
 .files-splitter{flex:none;width:7px;cursor:col-resize;background:#e2e8f0;border-left:1px solid #cbd5e1;border-right:1px solid #cbd5e1;}
 .files-splitter:hover,.files-panels.resizing .files-splitter{background:#93c5fd;}
 .files-panel .files-list td.files-name{white-space:normal;word-break:break-all;min-width:140px;}
-.files-panel .files-list tr.files-directory,.files-panel .files-list tr.files-file{cursor:pointer;}
-.files-panel .files-list tr.files-directory td.files-name,.files-panel .files-list tr.files-up td{font-weight:600;}
-.files-panel .files-list tr.files-up{background:#f8fafc;}
 .files-panel .files-list tr.files-drop{background:#bfdbfe;outline:2px solid #2563eb;outline-offset:-2px;}
 .files-panel.files-drop-target{outline:3px dashed #2563eb;outline-offset:-3px;background:#eff6ff;}
+
+/* 폴더 열기 창 */
+.files-open{font-weight:700;background:#fef3c7 !important;border-color:#d97706 !important;color:#7c2d12 !important;}
+.files-picker-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;}
+.files-picker{width:min(520px,92%);height:min(520px,86%);display:flex;flex-direction:column;background:#fff;color:#202020;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:12px;gap:8px;}
+.files-picker-head{display:flex;justify-content:space-between;align-items:center;font-size:14px;}.files-picker-head label{font-size:12px;display:flex;gap:4px;align-items:center;}
+.files-picker-path{font-family:var(--font-mono,monospace);font-size:12px;background:#f1f5f9;border-radius:5px;padding:6px 8px;word-break:break-all;}
+.files-picker-list{flex:1;overflow:auto;border:1px solid #cbd5e1;border-radius:6px;display:flex;flex-direction:column;}
+.files-picker .fp-item{text-align:left;border:0;border-bottom:1px solid #eef2f7;border-radius:0;padding:9px 10px;background:#fff;}
+.files-picker .fp-item:hover{background:#dbeafe;}.files-picker .fp-up{background:#f8fafc;font-weight:600;}
+.files-picker-foot{display:flex;gap:8px;align-items:center;justify-content:flex-end;}.files-picker-foot .fp-msg{flex:1;color:#b42318;font-size:12px;}
+.files-picker .fp-ok{background:#2563eb;color:#fff;border-color:#1d4ed8;font-weight:700;}

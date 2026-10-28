@@ -15,7 +15,7 @@
     catch(err){message(s,err.message);throw err;}
   }
   function panelMarkup(side,label){return '<section class="files-panel" data-side="'+side+'"><h3>'+label+'</h3>'+
-    '<div class="files-nav"><button type="button" data-parent="'+side+'">상위</button><input class="files-path" aria-label="'+label+' 경로"><button type="button" data-refresh="'+side+'">이동</button></div>'+
+    '<div class="files-nav"><button type="button" data-parent="'+side+'">상위</button><input class="files-path" aria-label="'+label+' 경로"><button type="button" data-refresh="'+side+'">이동</button><button type="button" class="files-open" data-open="'+side+'">열기…</button></div>'+
     '<div class="files-crumbs"></div><div class="files-filter"><input class="files-search" placeholder="파일 검색" aria-label="'+label+' 파일 검색"><select class="files-sort" aria-label="'+label+' 정렬"><option value="name">이름순</option><option value="size">크기순</option><option value="modified">수정일순</option></select></div>'+
     '<div class="files-list"><table><thead><tr><th>선택</th><th aria-sort="ascending"><button type="button" data-sort="name">이름 ▲</button></th><th aria-sort="none"><button type="button" data-sort="size">크기</button></th><th aria-sort="none"><button type="button" data-sort="modified">수정일</button></th><th>권한</th></tr></thead><tbody></tbody></table></div></section>';}
   function renderPanel(s,side){
@@ -28,24 +28,11 @@
       return direction*(compared||a.name.localeCompare(b.name,undefined,{numeric:true}));
     });
     var body=el.querySelector('tbody');body.innerHTML='';
-    if(p.parent&&p.parent!==p.path&&!query){
-      var up=document.createElement('tr');up.className='files-directory files-up';
-      up.innerHTML='<td></td><td colspan="4">📁 .. (상위 폴더)</td>';
-      up.onclick=function(){refresh(s,side,p.parent).catch(function(){});};
-      up.ondragover=function(e){if(hasFiles(e)||hasInternal(e)){e.preventDefault();up.classList.add('files-drop');}};
-      up.ondragleave=function(){up.classList.remove('files-drop');};
-      body.appendChild(up);
-    }
     rows.forEach(function(f){
       var tr=document.createElement('tr');tr.className=f.directory?'files-directory':'files-file';tr.draggable=!f.symlink;tr.dataset.name=f.name;
       tr.innerHTML='<td><input type="checkbox" aria-label="'+escapeHtml(f.name)+' 선택"'+(p.selected.has(f.name)?' checked':'')+'></td><td class="files-name" title="'+escapeHtml(f.name)+'">'+escapeHtml((f.directory?'📁 ':f.symlink?'↗ ':'')+f.name)+'</td><td>'+f.size+'</td><td>'+escapeHtml(f.modified?new Date(f.modified).toLocaleString():'—')+'</td><td>'+escapeHtml(f.permissions||'—')+'</td>';
       tr.querySelector('input').onchange=function(e){if(e.target.checked)p.selected.add(f.name);else p.selected.delete(f.name);};
-      // 폴더는 이름을 한 번 클릭하면 바로 들어가고, 파일은 행을 클릭하면 선택(체크)된다.
-      tr.onclick=function(e){
-        if(e.target.tagName==='INPUT')return;
-        if(f.directory){refresh(s,side,join(p.path,f.name)).catch(function(){});return;}
-        var box=tr.querySelector('input');box.checked=!box.checked;box.onchange({target:box});
-      };
+      tr.ondblclick=function(){if(f.directory)refresh(s,side,join(p.path,f.name)).catch(function(){});};
       if(f.directory&&side==='remote'){
         tr.ondragover=function(e){if(hasFiles(e)){e.preventDefault();e.stopPropagation();tr.classList.add('files-drop');}};
         tr.ondragleave=function(){tr.classList.remove('files-drop');};
@@ -90,6 +77,44 @@
       }
       if(count)message(s,count+'개 항목을 업로드 큐에 추가했습니다');
     }catch(err){message(s,err.message);}
+  }
+  // "열기…" — 폴더만 보여주는 탐색 창. 원격은 폴더만 나열하고 클릭하면 들어가며, "여기 열기"로 그 폴더를 패널에 연다.
+  function pickRemoteFolder(s){
+    if(s.state!=='connected'){message(s,'먼저 연결해주세요');return Promise.resolve(null);}
+    return new Promise(function(resolve){
+      var box=document.createElement('div');box.className='files-picker-backdrop';
+      box.innerHTML='<div class="files-picker"><div class="files-picker-head"><strong>원격 폴더 열기</strong><label><input type="checkbox" class="fp-hidden"> 숨김 폴더 표시</label></div><div class="files-picker-path"></div><div class="files-picker-list"></div><div class="files-picker-foot"><span class="fp-msg"></span><button type="button" class="fp-cancel">취소</button><button type="button" class="fp-ok">여기 열기</button></div></div>';
+      s.el.appendChild(box);
+      var cur=s.panels.remote.path,parent=null,dirs=[],listEl=box.querySelector('.files-picker-list'),pathEl=box.querySelector('.files-picker-path'),msg=box.querySelector('.fp-msg'),hidden=box.querySelector('.fp-hidden');
+      function done(v){box.remove();resolve(v);}
+      function draw(){
+        pathEl.textContent=cur;listEl.innerHTML='';
+        var items=[];if(parent&&parent!==cur)items.push({name:'⬆ 상위 폴더',go:parent,up:true});
+        dirs.filter(function(n){return hidden.checked||n.charAt(0)!=='.';}).forEach(function(n){items.push({name:'📁 '+n,go:join(cur,n)});});
+        if(!items.length)listEl.textContent='하위 폴더가 없습니다';
+        items.forEach(function(it){var b=document.createElement('button');b.type='button';b.className='fp-item'+(it.up?' fp-up':'');b.textContent=it.name;b.onclick=function(){load(it.go);};listEl.appendChild(b);});
+      }
+      async function load(dir){
+        msg.textContent='';
+        try{var data=await call(s,function(){return api.list(s.id,dir);});cur=data.path;parent=data.parent;dirs=data.entries.filter(function(f){return f.directory;}).map(function(f){return f.name;}).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});draw();}
+        catch(err){msg.textContent=err.message;}
+      }
+      hidden.onchange=draw;
+      box.querySelector('.fp-cancel').onclick=function(){done(null);};
+      box.querySelector('.fp-ok').onclick=function(){done(cur);};
+      box.onclick=function(e){if(e.target===box)done(null);};
+      load(cur);
+    });
+  }
+  async function openFolder(s,side){
+    if(side==='local'){
+      if(!window.onegyeok||!window.onegyeok.pickFolder)return;
+      var res=await window.onegyeok.pickFolder({title:'로컬 폴더 열기',defaultPath:s.panels.local.path});
+      if(res&&!res.canceled&&res.folderPath)await refresh(s,'local',res.folderPath);
+    } else {
+      var dir=await pickRemoteFolder(s);
+      if(dir)await refresh(s,'remote',dir);
+    }
   }
   function renderJobs(s){
     var list=s.el.querySelector('.files-jobs');list.innerHTML='';
@@ -192,6 +217,7 @@
     el.querySelectorAll('[data-op]').forEach(function(btn){btn.onclick=function(){remoteAction(s,btn.dataset.op).catch(function(err){message(s,err.message);});};});
     ['local','remote'].forEach(function(side){
       var panel=el.querySelector('[data-side="'+side+'"]');
+      panel.querySelector('[data-open]').onclick=function(){openFolder(s,side).catch(function(err){message(s,err.message);});};
       panel.querySelector('[data-parent]').onclick=function(){refresh(s,side,s.panels[side].parent).catch(function(){});};
       var go=function(){refresh(s,side,panel.querySelector('.files-path').value).catch(function(){});};
       panel.querySelector('[data-refresh]').onclick=go;panel.querySelector('.files-path').onkeydown=function(e){if(e.key==='Enter')go();};
