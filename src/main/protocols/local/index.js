@@ -63,9 +63,29 @@ function detectShells() {
   return list;
 }
 
-// git이 PATH에 있는지(cmd/PowerShell에서 git을 쓸 수 있는지) — 없으면 렌더러가 설치 안내를 보여준다.
+// Windows 설치 파일에 같이 넣은 git(MinGit, scripts/win/fetch-mingit.ps1) — 설치본은 resources/git, 개발 실행은 build/win-git/mingit.
+function bundledGitCmdDir() {
+  if (process.platform !== 'win32') return null;
+  const roots = [process.resourcesPath && path.join(process.resourcesPath, 'git'), path.join(__dirname, '..', '..', '..', '..', 'build', 'win-git', 'mingit')];
+  for (const r of roots) if (r && exists(path.join(r, 'cmd', 'git.exe'))) return path.join(r, 'cmd');
+  return null;
+}
+
+// 로컬 셸에 넘길 환경 — 같이 넣은 git을 PATH 맨 뒤에 붙인다(PC에 직접 설치한 git이 있으면 그쪽이 먼저 잡힌다).
+// Windows 환경 변수 이름은 대소문자를 가리지 않아 복사본에는 "Path"로 들어 있을 수 있으니, 있는 키에 붙인다(PATH를 새로 만들면 둘이 겹친다).
+function shellEnv() {
+  const env = Object.assign({}, process.env, { TERM: 'xterm-256color', COLORTERM: 'truecolor' });
+  const gitCmd = bundledGitCmdDir();
+  if (gitCmd) {
+    const key = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') || 'PATH';
+    env[key] = (env[key] ? env[key] + path.delimiter : '') + gitCmd;
+  }
+  return env;
+}
+
+// git을 쓸 수 있는지(PC에 설치됐거나 같이 넣은 git이 있는지) — 없으면 렌더러가 설치 안내를 보여준다.
 function hasGit() {
-  return !!which(process.platform === 'win32' ? 'git.exe' : 'git') || (process.platform === 'win32' && !!findGitBash());
+  return !!which(process.platform === 'win32' ? 'git.exe' : 'git') || (process.platform === 'win32' && (!!findGitBash() || !!bundledGitCmdDir()));
 }
 
 function stopSession(sessionId) {
@@ -99,14 +119,14 @@ registerMainProtocol('local', {
           cols: params.cols || 80,
           rows: params.rows || 24,
           cwd: os.homedir(),
-          env: Object.assign({}, process.env, { TERM: 'xterm-256color', COLORTERM: 'truecolor' }),
+          env: shellEnv(),
         });
       } catch (err) {
         unregisterSession(sessionId);
         return { ok: false, error: '셸을 시작할 수 없습니다: ' + err.message };
       }
       sessions.set(sessionId, p);
-      sessionLog.open(sessionId, { protocol: 'local', name: params.serverName || shell.label, host: os.hostname() });
+      sessionLog.open(sessionId, { protocol: 'local', name: params.serverName || shell.label, host: os.hostname(), rows: params.rows || 24 });
       p.onData((data) => {
         sendToSession(sessionId, 'local:data', data);
         sessionLog.write(sessionId, data);
@@ -131,6 +151,7 @@ registerMainProtocol('local', {
       // 크기가 같으면 넘긴다 — ConPTY는 resize마다 화면 전체를 다시 그려 보내 같은 내용이 세션 로그에 두 번 남는다.
       if (!p || !(cols > 0 && rows > 0) || (p.cols === cols && p.rows === rows)) return;
       try { p.resize(cols, rows); } catch (_e) { /* 종료 직후 */ }
+      sessionLog.resize(sessionId, rows);
     });
     ipcMain.handle('local:kill', (_event, sessionId) => {
       stopSession(sessionId);

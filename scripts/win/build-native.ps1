@@ -20,3 +20,6 @@ foreach ($h in 'rdp-helper', 'vnc-helper') {
   if (-not (Test-Path "$dir\onegyeok-$h.exe")) { throw "$dir\onegyeok-$h.exe 가 생성되지 않았습니다." }
 }
 Write-Host 'OK: native/rdp-helper/onegyeok-rdp-helper.exe, native/vnc-helper/onegyeok-vnc-helper.exe'
+
+# 설치 파일에 같이 넣는 git(로컬 터미널용) — package.json build.win.extraResources 가 build/win-git/mingit 을 resources/git 으로 넣는다.
+& "$PSScriptRoot\fetch-mingit.ps1"
