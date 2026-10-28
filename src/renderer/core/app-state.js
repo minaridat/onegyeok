@@ -65,9 +65,17 @@ function renderTree(){
   schedulePersistServers();
 }
 
+var sidebarQuery = '';
+document.getElementById('sidebarSearch').addEventListener('input', function(e){
+  sidebarQuery = e.target.value.trim().toLowerCase();
+  applyTreeFilterVisual();
+});
+
 function applyTreeFilterVisual(){
   tree.querySelectorAll('.server').forEach(function(s){
-    s.classList.toggle('filtered-out', !(currentFilter === 'all' || s.dataset.protocol === currentFilter));
+    var protoOk = currentFilter === 'all' || s.dataset.protocol === currentFilter;
+    var textOk = !sidebarQuery || (s.textContent + ' ' + (s.dataset.host || '') + ' ' + (s.dataset.group || '') + ' ' + (s.dataset.username || '')).toLowerCase().indexOf(sidebarQuery) !== -1;
+    s.classList.toggle('filtered-out', !(protoOk && textOk));
   });
   tree.querySelectorAll('.group').forEach(function(g){
     var vis = g.querySelectorAll('.server:not(.filtered-out)').length;

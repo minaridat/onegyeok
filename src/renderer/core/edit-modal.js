@@ -97,9 +97,7 @@ document.getElementById('registerOpenBtn').addEventListener('click', function(){
 document.getElementById('manageAddBtn').addEventListener('click', function(){ openEdit(null); });
 document.getElementById('editCancelBtn').addEventListener('click', closeEdit);
 document.getElementById('editCloseBtn').addEventListener('click', closeEdit);
-document.getElementById('editBackdrop').addEventListener('click', function(e){
-  if(e.target.id === 'editBackdrop') closeEdit();
-});
+// 실수로 바깥을 눌러 입력 중인 내용이 사라지지 않도록, 배경 클릭으로는 닫지 않는다(취소·닫기 버튼으로만 닫힌다).
 
 document.getElementById('editDeleteBtn').addEventListener('click', function(){
   if(!editingId) return;
