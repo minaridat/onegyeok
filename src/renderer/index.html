@@ -169,7 +169,7 @@
         <span class="badge">P5</span>
       </button>
       <button class="rail-btn" data-filter="sftp" title="SFTP / FTP / FTPS">
-        <svg class="icon" viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+        <svg class="icon" viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path><path d="M7.5 13V9M7.5 9L6 10.5M7.5 9L9 10.5M12.5 9v4M12.5 13L11 11.5M12.5 13L14 11.5"></path></svg>
         <span class="badge">P2</span>
       </button>
       <button class="rail-btn" data-filter="web" title="Web 콘솔">
@@ -214,7 +214,7 @@
       <div class="sidebar-top">
         <div class="sidebar-search">
           <svg class="icon" viewBox="0 0 20 20" style="width:13px;height:13px"><circle cx="9" cy="9" r="6"></circle><line x1="17" y1="17" x2="13.4" y2="13.4"></line></svg>
-          <input type="text" placeholder="서버 검색...">
+          <input type="text" id="sidebarSearch" placeholder="서버 검색..." autocomplete="off">
         </div>
         <button class="insp-collapse-btn" id="sideCollapseBtn" type="button" title="서버 목록 접기 (⌘B)" aria-label="서버 목록 접기">
           <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><polyline points="13 4 7 10 13 16"></polyline></svg>
@@ -312,7 +312,7 @@
 
           <div class="insp-actions">
             <button class="insp-btn" id="openSftpBtn" type="button">
-              <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>
+              <svg class="icon" viewBox="0 0 20 20" style="width:14px;height:14px"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path><path d="M7.5 13V9M7.5 9L6 10.5M7.5 9L9 10.5M12.5 9v4M12.5 13L11 11.5M12.5 13L14 11.5"></path></svg>
               SFTP로 열기
             </button>
             <button class="insp-btn danger" id="inspConnActionBtn">

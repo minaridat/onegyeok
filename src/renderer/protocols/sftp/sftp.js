@@ -1,7 +1,7 @@
 (function(){
   var sessions = new Map();
   var api = window.onegyeok && window.onegyeok.files;
-  var icon='<svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path></svg>';
+  var icon='<svg viewBox="0 0 20 20"><path d="M2 6l2-2h4l2 2h8v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"></path><path d="M7.5 13V9M7.5 9L6 10.5M7.5 9L9 10.5M12.5 9v4M12.5 13L11 11.5M12.5 13L14 11.5"></path></svg>';
   function join(dir,name){return dir.replace(/[\\/]$/,'')+(dir.indexOf('\\')>-1?'\\':'/')+name;}
   function message(s,text){s.el.querySelector('.files-message').textContent=text || '';}
   function state(s,value){
@@ -15,7 +15,7 @@
     catch(err){message(s,err.message);throw err;}
   }
   function panelMarkup(side,label){return '<section class="files-panel" data-side="'+side+'"><h3>'+label+'</h3>'+
-    '<div class="files-nav"><button type="button" data-parent="'+side+'">상위</button><input class="files-path" aria-label="'+label+' 경로"><button type="button" data-refresh="'+side+'">이동</button></div>'+
+    '<div class="files-nav"><button type="button" data-parent="'+side+'">상위</button><input class="files-path" aria-label="'+label+' 경로"><button type="button" data-refresh="'+side+'">이동</button><button type="button" class="files-open" data-open="'+side+'">열기…</button></div>'+
     '<div class="files-crumbs"></div><div class="files-filter"><input class="files-search" placeholder="파일 검색" aria-label="'+label+' 파일 검색"><select class="files-sort" aria-label="'+label+' 정렬"><option value="name">이름순</option><option value="size">크기순</option><option value="modified">수정일순</option></select></div>'+
     '<div class="files-list"><table><thead><tr><th>선택</th><th aria-sort="ascending"><button type="button" data-sort="name">이름 ▲</button></th><th aria-sort="none"><button type="button" data-sort="size">크기</button></th><th aria-sort="none"><button type="button" data-sort="modified">수정일</button></th><th>권한</th></tr></thead><tbody></tbody></table></div></section>';}
   function renderPanel(s,side){
@@ -30,9 +30,14 @@
     var body=el.querySelector('tbody');body.innerHTML='';
     rows.forEach(function(f){
       var tr=document.createElement('tr');tr.className=f.directory?'files-directory':'files-file';tr.draggable=!f.symlink;tr.dataset.name=f.name;
-      tr.innerHTML='<td><input type="checkbox" aria-label="'+escapeHtml(f.name)+' 선택"'+(p.selected.has(f.name)?' checked':'')+'></td><td>'+escapeHtml((f.directory?'📁 ':f.symlink?'↗ ':'')+f.name)+'</td><td>'+f.size+'</td><td>'+escapeHtml(f.modified?new Date(f.modified).toLocaleString():'—')+'</td><td>'+escapeHtml(f.permissions||'—')+'</td>';
+      tr.innerHTML='<td><input type="checkbox" aria-label="'+escapeHtml(f.name)+' 선택"'+(p.selected.has(f.name)?' checked':'')+'></td><td class="files-name" title="'+escapeHtml(f.name)+'">'+escapeHtml((f.directory?'📁 ':f.symlink?'↗ ':'')+f.name)+'</td><td>'+f.size+'</td><td>'+escapeHtml(f.modified?new Date(f.modified).toLocaleString():'—')+'</td><td>'+escapeHtml(f.permissions||'—')+'</td>';
       tr.querySelector('input').onchange=function(e){if(e.target.checked)p.selected.add(f.name);else p.selected.delete(f.name);};
       tr.ondblclick=function(){if(f.directory)refresh(s,side,join(p.path,f.name)).catch(function(){});};
+      if(f.directory&&side==='remote'){
+        tr.ondragover=function(e){if(hasFiles(e)){e.preventDefault();e.stopPropagation();tr.classList.add('files-drop');}};
+        tr.ondragleave=function(){tr.classList.remove('files-drop');};
+        tr.ondrop=function(e){if(!hasFiles(e))return;e.preventDefault();e.stopPropagation();tr.classList.remove('files-drop');uploadDropped(s,e,join(p.path,f.name));};
+      }
       tr.ondragstart=function(e){if(!p.selected.has(f.name)){p.selected.clear();p.selected.add(f.name);}e.dataTransfer.setData('application/x-onegyeok-files',JSON.stringify({id:s.id,side:side,names:Array.from(p.selected)}));};
       body.appendChild(tr);
     });
@@ -50,6 +55,66 @@
     Object.assign(s.panels[side],data);s.panels[side].selected.clear();
     s.el.querySelector('[data-side="'+side+'"] .files-path').value=data.path;
     renderPanel(s,side);
+  }
+  function hasFiles(e){return Array.from(e.dataTransfer.types||[]).includes('Files');}
+  function hasInternal(e){return Array.from(e.dataTransfer.types||[]).includes('application/x-onegyeok-files');}
+  // 운영체제 탐색기에서 끌어다 놓은 파일·폴더를 원격 폴더로 업로드한다.
+  async function uploadDropped(s,e,remoteDir){
+    if(s.state!=='connected'){message(s,'먼저 연결해주세요');return;}
+    var items=Array.from(e.dataTransfer.items||[]),files=Array.from(e.dataTransfer.files||[]);
+    var list=files.map(function(file,i){
+      var entry=items[i]&&items[i].webkitGetAsEntry?items[i].webkitGetAsEntry():null;
+      return {path:api.pathForFile?api.pathForFile(file):'',name:file.name,directory:!!(entry&&entry.isDirectory)};
+    }).filter(function(x){return x.path;});
+    if(!list.length){message(s,'끌어온 항목의 경로를 알 수 없습니다.');return;}
+    var verify=s.el.querySelector('.files-verify').checked,count=0;
+    try{
+      for(var f of list){
+        var existing=s.panels.remote.path===remoteDir&&s.panels.remote.entries.some(function(x){return x.name===f.name;});
+        if(existing&&!confirm(f.name+' 파일을 덮어쓸까요?'))continue;
+        await call(s,function(){return (f.directory?api.recursive:api.enqueue)(s.id,{direction:'upload',localPath:f.path,remotePath:join(remoteDir,f.name),overwrite:existing,verify:verify});});
+        count++;
+      }
+      if(count)message(s,count+'개 항목을 업로드 큐에 추가했습니다');
+    }catch(err){message(s,err.message);}
+  }
+  // "열기…" — 폴더만 보여주는 탐색 창. 원격은 폴더만 나열하고 클릭하면 들어가며, "여기 열기"로 그 폴더를 패널에 연다.
+  function pickRemoteFolder(s){
+    if(s.state!=='connected'){message(s,'먼저 연결해주세요');return Promise.resolve(null);}
+    return new Promise(function(resolve){
+      var box=document.createElement('div');box.className='files-picker-backdrop';
+      box.innerHTML='<div class="files-picker"><div class="files-picker-head"><strong>원격 폴더 열기</strong><label><input type="checkbox" class="fp-hidden"> 숨김 폴더 표시</label></div><div class="files-picker-path"></div><div class="files-picker-list"></div><div class="files-picker-foot"><span class="fp-msg"></span><button type="button" class="fp-cancel">취소</button><button type="button" class="fp-ok">여기 열기</button></div></div>';
+      s.el.appendChild(box);
+      var cur=s.panels.remote.path,parent=null,dirs=[],listEl=box.querySelector('.files-picker-list'),pathEl=box.querySelector('.files-picker-path'),msg=box.querySelector('.fp-msg'),hidden=box.querySelector('.fp-hidden');
+      function done(v){box.remove();resolve(v);}
+      function draw(){
+        pathEl.textContent=cur;listEl.innerHTML='';
+        var items=[];if(parent&&parent!==cur)items.push({name:'⬆ 상위 폴더',go:parent,up:true});
+        dirs.filter(function(n){return hidden.checked||n.charAt(0)!=='.';}).forEach(function(n){items.push({name:'📁 '+n,go:join(cur,n)});});
+        if(!items.length)listEl.textContent='하위 폴더가 없습니다';
+        items.forEach(function(it){var b=document.createElement('button');b.type='button';b.className='fp-item'+(it.up?' fp-up':'');b.textContent=it.name;b.onclick=function(){load(it.go);};listEl.appendChild(b);});
+      }
+      async function load(dir){
+        msg.textContent='';
+        try{var data=await call(s,function(){return api.list(s.id,dir);});cur=data.path;parent=data.parent;dirs=data.entries.filter(function(f){return f.directory;}).map(function(f){return f.name;}).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});draw();}
+        catch(err){msg.textContent=err.message;}
+      }
+      hidden.onchange=draw;
+      box.querySelector('.fp-cancel').onclick=function(){done(null);};
+      box.querySelector('.fp-ok').onclick=function(){done(cur);};
+      box.onclick=function(e){if(e.target===box)done(null);};
+      load(cur);
+    });
+  }
+  async function openFolder(s,side){
+    if(side==='local'){
+      if(!window.onegyeok||!window.onegyeok.pickFolder)return;
+      var res=await window.onegyeok.pickFolder({title:'로컬 폴더 열기',defaultPath:s.panels.local.path});
+      if(res&&!res.canceled&&res.folderPath)await refresh(s,'local',res.folderPath);
+    } else {
+      var dir=await pickRemoteFolder(s);
+      if(dir)await refresh(s,'remote',dir);
+    }
   }
   function renderJobs(s){
     var list=s.el.querySelector('.files-jobs');list.innerHTML='';
@@ -141,7 +206,7 @@
     var srv=SERVERS.find(function(entry){return entry.id===serverId;});if(!srv)return;
     el.className='pane files-pane';
     el.innerHTML='<div class="files-login"><h3>'+escapeHtml((srv.fileProtocol||'sftp').toUpperCase()+' · '+srv.host)+'</h3><label>사용자명<input class="files-user" autocomplete="off"></label><label>'+(srv.authMethod==='publickey'?'키 Passphrase (없으면 비움)':'비밀번호')+'<input class="files-secret" type="password" autocomplete="off"></label><button type="button" class="files-connect-btn">접속</button></div>'+
-      '<div class="files-workspace"><div class="files-toolbar"><button type="button" data-tools="sync">폴더 비교·동기화</button><button type="button" data-tools="rename">일괄 이름 변경</button><button type="button" data-tools="schedule">예약 전송</button><button type="button" class="files-transfer-btn files-upload-btn" data-transfer="local">선택 업로드 <span class="files-arrow">➜</span></button><button type="button" class="files-transfer-btn files-download-btn" data-transfer="remote"><span class="files-arrow files-arrow-left">➜</span> 선택 다운로드</button><label><input class="files-verify" type="checkbox"> SHA-256 검증</label><button type="button" data-op="mkdir">폴더 생성</button><button type="button" data-op="create">파일 생성</button><button type="button" data-op="rename">이름변경</button><button type="button" data-op="delete">삭제</button><button type="button" data-op="chmod">권한</button><button type="button" class="files-disconnect">연결 종료</button></div><div class="files-tools" hidden></div><div class="files-plans" hidden></div><div class="files-schedules"></div><div class="files-panels">'+panelMarkup('local','로컬')+panelMarkup('remote','원격')+'</div><h3 class="files-queue-title">전송 큐</h3><div class="files-jobs"></div></div><div class="files-message" role="status"></div>';
+      '<div class="files-workspace"><div class="files-toolbar"><button type="button" data-tools="sync">폴더 비교·동기화</button><button type="button" data-tools="rename">일괄 이름 변경</button><button type="button" data-tools="schedule">예약 전송</button><button type="button" class="files-transfer-btn files-upload-btn" data-transfer="local">선택 업로드 <span class="files-arrow">➜</span></button><button type="button" class="files-transfer-btn files-download-btn" data-transfer="remote"><span class="files-arrow files-arrow-left">➜</span> 선택 다운로드</button><label><input class="files-verify" type="checkbox"> SHA-256 검증</label><button type="button" data-op="mkdir">폴더 생성</button><button type="button" data-op="create">파일 생성</button><button type="button" data-op="rename">이름변경</button><button type="button" data-op="delete">삭제</button><button type="button" data-op="chmod">권한</button><button type="button" class="files-disconnect">연결 종료</button></div><div class="files-tools" hidden></div><div class="files-plans" hidden></div><div class="files-schedules"></div><div class="files-panels">'+panelMarkup('local','로컬')+'<div class="files-splitter" title="드래그해서 좌우 폭 조절"></div>'+panelMarkup('remote','원격')+'</div><h3 class="files-queue-title">전송 큐</h3><div class="files-jobs"></div></div><div class="files-message" role="status"></div>';
     var s={id:id,srv:srv,el:el,state:'disconnected',jobs:new Map(),panels:{local:{entries:[],selected:new Set(),version:0,sort:"name",direction:1},remote:{entries:[],selected:new Set(),version:0,sort:"name",direction:1}}};sessions.set(id,s);
     var user=el.querySelector('.files-user');user.value=srv.username||'';if(srv.username)user.closest('label').style.display='none';
     el.querySelector('[data-op="chmod"]').disabled=!!srv.fileProtocol&&srv.fileProtocol!=='sftp';
@@ -152,14 +217,23 @@
     el.querySelectorAll('[data-op]').forEach(function(btn){btn.onclick=function(){remoteAction(s,btn.dataset.op).catch(function(err){message(s,err.message);});};});
     ['local','remote'].forEach(function(side){
       var panel=el.querySelector('[data-side="'+side+'"]');
+      panel.querySelector('[data-open]').onclick=function(){openFolder(s,side).catch(function(err){message(s,err.message);});};
       panel.querySelector('[data-parent]').onclick=function(){refresh(s,side,s.panels[side].parent).catch(function(){});};
       var go=function(){refresh(s,side,panel.querySelector('.files-path').value).catch(function(){});};
       panel.querySelector('[data-refresh]').onclick=go;panel.querySelector('.files-path').onkeydown=function(e){if(e.key==='Enter')go();};
       panel.querySelector('.files-search').oninput=function(){renderPanel(s,side);};panel.querySelector('.files-sort').onchange=function(){s.panels[side].sort=this.value;s.panels[side].direction=1;renderPanel(s,side);};
       panel.querySelectorAll('[data-sort]').forEach(function(btn){btn.onclick=function(){var p=s.panels[side],key=btn.dataset.sort;p.direction=p.sort===key?-(p.direction||1):1;p.sort=key;panel.querySelector('.files-sort').value=key;renderPanel(s,side);};});
-      panel.ondragover=function(e){if(Array.from(e.dataTransfer.types).includes('application/x-onegyeok-files'))e.preventDefault();};
-      panel.ondrop=function(e){var raw=e.dataTransfer.getData('application/x-onegyeok-files');if(!raw)return;e.preventDefault();try{var data=JSON.parse(raw);if(data.id===id&&data.side!==side)sendFiles(s,data.side,data.names).catch(function(err){message(s,err.message);});}catch(err){message(s,err.message);}};
+      panel.ondragover=function(e){if(hasInternal(e)||(side==='remote'&&hasFiles(e))){e.preventDefault();if(side==='remote'&&hasFiles(e))panel.classList.add('files-drop-target');}};
+      panel.ondragleave=function(e){if(!panel.contains(e.relatedTarget))panel.classList.remove('files-drop-target');};
+      panel.ondrop=function(e){panel.classList.remove('files-drop-target');if(side==='remote'&&hasFiles(e)&&!hasInternal(e)){e.preventDefault();uploadDropped(s,e,s.panels.remote.path);return;}var raw=e.dataTransfer.getData('application/x-onegyeok-files');if(!raw)return;e.preventDefault();try{var data=JSON.parse(raw);if(data.id===id&&data.side!==side)sendFiles(s,data.side,data.names).catch(function(err){message(s,err.message);});}catch(err){message(s,err.message);}};
     });
+    var splitter=el.querySelector('.files-splitter'),left=el.querySelector('[data-side="local"]'),wrap=el.querySelector('.files-panels');
+    splitter.onmousedown=function(down){
+      down.preventDefault();var rect=wrap.getBoundingClientRect();document.body.style.userSelect='none';wrap.classList.add('resizing');
+      var move=function(e){var pct=Math.min(85,Math.max(15,(e.clientX-rect.left)/rect.width*100));left.style.flex='0 0 '+pct+'%';};
+      var up=function(){document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);document.body.style.userSelect='';wrap.classList.remove('resizing');};
+      document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+    };
   }
   if(api)api.onEvent(function(id,type,data){
     var s=sessions.get(id);if(!s)return;

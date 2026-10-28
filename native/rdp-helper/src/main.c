@@ -42,6 +42,7 @@
 #define MSG_KEY 0x04
 #define MSG_UNICODE_KEY 0x05
 #define MSG_RESIZE 0x06
+#define MSG_CLIP_FILES 0x08 /* Node -> helper: 로컬 클립보드 파일 목록(clipboard.c) */
 #define MSG_CLIPBOARD 0x07 /* Node -> helper: 로컬 클립보드 텍스트(UTF-8). helper -> Node 방향은 clipboard.c의 0x86 */
 /* helper -> Node */
 #define MSG_CONNECTED 0x81
@@ -525,6 +526,10 @@ int main(void) {
 			case MSG_KEY:
 			case MSG_UNICODE_KEY:
 				if (f.payload_len > 0) queue_push(f.type, f.payload, (uint8_t)f.payload_len);
+				free(f.payload);
+				break;
+			case MSG_CLIP_FILES:
+				clip_set_local_files(f.payload, f.payload_len);
 				free(f.payload);
 				break;
 			case MSG_CLIPBOARD:

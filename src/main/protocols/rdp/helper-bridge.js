@@ -14,6 +14,7 @@ const MSG = {
   KEY: 0x04,
   UNICODE_KEY: 0x05,
   RESIZE: 0x06,
+  CLIP_FILES: 0x08, // 로컬 클립보드 파일 목록(줄마다 d\t크기\t상대경로\t절대경로) — 비어 있으면 지움
   CLIPBOARD: 0x07, // 로컬 클립보드 텍스트(UTF-8) → 헬퍼가 서버에 알린다(cliprdr)
   CONNECTED: 0x81,
   FRAME: 0x82,
@@ -21,6 +22,9 @@ const MSG = {
   LOG: 0x84,
   DESKTOP_RESIZED: 0x85, // 서버가 해상도를 바꿨다({width,height}) — 동적 해상도(화면 크기 조절)
   CLIPBOARD_REMOTE: 0x86, // 원격 클립보드 텍스트(UTF-8)
+  REMOTE_FILES_BEGIN: 0x87, // 원격 클립보드 파일 목록
+  REMOTE_FILE_CHUNK: 0x88, // [u32 항목 번호][내용 조각]
+  REMOTE_FILES_END: 0x89, // [u8 결과] 1 완료 / 0 실패 / 2 상한 초과
 };
 
 function resolveHelperPath() {
@@ -109,6 +113,7 @@ function spawnHelper(onEvent, onLog) {
       writeFrame(child, MSG.RESIZE, p);
     },
     clipboard(text) { writeFrame(child, MSG.CLIPBOARD, Buffer.from(text, 'utf8')); },
+    clipFiles(listing) { writeFrame(child, MSG.CLIP_FILES, listing); },
     kill() {
       try { child.kill(); } catch (_e) { /* noop */ }
     },

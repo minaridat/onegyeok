@@ -43,6 +43,7 @@ macOS(Apple Silicon) 설치 파일(`.dmg`)을 배포하고 직접 사용하면�
 | 31 | 터미널 | macOS: 로컬 터미널(레일 버튼, zsh·bash) — 패키징 앱에서 `git --version` 확인. `app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/`에 `pty.node`·`spawn-helper`(실행 권한) 생성 확인 | ✅ |
 | 32 | 로그 | macOS: 세션 로그 — zsh·bash에서 명령이 겹치지 않고(`git --version`, 백스페이스 포함) 한 줄로 남는지 확인. 입력 줄 다시 그리기(커서 이동·지우기)를 줄 편집으로 반영하도록 `session-log.js`를 고쳐 줄마다 `[시각]`을 붙이고 파일 0600·폴더 0700으로 변경. ConPTY식 커서 위치 지정 출력은 흉내 입력으로만 확인(실제 Windows 미확인) | ✅ (Windows PowerShell·cmd는 확인 필요) |
 | 33 | 빌드 | `scripts/mac/build-native-deps.sh`에 cliprdr·rdpdr·drive·rdpsnd 채널 추가(구성이 바뀌면 FreeRDP만 자동 재빌드), 헬퍼 링크에 macOS 프레임워크(CoreServices·AudioToolbox·CoreAudio·AVFoundation) 추가, `npm install` 후 spawn-helper 실행 권한 부여(`scripts/fix-node-pty.js`), dmg에 다른 OS용 node-pty 바이너리 제외 | ✅ |
+| 34 | RDP | macOS: 클립보드 파일 복사·붙여넣기(양방향). 로컬→원격은 Finder에서 복사한 파일(여러 개)을 서버가 FileGroupDescriptorW로 받아 내용까지 일치(한글 본문, 700KB sha256 동일), 원격→로컬은 서버에서 복사한 파일 3MB sha256 동일·한글 파일명 정상 후 Finder용 파일 클립보드에 올림. 원격 파일은 세션 임시 폴더(0700/0600)에만 받고 새 복사·세션 종료 시 삭제하며 클립보드도 비움. 상한 5GB·2000개 초과 시 받지 않음(200MB 상한일 때 210MB 거절 확인, 5GB로 상향 후 거절 경로는 미재확인). xrdp(FUSE 켠 컨테이너) 기준 — xrdp는 폴더 복사를 지원하지 않아 폴더는 미확인, Windows Server·Windows 앱(여러 파일 읽기는 PowerShell, 쓰기는 Set-Clipboard)은 미확인 | ✅ (macOS, xrdp) / Windows 확인 필요 |
 | 21 | VNC | 비밀번호 인증이 항상 실패 (OpenSSL `no-module` 누락) | ✅ (Windows 빌드에서 발견) |
 
 ---

@@ -165,12 +165,27 @@
     background:var(--text-faint);border:2px solid var(--bg-elevated);}
   .proto-chip.sm .stat{width:6px;height:6px;}
   .proto-chip .stat.on{background:var(--ok);}
-  .proto-chip.proto-ssh{color:var(--proto-ssh);background:var(--proto-ssh-soft);}
-  .proto-chip.proto-sql{color:var(--proto-sql);background:var(--proto-sql-soft);}
-  .proto-chip.proto-rdp{color:var(--proto-rdp);background:var(--proto-rdp-soft);}
-  .proto-chip.proto-vnc{color:var(--proto-vnc);background:var(--proto-vnc-soft);}
-  .proto-chip.proto-sftp{color:var(--proto-sftp);background:var(--proto-sftp-soft);}
-  .proto-chip.proto-web{color:var(--proto-web);background:var(--proto-web-soft);}
+  /* 프로토콜마다 색조가 확 다른 단색 배경 + 흰 아이콘 — 목록·탭·레일에서 한눈에 구분 */
+  .proto-chip{--chip-bg:#64748b;background:var(--chip-bg);color:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.12);}
+  .proto-chip.proto-ssh{--chip-bg:#ea580c;}
+  .proto-chip.proto-sql{--chip-bg:#9333ea;}
+  .proto-chip.proto-rdp{--chip-bg:#2563eb;}
+  .proto-chip.proto-vnc{--chip-bg:#db2777;}
+  .proto-chip.proto-sftp{--chip-bg:#16a34a;}
+  .proto-chip.proto-web{--chip-bg:#0891b2;}
+  .proto-chip.proto-local{--chip-bg:#475569;}
+  .proto-chip.proto-ssh,.proto-chip.proto-sql,.proto-chip.proto-rdp,.proto-chip.proto-vnc,.proto-chip.proto-sftp,.proto-chip.proto-web,.proto-chip.proto-local{color:#fff;background:var(--chip-bg);}
+  .server .proto-chip{width:22px;height:22px;}
+  .server .proto-chip svg{width:14px;height:14px;stroke-width:2;}
+  .tab .proto-chip.sm{width:18px;height:18px;}
+  .tab .proto-chip.sm svg{width:12px;height:12px;stroke-width:2;}
+  .rail-btn[data-filter="ssh"] svg{color:#fb923c;}
+  .rail-btn[data-filter="sql"] svg{color:#c084fc;}
+  .rail-btn[data-filter="rdp"] svg{color:#60a5fa;}
+  .rail-btn[data-filter="vnc"] svg{color:#f472b6;}
+  .rail-btn[data-filter="sftp"] svg{color:#4ade80;}
+  .rail-btn[data-filter="web"] svg{color:#22d3ee;}
+  .rail-btn[data-filter="local"] svg{color:#cbd5e1;}
 
   /* ---------- topbar ---------- */
   .topbar{grid-area:topbar;display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4);
@@ -578,3 +593,11 @@ body.split-dragging{user-select:none;-webkit-user-select:none;}
   border-bottom-width:2px;border-radius:4px;padding:1px 6px;color:var(--text);}
 .sc-or{color:var(--text-faint);font-size:var(--fs-2xs);margin:0 2px;}
 .sc-text{font-size:var(--fs-2xs);color:var(--text);}
+
+/* 서버 우클릭 미니 메뉴 */
+.tree-menu{position:fixed;z-index:10000;min-width:170px;padding:4px;background:var(--bg-elevated);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);display:flex;flex-direction:column;}
+.tree-menu button{background:transparent;border:0;color:inherit;text-align:left;font:inherit;font-size:var(--fs-sm);padding:7px 10px;border-radius:5px;cursor:pointer;}
+.tree-menu button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent);}
+.tree-menu button.danger:hover:not(:disabled){background:rgba(220,38,38,.14);color:var(--danger);}
+.tree-menu button:disabled{opacity:.45;cursor:default;}
+.proto-chip svg{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;}

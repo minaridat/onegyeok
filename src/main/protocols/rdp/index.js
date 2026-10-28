@@ -1,4 +1,5 @@
 const { clipboard } = require('electron');
+const fileClip = require('./file-clipboard');
 const { registerMainProtocol } = require('../../core/protocol-registry');
 const { MSG, spawnHelper, parseFramePayload } = require('./helper-bridge');
 
@@ -110,7 +111,27 @@ let lastLocalText = null;
 function toRemoteText(text) { return text.replace(/\r?\n/g, '\r\n'); }
 
 // Electron 44(macOS)의 clipboard.readText()는 Promise를 돌려주고 Windows는 문자열을 돌려줘서, 둘 다 받도록 항상 await한다.
+// 클립보드에 "파일"이 있으면 파일이 우선이다(텍스트는 보내지 않고 서버에는 파일 목록만 알린다). 파일은 FileGroupDescriptorW로,
+// 실제 내용은 서버가 붙여넣을 때 헬퍼가 로컬 파일을 직접 읽어 보낸다(native/rdp-helper/src/clipboard.c).
+let lastFilesKey = null; // 마지막으로 서버에 알린(또는 원격에서 받아 올린) 파일 목록의 키, 파일이 없으면 null
+const fileReceivers = new Map(); // sessionId -> RemoteFileReceiver
+
 async function pollClipboard() {
+  let paths = [];
+  try { paths = await fileClip.readLocalFilePaths(); } catch (_e) { paths = []; }
+  if (paths.length) {
+    const key = paths.join('\n');
+    if (key === lastFilesKey) return;
+    lastFilesKey = key;
+    const listing = await fileClip.buildListing(paths);
+    clipboardSessions.forEach((id) => { const h = sessions.get(id); if (h) h.clipFiles(listing); });
+    return;
+  }
+  if (lastFilesKey !== null) { // 파일 복사가 풀렸다 — 서버에 알리고 텍스트를 다시 보낸다
+    lastFilesKey = null;
+    lastLocalText = null;
+    clipboardSessions.forEach((id) => { const h = sessions.get(id); if (h) h.clipFiles(Buffer.alloc(0)); });
+  }
   let text;
   try { text = await clipboard.readText(); } catch (_e) { return; }
   if (typeof text !== 'string' || text === lastLocalText) return;
@@ -121,10 +142,18 @@ async function pollClipboard() {
 async function startClipboardSync(sessionId) {
   clipboardSessions.add(sessionId);
   if (!clipboardTimer) clipboardTimer = setInterval(() => { pollClipboard().catch(() => {}); }, CLIPBOARD_POLL_MS);
+  let paths = [];
+  try { paths = await fileClip.readLocalFilePaths(); } catch (_e) { paths = []; }
+  const helper = sessions.get(sessionId);
+  if (paths.length) {
+    const listing = await fileClip.buildListing(paths);
+    if (helper && clipboardSessions.has(sessionId)) helper.clipFiles(listing);
+    if (lastFilesKey === null) lastFilesKey = paths.join('\n');
+    return;
+  }
   let text = '';
   try { text = await clipboard.readText(); } catch (_e) { /* 읽을 수 없으면 빈 클립보드로 시작 */ }
   if (typeof text !== 'string') text = '';
-  const helper = sessions.get(sessionId);
   if (helper && clipboardSessions.has(sessionId)) helper.clipboard(toRemoteText(text));
   if (lastLocalText === null) lastLocalText = text;
 }
@@ -134,10 +163,29 @@ function stopClipboardSync(sessionId) {
   if (!clipboardSessions.size && clipboardTimer) { clearInterval(clipboardTimer); clipboardTimer = null; lastLocalText = null; }
 }
 
+// 원격 → 로컬 파일 복사: 헬퍼가 목록(BEGIN)·내용(CHUNK)·끝(END)을 차례로 보내 준다.
+function onRemoteFiles(sessionId, type, payload) {
+  if (!clipboardSessions.has(sessionId)) return;
+  let receiver = fileReceivers.get(sessionId);
+  if (!receiver) { receiver = new fileClip.RemoteFileReceiver((m) => console.error('[rdp] ' + m)); fileReceivers.set(sessionId, receiver); }
+  try {
+    if (type === MSG.REMOTE_FILES_BEGIN) receiver.begin(payload);
+    else if (type === MSG.REMOTE_FILE_CHUNK) receiver.chunk(payload);
+    else if (type === MSG.REMOTE_FILES_END) {
+      const { paths, stale } = receiver.end(payload);
+      if (stale) { lastFilesKey = null; Promise.resolve(clipboard.clear()).catch(() => {}); }
+      if (!paths.length) return;
+      lastFilesKey = paths.join('\n'); // 원격에서 받은 것 — 다시 원격으로 보내지 않는다
+      fileClip.writeLocalFilePaths(paths);
+    }
+  } catch (err) { console.error('[rdp] 원격 파일 처리 실패: ' + err.message); }
+}
+
 function onRemoteClipboard(sessionId, payload) {
   if (!clipboardSessions.has(sessionId)) return;
   let text = payload.toString('utf8');
   if (process.platform !== 'win32') text = text.replace(/\r\n/g, '\n');
+  lastFilesKey = null; // 텍스트를 쓰면 로컬 클립보드의 파일은 사라진다 — 파일 복사가 풀렸다고 다시 알리지 않게 미리 정리
   lastLocalText = text; // 원격에서 온 것 — 다시 보내지 않는다(쓰기가 비동기여도 다음 폴링 전에 먼저 기록해 둔다)
   try { Promise.resolve(clipboard.writeText(text)).catch(() => {}); } catch (_e) { return; }
   // 다른 RDP 세션들에도 새 로컬 클립보드로 알린다(보낸 세션 자신은 이미 갖고 있다).
@@ -146,6 +194,13 @@ function onRemoteClipboard(sessionId, payload) {
 
 // 세션이 끝날 때 정리할 것들(캐시·흐름 제어·클립보드).
 function forgetSession(sessionId) {
+  const receiver = fileReceivers.get(sessionId);
+  if (receiver) {
+    const stale = receiver.published;
+    receiver.cleanup();
+    fileReceivers.delete(sessionId);
+    if (stale) { lastFilesKey = null; try { Promise.resolve(clipboard.clear()).catch(() => {}); } catch (_e) { /* 무시 */ } } // 지워진 임시 파일을 가리키는 클립보드를 비운다
+  }
   frameCaches.delete(sessionId);
   clearFlow(sessionId);
   stopClipboardSync(sessionId);
@@ -195,6 +250,8 @@ registerMainProtocol('rdp', {
               queueFrame(sessionId, frame);
             } else if (type === MSG.CLIPBOARD_REMOTE) {
               onRemoteClipboard(sessionId, payload);
+            } else if (type === MSG.REMOTE_FILES_BEGIN || type === MSG.REMOTE_FILE_CHUNK || type === MSG.REMOTE_FILES_END) {
+              onRemoteFiles(sessionId, type, payload);
             } else if (type === MSG.DESKTOP_RESIZED) {
               let size = null;
               try { size = JSON.parse(payload.toString('utf8')); } catch (_e) { /* 무시 */ }

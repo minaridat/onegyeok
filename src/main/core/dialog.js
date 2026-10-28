@@ -17,10 +17,15 @@ function wire(ctx) {
   });
 
   // RDP 로컬 폴더 공유 대상 선택
-  ipcMain.handle('dialog:pick-folder', async () => {
+  ipcMain.handle('dialog:pick-folder', async (_event, opts) => {
     const win = getMainWindow();
     if (!win) return { canceled: true };
-    const result = await dialog.showOpenDialog(win, { title: '공유할 폴더 선택', properties: ['openDirectory'] });
+    const o = opts && typeof opts === 'object' ? opts : {};
+    const result = await dialog.showOpenDialog(win, {
+      title: typeof o.title === 'string' ? o.title : '공유할 폴더 선택',
+      defaultPath: typeof o.defaultPath === 'string' && o.defaultPath ? o.defaultPath : undefined,
+      properties: ['openDirectory'],
+    });
     return { canceled: result.canceled, folderPath: result.filePaths[0] || null };
   });
 }
