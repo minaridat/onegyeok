@@ -10,6 +10,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { clipboard } = require('electron');
 const { execFile } = require('node:child_process');
+const { fileURLToPath } = require('node:url');
 
 const MAX_SEND_ENTRIES = 2000; // 로컬 → 원격으로 알릴 항목(폴더 포함) 상한
 const MAX_DEPTH = 12;
@@ -43,13 +44,6 @@ function binaryPlistToXml(buf) {
   });
 }
 
-function runPowerShell(script) {
-  return new Promise((resolve) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '[Console]::OutputEncoding=[Text.Encoding]::UTF8;' + script],
-      { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => resolve(err ? '' : String(stdout)));
-  });
-}
-
 // 로컬 클립보드에 올라 있는 파일/폴더의 절대 경로들(없으면 []).
 async function readLocalFilePaths() {
   let paths = [];
@@ -65,9 +59,15 @@ async function readLocalFilePaths() {
       }
       if (text) paths = Array.from(text.matchAll(/<string>([\s\S]*?)<\/string>/g)).map((m) => xmlDecode(m[1]));
     } else if (process.platform === 'win32') {
-      if (!(await clipboard.has(raw('FileNameW')))) return []; // 파일 복사일 때만 PowerShell로 전체 목록을 읽는다
-      const out = await runPowerShell('Get-Clipboard -Format FileDropList | ForEach-Object { $_.FullName }');
-      paths = out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      // Electron은 Windows 파일 목록(CF_HDROP)을 text/uri-list로 보여 준다 — 탐색기뿐 아니라 CF_HDROP만 올리는 앱(.NET의
+      // Set-Clipboard 등, FileNameW가 없음)의 복사도 잡히고, 0.7초마다 PowerShell을 띄우지 않아도 된다.
+      if (!(await clipboard.has('text/uri-list'))) return [];
+      const text = await readItemText('text/uri-list');
+      if (text) {
+        paths = text.split(/\r?\n/).filter((l) => l.startsWith('file:')).map((l) => {
+          try { return fileURLToPath(l); } catch (_e) { return ''; }
+        }).filter(Boolean);
+      }
     } else {
       const text = await readItemText('text/uri-list');
       if (text) {
@@ -116,20 +116,27 @@ function writeLocalFilePaths(paths) {
   if (process.platform === 'darwin') {
     execFile('osascript', ['-l', 'JavaScript', '-e', MAC_SET_JS, ...paths], () => {});
   } else if (process.platform === 'win32') {
-    const list = paths.map((p) => "'" + p.replace(/'/g, "''") + "'").join(',');
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Set-Clipboard -LiteralPath ' + list], { windowsHide: true }, () => {});
+    // 경로는 명령 문자열에 넣지 않고 환경 변수로 넘긴다. 원격이 정한 파일 이름이 들어 있어, 따옴표로 감싸 넣으면 PowerShell이
+    // 따옴표로 치는 ‘ ’ ‚ ‛ 같은 글자로 문자열을 끝내고 뒤에 명령을 붙일 수 있다(' 하나만 이스케이프해서는 막지 못함).
+    const env = Object.assign({}, process.env, { ONEGYEOK_CLIP_PATHS: paths.join('\n') });
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-STA', '-Command',
+      'Set-Clipboard -LiteralPath ($env:ONEGYEOK_CLIP_PATHS -split [char]10)'], { windowsHide: true, env }, () => {});
   } else {
     const blob = new Blob([paths.map((p) => 'file://' + encodeURI(p)).join('\r\n')], { type: 'text/uri-list' });
     Promise.resolve(clipboard.write([new (require('electron').ClipboardItem)({ 'text/uri-list': blob })])).catch(() => {});
   }
 }
 
+// ':'도 바꾸므로 NTFS 대체 스트림(a.txt:b)은 a.txt_b가 된다. CON·NUL·COM1처럼 Windows가 장치로 여기는 이름(확장자가 붙어도 같음)은
+// 앞에 '_'를 붙인다 — 그대로 열면 파일 대신 장치가 열린다.
 const INVALID_CHARS = /[<>:"|?*\x00-\x1f]/g;
+const RESERVED = /^(con|prn|aux|nul|conin\$|conout\$|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
 function safeParts(rel) {
   const parts = [];
   for (const raw of String(rel).split(/[\\/]+/)) {
     if (!raw || raw === '.' || raw === '..') continue;
-    const part = raw.replace(INVALID_CHARS, '_').replace(/[. ]+$/, '');
+    let part = raw.replace(INVALID_CHARS, '_').replace(/[. ]+$/, '');
+    if (RESERVED.test(part)) part = '_' + part;
     if (part) parts.push(part);
   }
   return parts;
