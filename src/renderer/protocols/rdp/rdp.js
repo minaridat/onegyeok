@@ -11,6 +11,7 @@ var rdpSessions = {}; // tabId -> { state, srv, el, dom, canvas, ctx }
 var hasRdpBridge = !!(window.onegyeok && window.onegyeok.rdp);
 
 // FreeRDP PTR_FLAGS_* (freerdp/input.h) — 마우스 이벤트 비트마스크
+var PTR_FLAGS_HWHEEL = 0x0400;
 var PTR_FLAGS_WHEEL = 0x0200;
 var PTR_FLAGS_WHEEL_NEGATIVE = 0x0100;
 var PTR_FLAGS_MOVE = 0x0800;
@@ -124,12 +125,18 @@ function showRdpConnectForm(tabId){
 }
 
 // 원격 화면이 연결되면 캔버스에 포커스를 줘서 바로 마우스/키보드 입력을 받을 수 있게 한다.
+// 같은 탭에서 다시 접속(연결 종료 → 접속, ↻ 재연결)할 때마다 불리므로, 캔버스마다 한 번만 건다 — 예전엔 접속할 때마다
+// 리스너가 하나씩 더 붙어 키 하나가 두 번, 세 번 입력되고 클릭도 겹쳐 보내졌다.
 function setupRdpInput(tabId){
   var s = rdpSessions[tabId];
   if(!s) return;
   var canvas = s.dom.canvas;
+  if(canvas._rdpInputWired) return;
+  canvas._rdpInputWired = true;
 
+  var lastX = 0, lastY = 0; // 마지막으로 보낸 위치(떼기만 알릴 때 커서가 튀지 않게 이 자리에서 뗀다)
   function sendMouse(x, y, flags){
+    lastX = x; lastY = y;
     if(hasRdpBridge) window.onegyeok.rdp.mouse(tabId, Math.round(x), Math.round(y), flags);
   }
   function buttonFlag(button){
@@ -154,6 +161,32 @@ function setupRdpInput(tabId){
     return { x: x, y: y };
   }
 
+  // 누른 채로 캔버스 밖에서 버튼을 떼면 캔버스는 mouseup을 못 받아, 원격은 버튼이 계속 눌린 것으로 알고 이후 움직임이 전부
+  // 끌기가 된다. 그래서 누르는 동안에는 창 전체에서 움직임·떼기를 받는다(밖으로 나간 좌표는 화면 가장자리로 맞춤).
+  var pressed = {}; // 눌린 버튼(e.button) -> true
+  function anyPressed(){ for(var b in pressed) return true; return false; }
+  function onWindowMove(e){
+    if(e.target === canvas) return; // 캔버스 위는 캔버스 리스너가 보낸다
+    var p = canvasXY(e);
+    sendMouse(p.x, p.y, PTR_FLAGS_MOVE);
+  }
+  function onWindowUp(e){
+    if(!pressed[e.button]) return;
+    delete pressed[e.button];
+    var p = canvasXY(e);
+    sendMouse(p.x, p.y, buttonFlag(e.button));
+    if(!anyPressed()){
+      window.removeEventListener('mousemove', onWindowMove, true);
+      window.removeEventListener('mouseup', onWindowUp, true);
+    }
+  }
+  function releaseAllButtons(){
+    for(var b in pressed) sendMouse(lastX, lastY, buttonFlag(+b));
+    pressed = {};
+    window.removeEventListener('mousemove', onWindowMove, true);
+    window.removeEventListener('mouseup', onWindowUp, true);
+  }
+
   canvas.addEventListener('mousemove', function(e){
     var p = canvasXY(e);
     sendMouse(p.x, p.y, PTR_FLAGS_MOVE);
@@ -161,32 +194,59 @@ function setupRdpInput(tabId){
   canvas.addEventListener('mousedown', function(e){
     canvas.focus();
     var p = canvasXY(e);
+    if(!anyPressed()){
+      window.addEventListener('mousemove', onWindowMove, true);
+      window.addEventListener('mouseup', onWindowUp, true);
+    }
+    pressed[e.button] = true;
     sendMouse(p.x, p.y, PTR_FLAGS_DOWN | buttonFlag(e.button));
     e.preventDefault();
   });
-  canvas.addEventListener('mouseup', function(e){
-    var p = canvasXY(e);
-    sendMouse(p.x, p.y, buttonFlag(e.button));
-    e.preventDefault();
-  });
+  canvas.addEventListener('mouseup', function(e){ e.preventDefault(); }); // 떼기는 onWindowUp이 보낸다
   canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  // 휠: RDP 회전값은 Windows WHEEL_DELTA와 같다(한 칸 = 120, 위로 굴리면 +). 브라우저 deltaY는 반대 방향(아래로 +)이고
+  // 한 칸이 픽셀 100(줄 단위면 3줄)이다. 값은 9비트 2의 보수 — 음수면 NEGATIVE 비트 + (0x100 + 값)(FreeRDP wf_event.c와 같음).
+  // 예전엔 방향을 거꾸로 보내고 음수를 크기 그대로 실어(-100이 아니라 -156으로 해석됨) 위·아래가 뒤집히고 양도 달랐다.
+  // 트랙패드처럼 작은 값이 잦으면 나머지를 모아 두었다가 보낸다. 가로 휠(deltaX, 오른쪽이 +)도 같은 방식으로 보낸다.
+  var wheelRest = { v: 0, h: 0 };
+  function sendWheel(p, axis, amount, flag){
+    wheelRest[axis] += amount;
+    var total = Math.trunc(wheelRest[axis]);
+    wheelRest[axis] -= total;
+    while(total !== 0){
+      var step = Math.max(-255, Math.min(255, total));
+      total -= step;
+      sendMouse(p.x, p.y, flag | (step < 0 ? PTR_FLAGS_WHEEL_NEGATIVE | ((0x100 + step) & 0xFF) : step));
+    }
+  }
   canvas.addEventListener('wheel', function(e){
-    var p = canvasXY(e);
-    var negative = e.deltaY < 0;
-    var units = Math.min(255, Math.max(1, Math.round(Math.abs(e.deltaY)))) & 0xFF;
-    sendMouse(p.x, p.y, PTR_FLAGS_WHEEL | (negative ? PTR_FLAGS_WHEEL_NEGATIVE : 0) | units);
     e.preventDefault();
-  });
+    var p = canvasXY(e);
+    var unit = e.deltaMode === 1 ? 40 : (e.deltaMode === 2 ? 360 : 1.2); // 줄: 3줄 = 120, 페이지: 세 칸, 픽셀: 100 = 120
+    if(e.deltaY) sendWheel(p, 'v', -e.deltaY * unit, PTR_FLAGS_WHEEL);
+    if(e.deltaX) sendWheel(p, 'h', e.deltaX * unit, PTR_FLAGS_HWHEEL);
+  }, { passive: false });
 
+  // 키를 누른 채 포커스가 빠지면(Alt+Tab, 다른 탭 클릭 등) keyup이 오지 않아 원격에서 Ctrl·Shift 같은 키가 눌린 채로
+  // 남는다(이후 클릭이 Ctrl+클릭이 되는 등). 눌린 키를 기억했다가 포커스가 빠질 때 모두 뗀다.
+  var downKeys = {}; // e.code -> true
+  function keyFlags(code, release){ return (EXTENDED_CODES[code] ? KBD_FLAGS_EXTENDED : 0) | (release ? KBD_FLAGS_RELEASE : 0); }
   function sendKey(e, release){
     var scancode = SCANCODE_MAP[e.code];
     if(scancode == null) return; // 매핑 없는 키(미디어 키 등)는 무시 — 알려진 한계
-    var flags = (EXTENDED_CODES[e.code] ? KBD_FLAGS_EXTENDED : 0) | (release ? KBD_FLAGS_RELEASE : 0);
-    if(hasRdpBridge) window.onegyeok.rdp.key(tabId, scancode, flags);
+    if(release) delete downKeys[e.code]; else downKeys[e.code] = true;
+    if(hasRdpBridge) window.onegyeok.rdp.key(tabId, scancode, keyFlags(e.code, release));
     e.preventDefault();
+  }
+  function releaseAllKeys(){
+    for(var code in downKeys){
+      if(hasRdpBridge) window.onegyeok.rdp.key(tabId, SCANCODE_MAP[code], keyFlags(code, true));
+    }
+    downKeys = {};
   }
   canvas.addEventListener('keydown', function(e){ sendKey(e, false); });
   canvas.addEventListener('keyup', function(e){ sendKey(e, true); });
+  canvas.addEventListener('blur', function(){ releaseAllKeys(); releaseAllButtons(); });
 }
 
 // 헬퍼가 보낸 BGRA32 원본 픽셀을 캔버스 ImageData(RGBA)로 바꿔 그 영역에만 그린다.
