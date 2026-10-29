@@ -136,7 +136,8 @@ tree.addEventListener('contextmenu', function(e){
   var items = [
     { label: '새 연결', run: function(){ selectServer(serverId); } },
     { label: open.length ? '모든 연결 닫기 (' + open.length + ')' : '모든 연결 닫기', disabled: !open.length, danger: true, run: function(){
-      if(open.length > 1 && !confirm('"' + serverId + '" 서버의 연결 ' + open.length + '개를 모두 닫을까요?')) return;
+      var srv = SERVERS.find(function(s){ return s.id === serverId; }); // 확인 문구에는 내부 id 대신 사용자가 붙인 이름을 보여준다
+      if(open.length > 1 && !confirm('"' + ((srv && srv.name) || serverId) + '" 서버의 연결 ' + open.length + '개를 모두 닫을까요?')) return;
       open.map(function(t){ return t.dataset.id; }).forEach(function(id){ closeTabById(id); });
     } }
   ];

@@ -53,6 +53,9 @@ static FILE* fopen_utf8(const char* p) { return fopen(p, "rb"); }
 #define fseek64 fseeko
 #endif
 
+/* 목록은 FILEDESCRIPTORW 배열 그대로 오가므로 구조체 크기가 프로토콜 크기(592)와 같아야 한다 — 다르면 컴파일을 멈춘다 */
+typedef char filedescriptorw_size_check[(sizeof(FILEDESCRIPTORW) == DESC_SIZE) ? 1 : -1];
+
 typedef struct {
 	char* abs;       /* 로컬 절대 경로 */
 	WCHAR name[260]; /* 상대 경로(\ 구분, UTF-16) */
@@ -317,6 +320,11 @@ static UINT handle_remote_file_list(CliprdrClientContext* context, const CLIPRDR
 		g_dl.sizes[i] = is_dir ? 0 : size;
 		total += g_dl.sizes[i];
 		if (total > FILES_MAX_BYTES) { ok = 0; break; }
+		/* 원격이 보낸 이름에 탭·줄바꿈 같은 제어 문자가 있으면 Node로 넘기는 줄 형식("d\t크기\t경로\n")이 깨져 가짜 항목이 끼고
+		 * 항목 번호와 내용이 어긋날 수 있다 — 그런 목록은 받지 않는다. */
+		int bad = 0;
+		for (size_t k = 0; k < 260 && d.cFileName[k]; k++) if (d.cFileName[k] < 0x20) { bad = 1; break; }
+		if (bad) { ok = 0; break; }
 		size_t nlen = 0;
 		char* name = ConvertWCharToUtf8Alloc(d.cFileName, &nlen);
 		if (!name) { ok = 0; break; }
